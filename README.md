@@ -1,39 +1,6 @@
 # sundry
 
-```
-                    .-"""""""-.
-                   /           \
-                  |  ___   ___  |
-                  | |   | |   | |
-                  | |___| |___| |
-                  |             |
-                  |   .---.-.   |
-                 /   /  o  o \   \
-                |   | @@@ @@@ |   |
-                |   |  @@@@@  |   |
-                |   | @@@ @@@ |   |
-                |   |  @@@@@  |   |
-                |   |@@@ @ @@@|   |
-                |   | @@@@@@@ |   |
-                |   |@ @@@ @@@|   |
-                |   | @@@@@   |   |
-                |   |@@@ @@@@ |   |
-                |   | @@@@@   |   |
-                |   |  @@@@@  |   |
-                |   | @@@ @@@ |   |
-                 \   \  @@@  /   /
-                  \   `-----'   /
-                   |           |
-                   |  SUN-DRIED |
-                   |  TOMATOES  |
-                   \           /
-                    `---------'
-                       |   |
-                      _|   |_
-                     |_______|
-
-     A jar packed with delicious sun-dried tomatoes
-```
+<img src="https://upload.wikimedia.org/wikipedia/commons/c/cf/Sun-dried_tomatoes.jpg" alt="Sun-dried tomatoes" width="400">
 
 > *"Consisting of an assortment of different kinds; miscellaneous."*
 
