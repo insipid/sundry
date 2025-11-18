@@ -135,10 +135,10 @@ cmd_create() {
     log_success "Review app created successfully!"
     echo ""
     echo "  Branch:   $branch"
-    echo "  Port:     $port"
-    echo "  URL:      http://localhost:$port"
     echo "  Worktree: $worktree"
     echo "  PID:      $pid"
+    echo ""
+    echo "  URL:      http://localhost:$port"
     echo ""
 }
 
