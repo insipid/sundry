@@ -5,9 +5,13 @@ Rive is a lightweight CLI tool for managing ephemeral review applications in git
 ## Features
 
 - **Automatic Worktree Management**: Creates isolated git worktrees for each branch
+- **Repository Namespacing**: Organizes worktrees by repository name to prevent branch name collisions
 - **Smart Port Allocation**: Automatically finds available ports to avoid conflicts
+- **Auto-Cleanup**: Automatically removes clean worktrees when stopping (preserves worktrees with uncommitted changes)
 - **Simple Configuration**: Configure via environment variables, `.env` files, or CLI flags
 - **Process Management**: Start, stop, restart, and monitor review app servers
+- **Verbose Mode**: Debug server startup issues with full command output
+- **Hostname Configuration**: Configure server binding with `RIVE_HOSTNAME` variable
 - **Quick Navigation**: Jump to review app directories with the `cd` command
 
 ## Installation
@@ -173,9 +177,26 @@ rive stop feature/user-auth    # Stop by branch name
 rive stop 40000                # Stop by port number
 ```
 
-**Note:** The worktree is preserved by default. Remove it manually with:
-```bash
-git worktree remove <path>
+**Auto-Cleanup Behavior:**
+- If the worktree is **clean** (no uncommitted/untracked changes): Automatically removed
+- If the worktree is **dirty** (has changes): Preserved with a warning message
+
+**Example output (clean worktree):**
+```
+Success: Review app stopped: feature/user-auth
+Info: Worktree is clean, removing it...
+Success: Worktree removed
+```
+
+**Example output (dirty worktree):**
+```
+Success: Review app stopped: feature/user-auth
+Warning: Worktree has uncommitted changes, keeping it
+Worktree location: /path/to/worktree
+
+The worktree has uncommitted or untracked changes.
+Please commit or discard changes, then remove manually:
+  git worktree remove /path/to/worktree
 ```
 
 ### restart
@@ -283,15 +304,35 @@ rive create feature/branch
 
 ### Server won't start
 
-**Solution:** Check the server command is correct:
+**Solution:** Use verbose mode to see the actual error:
+```bash
+# Run in verbose mode to see full server output
+rive --verbose create feature/branch
+
+# Or with environment variable
+RIVE_VERBOSE=true rive create feature/branch
+```
+
+This will show:
+- The exact command being executed
+- All stdout/stderr from the server process
+- The actual error message causing the failure
+
+**Additional debugging:**
 ```bash
 # Verify configuration
 rive config
 
-# Try running the command manually in the worktree
+# Test the command manually in the worktree
 cd $(rive cd feature/branch)
 npm run dev -- --port 40000
 ```
+
+**Common issues:**
+- Missing dependencies (try `RIVE_AUTO_INSTALL=true`)
+- Wrong server command for your framework
+- Port already in use
+- Server requires additional environment variables
 
 ### Worktree creation failed
 
