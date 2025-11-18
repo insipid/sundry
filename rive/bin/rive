@@ -108,19 +108,27 @@ cmd_create() {
     }
 
     # Start server
-    local pid=$(start_server "$port" "$worktree") || {
-        error_exit 40 "Failed to start server"
+    local pid
+    if ! pid=$(start_server "$port" "$worktree"); then
+        log_error "Failed to start server, cleaning up..."
         remove_worktree "$worktree"
         return 1
-    }
+    fi
+
+    # Verify we got a PID
+    if [[ -z "$pid" ]]; then
+        log_error "Server start returned empty PID, cleaning up..."
+        remove_worktree "$worktree"
+        return 1
+    fi
 
     # Save state
-    state_add_app "$branch" "$port" "$worktree" "$pid" || {
-        error_exit 50 "Failed to save state"
+    if ! state_add_app "$branch" "$port" "$worktree" "$pid"; then
+        log_error "Failed to save state, cleaning up..."
         stop_server "$pid"
         remove_worktree "$worktree"
         return 1
-    }
+    fi
 
     # Success message
     echo ""

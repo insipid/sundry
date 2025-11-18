@@ -9,7 +9,8 @@ start_server() {
 
     # Validate port is numeric
     if ! [[ "$port" =~ ^[0-9]+$ ]]; then
-        error_exit 40 "Invalid port number: $port"
+        log_error "Invalid port number: $port"
+        return 1
     fi
 
     # Replace %PORT% placeholder
@@ -20,7 +21,10 @@ start_server() {
     log_debug "Working directory: $worktree"
 
     # Start server in background
-    cd "$worktree" || error_exit 40 "Failed to change to worktree directory"
+    if ! cd "$worktree"; then
+        log_error "Failed to change to worktree directory: $worktree"
+        return 1
+    fi
 
     # Start process and capture PID
     nohup bash -c "$command" > /dev/null 2>&1 &
@@ -31,7 +35,11 @@ start_server() {
     # Wait briefly and verify process is still running
     sleep 2
     if ! ps -p "$pid" >/dev/null 2>&1; then
-        error_exit 40 "Server process died immediately after start"
+        log_error "Server process died immediately after start"
+        log_error "This usually means the server command failed"
+        log_error "Check: RIVE_SERVER_COMMAND='$RIVE_SERVER_COMMAND'"
+        log_error "You can test the command manually in: $worktree"
+        return 1
     fi
 
     echo "$pid"
