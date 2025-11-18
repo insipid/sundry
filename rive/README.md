@@ -63,8 +63,9 @@ Rive loads configuration from multiple sources with the following precedence:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RIVE_START_PORT` | `40000` | Starting port for allocation |
+| `RIVE_HOSTNAME` | `localhost` | Hostname for server binding |
 | `RIVE_WORKTREE_DIR` | `~/.rive/worktrees` | Base directory for worktrees |
-| `RIVE_SERVER_COMMAND` | `npm run dev -- --port %PORT%` | Server command (`%PORT%` is replaced) |
+| `RIVE_SERVER_COMMAND` | `npm run dev -- --port %PORT%` | Server command (`%PORT%` and `%HOSTNAME%` are replaced) |
 | `RIVE_STATE_FILE` | `~/.rive/state` | State file location |
 | `RIVE_AUTO_INSTALL` | `false` | Auto-install dependencies |
 | `RIVE_INSTALL_COMMAND` | _(auto-detected)_ | Custom install command |
@@ -75,9 +76,25 @@ Rive loads configuration from multiple sources with the following precedence:
 ```bash
 # .env
 RIVE_START_PORT=40000
+RIVE_HOSTNAME=localhost
 RIVE_WORKTREE_DIR=/tmp/rive-worktrees
-RIVE_SERVER_COMMAND="npm run dev -- --port %PORT%"
+RIVE_SERVER_COMMAND="npm run dev -- --port %PORT% --host %HOSTNAME%"
 RIVE_AUTO_INSTALL=true
+```
+
+### Exporting Configuration
+
+You can export the current configuration to a file that can be sourced or used as `.env`:
+
+```bash
+# Save configuration to a file
+rive config > my-config.env
+
+# Source it in your shell
+source my-config.env
+
+# Or use it as .env
+cp my-config.env .env
 ```
 
 ### Framework-Specific Commands
@@ -85,24 +102,25 @@ RIVE_AUTO_INSTALL=true
 **Node.js (npm/yarn/pnpm):**
 ```bash
 RIVE_SERVER_COMMAND="npm run dev -- --port %PORT%"
+RIVE_SERVER_COMMAND="npm run dev -- --port %PORT% --host %HOSTNAME%"
 RIVE_SERVER_COMMAND="yarn dev --port %PORT%"
 RIVE_SERVER_COMMAND="pnpm dev --port %PORT%"
 ```
 
 **Python (Django/Flask):**
 ```bash
-RIVE_SERVER_COMMAND="python manage.py runserver 0.0.0.0:%PORT%"
-RIVE_SERVER_COMMAND="FLASK_RUN_PORT=%PORT% flask run"
+RIVE_SERVER_COMMAND="python manage.py runserver %HOSTNAME%:%PORT%"
+RIVE_SERVER_COMMAND="FLASK_RUN_PORT=%PORT% FLASK_RUN_HOST=%HOSTNAME% flask run"
 ```
 
 **Ruby on Rails:**
 ```bash
-RIVE_SERVER_COMMAND="rails server -p %PORT%"
+RIVE_SERVER_COMMAND="rails server -p %PORT% -b %HOSTNAME%"
 ```
 
 **Go:**
 ```bash
-RIVE_SERVER_COMMAND="PORT=%PORT% go run main.go"
+RIVE_SERVER_COMMAND="PORT=%PORT% HOST=%HOSTNAME% go run main.go"
 ```
 
 ## Commands

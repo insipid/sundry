@@ -13,8 +13,9 @@ start_server() {
         return 1
     fi
 
-    # Replace %PORT% placeholder
+    # Replace %PORT% and %HOSTNAME% placeholders
     local command="${command_template//%PORT%/$port}"
+    command="${command//%HOSTNAME%/$RIVE_HOSTNAME}"
 
     log_info "Starting server on port $port"
     log_debug "Command: $command"

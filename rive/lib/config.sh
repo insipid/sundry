@@ -3,6 +3,7 @@
 
 # Default configuration values
 RIVE_START_PORT="${RIVE_START_PORT:-40000}"
+RIVE_HOSTNAME="${RIVE_HOSTNAME:-localhost}"
 RIVE_WORKTREE_DIR="${RIVE_WORKTREE_DIR:-$HOME/.rive/worktrees}"
 RIVE_SERVER_COMMAND="${RIVE_SERVER_COMMAND:-npm run dev -- --port %PORT%}"
 RIVE_STATE_FILE="${RIVE_STATE_FILE:-$HOME/.rive/state}"
@@ -46,6 +47,7 @@ load_env_file() {
 
     # Update variables with .env values
     RIVE_START_PORT="${RIVE_START_PORT:-40000}"
+    RIVE_HOSTNAME="${RIVE_HOSTNAME:-localhost}"
     RIVE_WORKTREE_DIR="${RIVE_WORKTREE_DIR:-$HOME/.rive/worktrees}"
     RIVE_SERVER_COMMAND="${RIVE_SERVER_COMMAND:-npm run dev -- --port %PORT%}"
     RIVE_STATE_FILE="${RIVE_STATE_FILE:-$HOME/.rive/state}"
@@ -105,13 +107,36 @@ init_config() {
     log_debug "  RIVE_STATE_FILE=$RIVE_STATE_FILE"
 }
 
-# Show current configuration
+# Show current configuration in sourceable format
 show_config() {
-    echo "Current Configuration:"
-    echo "  RIVE_START_PORT=$RIVE_START_PORT"
-    echo "  RIVE_WORKTREE_DIR=$RIVE_WORKTREE_DIR"
-    echo "  RIVE_SERVER_COMMAND=$RIVE_SERVER_COMMAND"
-    echo "  RIVE_STATE_FILE=$RIVE_STATE_FILE"
-    echo "  RIVE_AUTO_INSTALL=$RIVE_AUTO_INSTALL"
-    echo "  RIVE_VERBOSE=$RIVE_VERBOSE"
+    echo "# Rive configuration"
+    echo "# This output can be saved to a file and sourced or used as .env"
+    echo ""
+    echo "# Starting port for review apps"
+    echo "RIVE_START_PORT=$RIVE_START_PORT"
+    echo ""
+    echo "# Hostname for server binding"
+    echo "RIVE_HOSTNAME=$RIVE_HOSTNAME"
+    echo ""
+    echo "# Directory where worktrees will be created"
+    echo "RIVE_WORKTREE_DIR=$RIVE_WORKTREE_DIR"
+    echo ""
+    echo "# Command to start the development server"
+    echo "# %PORT% will be replaced with the allocated port"
+    echo "# %HOSTNAME% will be replaced with the hostname"
+    echo "RIVE_SERVER_COMMAND=\"$RIVE_SERVER_COMMAND\""
+    echo ""
+    echo "# State file location"
+    echo "RIVE_STATE_FILE=$RIVE_STATE_FILE"
+    echo ""
+    echo "# Automatically install dependencies when creating worktree"
+    echo "RIVE_AUTO_INSTALL=$RIVE_AUTO_INSTALL"
+    echo ""
+    if [[ -n "$RIVE_INSTALL_COMMAND" ]]; then
+        echo "# Custom install command"
+        echo "RIVE_INSTALL_COMMAND=\"$RIVE_INSTALL_COMMAND\""
+        echo ""
+    fi
+    echo "# Enable verbose logging"
+    echo "RIVE_VERBOSE=$RIVE_VERBOSE"
 }
