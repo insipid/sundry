@@ -5,13 +5,8 @@
 get_repo_name() {
     local repo_name
 
-    # Try to get from git remote URL first
-    repo_name=$(git config --get remote.origin.url 2>/dev/null | sed -E 's|.*/([^/]+)(\.git)?$|\1|' | sed 's/\.git$//')
-
-    # If no remote, use the current directory name
-    if [[ -z "$repo_name" ]]; then
-        repo_name=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-    fi
+    # Use the git repository root directory name
+    repo_name=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 
     # Sanitize the repo name
     echo "$repo_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g'

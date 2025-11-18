@@ -311,7 +311,7 @@ Worktrees are organized by repository name to prevent branch name collisions acr
 
 ```
 ~/.rive/worktrees/
-├── my-app/                    # Repository name (from git remote or directory)
+├── my-app/                    # Repository directory name
 │   ├── main/                  # Branch: main
 │   ├── feature-auth/          # Branch: feature/auth
 │   └── bugfix-login/          # Branch: bugfix/login
@@ -319,6 +319,8 @@ Worktrees are organized by repository name to prevent branch name collisions acr
     ├── main/
     └── develop/
 ```
+
+**Repository Name:** Uses the git repository root directory name (sanitized).
 
 **Benefits:**
 - Multiple repositories can use rive on the same machine
