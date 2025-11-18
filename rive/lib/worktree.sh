@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 # Worktree management for rive CLI
 
+# Get repository name for namespacing worktrees
+get_repo_name() {
+    local repo_name
+
+    # Try to get from git remote URL first
+    repo_name=$(git config --get remote.origin.url 2>/dev/null | sed -E 's|.*/([^/]+)(\.git)?$|\1|' | sed 's/\.git$//')
+
+    # If no remote, use the current directory name
+    if [[ -z "$repo_name" ]]; then
+        repo_name=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+    fi
+
+    # Sanitize the repo name
+    echo "$repo_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g'
+}
+
 # Validate branch exists
 validate_branch() {
     local branch="$1"
@@ -42,9 +58,13 @@ create_worktree() {
     # Validate branch
     validate_branch "$branch" || return 1
 
-    # Generate worktree path
+    # Get repository name for namespacing
+    local repo_name=$(get_repo_name)
+    log_debug "Repository name: $repo_name"
+
+    # Generate worktree path with repo namespace
     local sanitized=$(sanitize_branch_name "$branch")
-    local worktree_path="$base_dir/$sanitized"
+    local worktree_path="$base_dir/$repo_name/$sanitized"
 
     # Check if worktree already exists
     if [[ -d "$worktree_path" ]]; then
@@ -53,10 +73,11 @@ create_worktree() {
         return 0
     fi
 
-    # Create base directory if needed
-    if [[ ! -d "$base_dir" ]]; then
-        mkdir -p "$base_dir" || {
-            error_exit 20 "Failed to create worktree base directory: $base_dir"
+    # Create repo-specific directory if needed
+    local repo_dir="$base_dir/$repo_name"
+    if [[ ! -d "$repo_dir" ]]; then
+        mkdir -p "$repo_dir" || {
+            error_exit 20 "Failed to create worktree directory: $repo_dir"
         }
     fi
 

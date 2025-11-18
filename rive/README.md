@@ -288,6 +288,8 @@ export RIVE_WORKTREE_DIR=/tmp/rive-worktrees
 
 ## Architecture
 
+### Code Structure
+
 ```
 rive/
 ├── bin/
@@ -302,6 +304,27 @@ rive/
 └── tests/
     └── ...            # Test files
 ```
+
+### Worktree Directory Structure
+
+Worktrees are organized by repository name to prevent branch name collisions across different repositories:
+
+```
+~/.rive/worktrees/
+├── my-app/                    # Repository name (from git remote or directory)
+│   ├── main/                  # Branch: main
+│   ├── feature-auth/          # Branch: feature/auth
+│   └── bugfix-login/          # Branch: bugfix/login
+└── other-project/
+    ├── main/
+    └── develop/
+```
+
+**Benefits:**
+- Multiple repositories can use rive on the same machine
+- Branch names don't collide between repos
+- Easy to identify which worktree belongs to which project
+- Clean organization when working with multiple projects
 
 ## Development
 
