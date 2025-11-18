@@ -28,11 +28,11 @@ log_warning() {
 }
 
 log_info() {
-    echo -e "${BLUE}Info:${NC} $*"
+    echo -e "${BLUE}Info:${NC} $*" >&2
 }
 
 log_success() {
-    echo -e "${GREEN}Success:${NC} $*"
+    echo -e "${GREEN}Success:${NC} $*" >&2
 }
 
 log_debug() {
