@@ -218,12 +218,23 @@ cmd_stop() {
     # Remove from state
     state_remove_app "$branch"
 
-    # Ask about worktree cleanup
     echo ""
     log_success "Review app stopped: $branch"
     echo ""
-    echo "Worktree still exists at: $worktree"
-    echo "To remove it, run: git worktree remove $worktree"
+
+    # Check if worktree is clean and remove it
+    if is_worktree_clean "$worktree"; then
+        log_info "Worktree is clean, removing it..."
+        remove_worktree "$worktree"
+        log_success "Worktree removed"
+    else
+        log_warning "Worktree has uncommitted changes, keeping it"
+        echo "Worktree location: $worktree"
+        echo ""
+        echo "The worktree has uncommitted or untracked changes."
+        echo "Please commit or discard changes, then remove manually:"
+        echo "  git worktree remove $worktree"
+    fi
     echo ""
 }
 

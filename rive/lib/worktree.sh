@@ -76,6 +76,25 @@ create_worktree() {
     fi
 }
 
+# Check if worktree has uncommitted changes
+is_worktree_clean() {
+    local worktree_path="$1"
+
+    if [[ ! -d "$worktree_path" ]]; then
+        return 0  # Doesn't exist, consider it clean
+    fi
+
+    # Check git status in the worktree
+    local status
+    status=$(cd "$worktree_path" && git status --porcelain 2>/dev/null)
+
+    if [[ -z "$status" ]]; then
+        return 0  # Clean
+    else
+        return 1  # Dirty
+    fi
+}
+
 # Remove git worktree
 remove_worktree() {
     local worktree_path="$1"

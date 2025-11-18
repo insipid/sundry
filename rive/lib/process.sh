@@ -27,8 +27,18 @@ start_server() {
     fi
 
     # Start process and capture PID
-    nohup bash -c "$command" > /dev/null 2>&1 &
-    local pid=$!
+    if [[ "${RIVE_VERBOSE:-false}" == "true" ]]; then
+        # In verbose mode, show the actual command and let output go to terminal
+        log_debug "Executing command in worktree..."
+        log_debug "$ cd $worktree && $command"
+        echo "--- Server Output (verbose mode) ---" >&2
+        bash -c "$command" &
+        local pid=$!
+    else
+        # In normal mode, suppress output
+        nohup bash -c "$command" > /dev/null 2>&1 &
+        local pid=$!
+    fi
 
     log_info "Server started with PID $pid"
 
