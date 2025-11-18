@@ -30,6 +30,7 @@ COMMANDS:
     stop <branch|port>   Stop a review app
     restart <branch>     Restart a review app
     cd <branch|port>     Print the path to a review app's worktree
+    pull <branch|port>   Pull latest changes in a review app's worktree
     config               Show current configuration
     clean                Clean up stale state entries
     help                 Show this help message
@@ -273,6 +274,44 @@ cmd_cd() {
     echo "$worktree"
 }
 
+# Command: pull
+cmd_pull() {
+    local identifier="$1"
+
+    if [[ -z "$identifier" ]]; then
+        error_exit 1 "Branch or port is required. Usage: rive pull <branch|port>"
+    fi
+
+    # Try to find by branch first
+    local app=$(state_get_app "$identifier")
+
+    # If not found, try by port
+    if [[ -z "$app" ]]; then
+        app=$(state_get_app_by_port "$identifier")
+    fi
+
+    if [[ -z "$app" ]]; then
+        error_exit 1 "Review app not found: $identifier"
+    fi
+
+    local branch=$(parse_state_line "$app" "branch")
+    local worktree=$(parse_state_line "$app" "worktree")
+
+    log_info "Pulling latest changes for $branch"
+    log_debug "Worktree: $worktree"
+
+    # Run git pull in the worktree
+    if ! cd "$worktree"; then
+        error_exit 1 "Failed to change to worktree directory: $worktree"
+    fi
+
+    if git pull; then
+        log_success "Successfully pulled latest changes"
+    else
+        error_exit 1 "Git pull failed"
+    fi
+}
+
 # Command: config
 cmd_config() {
     show_config
@@ -343,6 +382,10 @@ main() {
         cd)
             shift
             cmd_cd "$@"
+            ;;
+        pull)
+            shift
+            cmd_pull "$@"
             ;;
         config)
             cmd_config
