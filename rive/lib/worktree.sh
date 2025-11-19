@@ -53,6 +53,17 @@ create_worktree() {
     # Validate branch
     validate_branch "$branch" || return 1
 
+    # Check if branch is currently checked out in main working directory
+    local current_branch=$(git branch --show-current 2>/dev/null)
+    if [[ "$current_branch" == "$branch" ]]; then
+        log_error "Branch '$branch' is currently checked out in the main working directory"
+        log_error "Git cannot create a worktree for a branch that is already checked out"
+        log_error "Please switch to a different branch first:"
+        log_error "  git checkout main"
+        log_error "  rive create $branch"
+        return 1
+    fi
+
     # Get repository name for namespacing
     local repo_name=$(get_repo_name)
     log_debug "Repository name: $repo_name"

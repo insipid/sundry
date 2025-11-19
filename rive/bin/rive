@@ -99,9 +99,10 @@ cmd_create() {
     }
 
     # Create worktree
-    local worktree=$(create_worktree "$branch") || {
+    local worktree
+    if ! worktree=$(create_worktree "$branch"); then
         error_exit 20 "Failed to create worktree"
-    }
+    fi
 
     # Install dependencies if configured
     install_dependencies "$worktree" || {
