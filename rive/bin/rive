@@ -26,8 +26,10 @@ USAGE:
 
 COMMANDS:
     create <branch>      Create a new review app from a git branch
+      (aliases: start, add)
     list                 List all running review apps
     stop <branch|port>   Stop a review app
+      (aliases: delete, remove)
     restart <branch>     Restart a review app
     cd <branch|port>     Print the path to a review app's worktree
     pull <branch|port>   Pull latest changes in a review app's worktree
@@ -78,7 +80,7 @@ EOF
 
 # Command: create
 cmd_create() {
-    local branch="$1"
+    local branch="${1:-}"
 
     if [[ -z "$branch" ]]; then
         error_exit 1 "Branch name is required. Usage: rive create <branch>"
@@ -192,7 +194,7 @@ cmd_list() {
 
 # Command: stop
 cmd_stop() {
-    local identifier="$1"
+    local identifier="${1:-}"
 
     if [[ -z "$identifier" ]]; then
         error_exit 1 "Branch or port is required. Usage: rive stop <branch|port>"
@@ -242,7 +244,7 @@ cmd_stop() {
 
 # Command: restart
 cmd_restart() {
-    local branch="$1"
+    local branch="${1:-}"
 
     if [[ -z "$branch" ]]; then
         error_exit 1 "Branch name is required. Usage: rive restart <branch>"
@@ -253,7 +255,7 @@ cmd_restart() {
 
 # Command: cd
 cmd_cd() {
-    local identifier="$1"
+    local identifier="${1:-}"
 
     if [[ -z "$identifier" ]]; then
         error_exit 1 "Branch or port is required. Usage: rive cd <branch|port>"
@@ -277,7 +279,7 @@ cmd_cd() {
 
 # Command: pull
 cmd_pull() {
-    local identifier="$1"
+    local identifier="${1:-}"
 
     if [[ -z "$identifier" ]]; then
         error_exit 1 "Branch or port is required. Usage: rive pull <branch|port>"
@@ -365,14 +367,14 @@ main() {
 
     # Parse command
     case "$command" in
-        create)
+        create|start|add)
             shift
             cmd_create "$@"
             ;;
         list|ls)
             cmd_list
             ;;
-        stop)
+        stop|delete|remove)
             shift
             cmd_stop "$@"
             ;;
