@@ -94,6 +94,17 @@ create_worktree() {
     local git_output
     if git_output=$(git worktree add "$worktree_path" "$branch" 2>&1); then
         log_debug "Worktree created successfully"
+
+        # Set up upstream tracking if remote branch exists
+        if git rev-parse --verify "origin/$branch" >/dev/null 2>&1; then
+            log_debug "Setting upstream to origin/$branch"
+            (cd "$worktree_path" && git branch --set-upstream-to="origin/$branch" 2>&1) || {
+                log_warning "Failed to set upstream branch, git pull may not work"
+            }
+        else
+            log_debug "No remote branch found, skipping upstream setup"
+        fi
+
         echo "$worktree_path"
         return 0
     else
