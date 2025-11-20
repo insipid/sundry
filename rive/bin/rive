@@ -28,11 +28,12 @@ COMMANDS:
     create <branch>      Create a new review app from a git branch
       (aliases: new, start, add, up)
     list                 List all running review apps
-    stop <branch|port>   Stop a review app
+    stop [branch|port]   Stop a review app (uses current if not specified)
       (aliases: del, delete, remove, down)
-    restart <branch>     Restart a review app
-    cd <branch|port>     Print the path to a review app's worktree
-    pull <branch|port>   Pull latest changes in a review app's worktree
+    restart [branch]     Restart a review app (uses current if not specified)
+    cd [branch|port]     Print the path to a review app's worktree
+    pull [branch|port]   Pull latest changes in a review app's worktree
+    use [branch|port]    Set current app context (show current if not specified)
     config               Show current configuration
     clean                Clean up stale state entries
     help                 Show this help message
@@ -62,6 +63,14 @@ EXAMPLES:
 
     # List all review apps
     rive list
+
+    # Set current app context
+    rive use feature/new-ui
+
+    # Now you can use commands without specifying the app
+    rive cd              # Navigate to current app
+    rive pull            # Pull latest changes for current app
+    rive stop            # Stop current app
 
     # Stop a review app by branch name
     rive stop feature/new-ui
@@ -197,8 +206,12 @@ cmd_list() {
 cmd_stop() {
     local identifier="${1:-}"
 
+    # Fall back to current app if no identifier provided
     if [[ -z "$identifier" ]]; then
-        error_exit 1 "Branch or port is required. Usage: rive stop <branch|port>"
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive stop <branch|port>"
+        fi
+        log_debug "Using current app: $identifier"
     fi
 
     # Try to find by branch first
@@ -222,6 +235,14 @@ cmd_stop() {
 
     # Remove from state
     state_remove_app "$branch"
+
+    # Clear current app if it was this branch
+    if current=$(get_current_app 2>/dev/null); then
+        if [[ "$current" == "$branch" ]]; then
+            clear_current_app
+            log_debug "Cleared current app (was stopped)"
+        fi
+    fi
 
     echo ""
     log_success "Review app stopped: $branch"
@@ -247,8 +268,12 @@ cmd_stop() {
 cmd_restart() {
     local branch="${1:-}"
 
+    # Fall back to current app if no branch provided
     if [[ -z "$branch" ]]; then
-        error_exit 1 "Branch name is required. Usage: rive restart <branch>"
+        if ! branch=$(get_current_app); then
+            error_exit 1 "No branch specified and no current app set. Usage: rive restart <branch>"
+        fi
+        log_debug "Using current app: $branch"
     fi
 
     restart_server "$branch"
@@ -258,8 +283,12 @@ cmd_restart() {
 cmd_cd() {
     local identifier="${1:-}"
 
+    # Fall back to current app if no identifier provided
     if [[ -z "$identifier" ]]; then
-        error_exit 1 "Branch or port is required. Usage: rive cd <branch|port>"
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive cd <branch|port>"
+        fi
+        log_debug "Using current app: $identifier"
     fi
 
     # Try to find by branch first
@@ -282,8 +311,12 @@ cmd_cd() {
 cmd_pull() {
     local identifier="${1:-}"
 
+    # Fall back to current app if no identifier provided
     if [[ -z "$identifier" ]]; then
-        error_exit 1 "Branch or port is required. Usage: rive pull <branch|port>"
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive pull <branch|port>"
+        fi
+        log_debug "Using current app: $identifier"
     fi
 
     # Try to find by branch first
@@ -326,6 +359,61 @@ cmd_clean() {
     log_info "Cleaning stale entries..."
     state_clean_stale
     log_success "Stale entries cleaned"
+}
+
+# Command: use
+cmd_use() {
+    local identifier="${1:-}"
+
+    # If --clear flag
+    if [[ "$identifier" == "--clear" ]]; then
+        clear_current_app
+        log_success "Cleared current app"
+        return 0
+    fi
+
+    # If no argument, show current app
+    if [[ -z "$identifier" ]]; then
+        if current=$(get_current_app); then
+            local app=$(state_get_app "$current")
+            if [[ -z "$app" ]]; then
+                log_error "Current app no longer exists: $current"
+                clear_current_app
+                return 1
+            fi
+
+            local branch=$(parse_state_line "$app" "branch")
+            local port=$(parse_state_line "$app" "port")
+            local worktree=$(parse_state_line "$app" "worktree")
+
+            echo "Current app: $branch"
+            echo "  Port:     $port"
+            echo "  Worktree: $worktree"
+            echo "  URL:      http://localhost:$port"
+            return 0
+        else
+            echo "No current app set"
+            echo ""
+            echo "Usage: rive use <branch|port>"
+            return 1
+        fi
+    fi
+
+    # Set current app
+    if set_current_app "$identifier"; then
+        local app=$(state_get_app "$identifier")
+        if [[ -z "$app" ]]; then
+            app=$(state_get_app_by_port "$identifier")
+        fi
+
+        local branch=$(parse_state_line "$app" "branch")
+        local port=$(parse_state_line "$app" "port")
+
+        log_success "Set current app to: $branch (port $port)"
+        return 0
+    else
+        error_exit 1 "Review app not found: $identifier"
+    fi
 }
 
 # Main entry point
@@ -390,6 +478,10 @@ main() {
         pull)
             shift
             cmd_pull "$@"
+            ;;
+        use)
+            shift
+            cmd_use "$@"
             ;;
         config)
             cmd_config

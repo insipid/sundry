@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # State management for rive CLI
 
+# Current app file location
+RIVE_CURRENT_FILE="${RIVE_CURRENT_FILE:-$HOME/.rive/current}"
+
 # Initialize state file
 init_state_file() {
     local state_file="$RIVE_STATE_FILE"
@@ -148,4 +151,53 @@ state_clean_stale() {
     done < "$state_file"
 
     mv "$temp_file" "$state_file"
+}
+
+# Set current app
+set_current_app() {
+    local identifier="$1"
+
+    # Validate that the app exists
+    local app=$(state_get_app "$identifier")
+    if [[ -z "$app" ]]; then
+        app=$(state_get_app_by_port "$identifier")
+    fi
+
+    if [[ -z "$app" ]]; then
+        return 1
+    fi
+
+    # Get the branch name to store
+    local branch=$(parse_state_line "$app" "branch")
+
+    # Write to current file
+    echo "$branch" > "$RIVE_CURRENT_FILE"
+    log_debug "Set current app to: $branch"
+    return 0
+}
+
+# Get current app identifier
+get_current_app() {
+    # Check environment variable first
+    if [[ -n "${RIVE_CURRENT_APP:-}" ]]; then
+        echo "$RIVE_CURRENT_APP"
+        return 0
+    fi
+
+    # Check current file
+    if [[ -f "$RIVE_CURRENT_FILE" ]]; then
+        cat "$RIVE_CURRENT_FILE"
+        return 0
+    fi
+
+    return 1
+}
+
+# Clear current app
+clear_current_app() {
+    if [[ -f "$RIVE_CURRENT_FILE" ]]; then
+        rm "$RIVE_CURRENT_FILE"
+    fi
+    log_debug "Cleared current app"
+    return 0
 }
