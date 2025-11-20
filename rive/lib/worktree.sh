@@ -114,9 +114,9 @@ is_worktree_clean() {
         return 0  # Doesn't exist, consider it clean
     fi
 
-    # Check git status in the worktree
+    # Check git status in the worktree, excluding .rive-server.log
     local status
-    status=$(cd "$worktree_path" && git status --porcelain 2>/dev/null)
+    status=$(cd "$worktree_path" && git status --porcelain 2>/dev/null | grep -v '^?? \.rive-server\.log$')
 
     if [[ -z "$status" ]]; then
         return 0  # Clean
