@@ -29,11 +29,12 @@ start_server() {
 
     # Start process and capture PID
     if [[ "${RIVE_VERBOSE:-false}" == "true" ]]; then
-        # In verbose mode, show the actual command and let output go to terminal
+        # In verbose mode, show the actual command and redirect to log file
+        local log_file="$worktree/.rive-server.log"
         log_debug "Executing command in worktree..."
         log_debug "$ cd $worktree && $command"
-        echo "--- Server Output (verbose mode) ---" >&2
-        bash -c "$command" &
+        log_info "Server output will be logged to: $log_file"
+        nohup bash -c "$command" > "$log_file" 2>&1 &
         local pid=$!
     else
         # In normal mode, suppress output
