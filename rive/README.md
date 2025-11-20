@@ -73,6 +73,7 @@ Rive loads configuration from multiple sources with the following precedence:
 | `RIVE_STATE_FILE` | `~/.rive/state` | State file location |
 | `RIVE_AUTO_INSTALL` | `false` | Auto-install dependencies |
 | `RIVE_INSTALL_COMMAND` | _(auto-detected)_ | Custom install command |
+| `RIVE_ENABLE_LOGS` | `false` | Log server output to `.rive-server.log` in worktree |
 | `RIVE_VERBOSE` | `false` | Enable verbose output |
 
 ### Example .env File
@@ -304,7 +305,16 @@ rive create feature/branch
 
 ### Server won't start
 
-**Solution:** Use verbose mode to see the actual error:
+**Solution 1:** Enable log files to capture server output:
+```bash
+# Enable logs for all servers
+RIVE_ENABLE_LOGS=true rive create feature/branch
+
+# Then check the log file
+tail -f ~/.rive/worktrees/<repo>/<branch>/.rive-server.log
+```
+
+**Solution 2:** Use verbose mode for immediate debugging:
 ```bash
 # Run in verbose mode to see full server output
 rive --verbose create feature/branch
@@ -315,7 +325,7 @@ RIVE_VERBOSE=true rive create feature/branch
 
 This will show:
 - The exact command being executed
-- All stdout/stderr from the server process
+- Log file location where server output is captured
 - The actual error message causing the failure
 
 **Additional debugging:**

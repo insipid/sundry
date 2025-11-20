@@ -9,6 +9,7 @@ RIVE_SERVER_COMMAND="${RIVE_SERVER_COMMAND:-npm run dev -- --port %PORT%}"
 RIVE_STATE_FILE="${RIVE_STATE_FILE:-$HOME/.rive/state}"
 RIVE_AUTO_INSTALL="${RIVE_AUTO_INSTALL:-false}"
 RIVE_INSTALL_COMMAND="${RIVE_INSTALL_COMMAND:-}"
+RIVE_ENABLE_LOGS="${RIVE_ENABLE_LOGS:-false}"
 RIVE_VERBOSE="${RIVE_VERBOSE:-false}"
 
 # Load .env file if it exists
@@ -53,6 +54,7 @@ load_env_file() {
     RIVE_STATE_FILE="${RIVE_STATE_FILE:-$HOME/.rive/state}"
     RIVE_AUTO_INSTALL="${RIVE_AUTO_INSTALL:-false}"
     RIVE_INSTALL_COMMAND="${RIVE_INSTALL_COMMAND:-}"
+    RIVE_ENABLE_LOGS="${RIVE_ENABLE_LOGS:-false}"
 
     return 0
 }
@@ -137,6 +139,9 @@ show_config() {
         echo "RIVE_INSTALL_COMMAND=\"$RIVE_INSTALL_COMMAND\""
         echo ""
     fi
+    echo "# Enable server log files (.rive-server.log in worktree)"
+    echo "RIVE_ENABLE_LOGS=$RIVE_ENABLE_LOGS"
+    echo ""
     echo "# Enable verbose logging"
     echo "RIVE_VERBOSE=$RIVE_VERBOSE"
 }
