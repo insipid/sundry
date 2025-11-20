@@ -89,17 +89,20 @@ create_worktree() {
 
     # Create worktree
     log_info "Creating worktree at $worktree_path"
-    if git worktree add "$worktree_path" "$branch" 2>&1 | grep -v "^Preparing worktree" | grep -v "^HEAD is now at"; then
-        # Show errors if any
-        :
-    fi
 
-    if [[ -d "$worktree_path" ]]; then
-        log_info "Worktree created successfully"
+    # Capture git worktree output
+    local git_output
+    if git_output=$(git worktree add "$worktree_path" "$branch" 2>&1); then
+        log_debug "Worktree created successfully"
         echo "$worktree_path"
         return 0
     else
-        error_exit 20 "Failed to create worktree"
+        # Git command failed, show the error
+        log_error "Git worktree creation failed:"
+        echo "$git_output" | while IFS= read -r line; do
+            log_error "  $line"
+        done
+        return 1
     fi
 }
 
