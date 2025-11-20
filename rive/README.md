@@ -73,7 +73,7 @@ Rive loads configuration from multiple sources with the following precedence:
 | `RIVE_STATE_FILE` | `~/.rive/state` | State file location |
 | `RIVE_AUTO_INSTALL` | `false` | Auto-install dependencies |
 | `RIVE_INSTALL_COMMAND` | _(auto-detected)_ | Custom install command |
-| `RIVE_ENABLE_LOGS` | `false` | Log server output to `.rive-server.log` in worktree |
+| `RIVE_ENABLE_LOGS` | `false` | Log server output to `.rive-server.log` in worktree (auto-cleaned on stop) |
 | `RIVE_VERBOSE` | `false` | Enable verbose output |
 
 ### Example .env File
@@ -181,6 +181,8 @@ rive stop 40000                # Stop by port number
 **Auto-Cleanup Behavior:**
 - If the worktree is **clean** (no uncommitted/untracked changes): Automatically removed
 - If the worktree is **dirty** (has changes): Preserved with a warning message
+
+> **Note:** The `.rive-server.log` file is automatically excluded from the dirty check. Worktrees containing only this log file will be cleaned up automatically, even though the file is untracked.
 
 **Example output (clean worktree):**
 ```
@@ -313,6 +315,8 @@ RIVE_ENABLE_LOGS=true rive create feature/branch
 # Then check the log file
 tail -f ~/.rive/worktrees/<repo>/<branch>/.rive-server.log
 ```
+
+> **Note:** Log files are automatically cleaned up when stopping the review app, so they won't prevent worktree removal.
 
 **Solution 2:** Use verbose mode for immediate debugging:
 ```bash
