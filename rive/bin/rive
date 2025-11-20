@@ -144,6 +144,10 @@ cmd_create() {
         return 1
     fi
 
+    # Set as current app
+    set_current_app "$branch"
+    log_debug "Set as current app"
+
     # Success message
     echo ""
     log_success "Review app created successfully!"
