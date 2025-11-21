@@ -100,14 +100,19 @@ create_worktree() {
         if upstream=$(git rev-parse --abbrev-ref "$branch@{upstream}" 2>/dev/null); then
             log_debug "Found upstream in main repo: $upstream"
 
-            # Verify the remote branch actually exists
-            if git rev-parse --verify "$upstream" >/dev/null 2>&1; then
+            # Parse remote and branch from upstream
+            local remote="${upstream%%/*}"
+            local remote_branch="${upstream#*/}"
+
+            # Verify we can fetch from the remote branch
+            if git ls-remote --heads "$remote" "$remote_branch" | grep -q "$remote_branch"; then
+                log_debug "Remote branch exists, setting upstream in worktree"
                 # Set the same upstream in the worktree
                 (cd "$worktree_path" && git branch --set-upstream-to="$upstream" 2>&1) || {
                     log_warning "Failed to set upstream branch, git pull may not work"
                 }
             else
-                log_debug "Remote branch $upstream doesn't exist, skipping upstream setup"
+                log_debug "Remote branch $upstream doesn't exist on remote, skipping upstream setup"
             fi
         else
             log_debug "No upstream configured for branch, skipping upstream setup"

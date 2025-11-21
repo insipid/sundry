@@ -356,20 +356,31 @@ cmd_pull() {
         local remote_branch="${upstream#*/}"
 
         log_info "Fetching $remote_branch from $remote..."
-        if ! git fetch "$remote" "$remote_branch"; then
-            error_exit 1 "Git fetch failed"
-        fi
-    else
-        log_info "No upstream configured, fetching from origin..."
-        if ! git fetch origin "$branch"; then
-            error_exit 1 "Git fetch failed"
-        fi
-    fi
 
-    if git pull; then
-        log_success "Successfully pulled latest changes"
+        # Try to fetch the specific branch
+        if git fetch "$remote" "$remote_branch" 2>&1 | grep -q "couldn't find remote ref"; then
+            log_error "Remote branch does not exist: $remote/$remote_branch"
+            echo ""
+            echo "This branch exists only locally and has not been pushed to the remote."
+            echo "To push it first, run:"
+            echo "  cd $worktree"
+            echo "  git push -u $remote $branch"
+            return 1
+        fi
+
+        if git pull; then
+            log_success "Successfully pulled latest changes"
+        else
+            error_exit 1 "Git pull failed"
+        fi
     else
-        error_exit 1 "Git pull failed"
+        log_warning "No upstream configured for this branch"
+        echo ""
+        echo "This branch has no remote tracking branch set up."
+        echo "To set one up, run:"
+        echo "  cd $worktree"
+        echo "  git push -u origin $branch"
+        return 1
     fi
 }
 
