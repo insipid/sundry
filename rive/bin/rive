@@ -341,14 +341,29 @@ cmd_pull() {
     log_info "Pulling latest changes for $branch"
     log_debug "Worktree: $worktree"
 
-    # Run git fetch and pull in the worktree
+    # Change to worktree directory
     if ! cd "$worktree"; then
         error_exit 1 "Failed to change to worktree directory: $worktree"
     fi
 
-    log_info "Fetching from remote..."
-    if ! git fetch; then
-        error_exit 1 "Git fetch failed"
+    # Get the upstream branch if configured
+    local upstream
+    if upstream=$(git rev-parse --abbrev-ref "@{upstream}" 2>/dev/null); then
+        log_debug "Found upstream: $upstream"
+
+        # Parse remote and branch from upstream (format: remote/branch)
+        local remote="${upstream%%/*}"
+        local remote_branch="${upstream#*/}"
+
+        log_info "Fetching $remote_branch from $remote..."
+        if ! git fetch "$remote" "$remote_branch"; then
+            error_exit 1 "Git fetch failed"
+        fi
+    else
+        log_info "No upstream configured, fetching from origin..."
+        if ! git fetch origin "$branch"; then
+            error_exit 1 "Git fetch failed"
+        fi
     fi
 
     if git pull; then
