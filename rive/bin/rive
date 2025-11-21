@@ -341,9 +341,14 @@ cmd_pull() {
     log_info "Pulling latest changes for $branch"
     log_debug "Worktree: $worktree"
 
-    # Run git pull in the worktree
+    # Run git fetch and pull in the worktree
     if ! cd "$worktree"; then
         error_exit 1 "Failed to change to worktree directory: $worktree"
+    fi
+
+    log_info "Fetching from remote..."
+    if ! git fetch; then
+        error_exit 1 "Git fetch failed"
     fi
 
     if git pull; then
