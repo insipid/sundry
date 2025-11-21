@@ -90,15 +90,19 @@ cd $(rive cd 40000)
 cd $(rive cd)                  # Navigate to current app (if set)
 ```
 
-**Pro tip:** Create a shell function for easier use:
+**Pro tip:** Create an alias for easier use:
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
+alias rivecd='cd $(rive cd)'
+
+# Or with argument support
 rivecd() {
-    cd "$(rive cd "$1")"
+    cd "$(rive cd "$@")"
 }
 
 # Usage
-rivecd feature/user-auth
+rivecd                    # Navigate to current app
+rivecd feature/user-auth  # Navigate to specific app
 ```
 
 ## pull

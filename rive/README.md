@@ -10,8 +10,8 @@ rive create feature/new-ui
 # → Creates worktree, starts server on port 40000
 # → Automatically sets as current app
 
-# Navigate to the worktree
-cd $(rive cd)
+# Navigate to the worktree (add alias: alias rivecd='cd $(rive cd)')
+rivecd
 
 # Pull latest changes
 rive pull
@@ -89,7 +89,7 @@ rive create feature/checkout-flow
 # → Worktree created, server running, set as current
 
 # Make some changes, test them
-cd $(rive cd)
+rivecd  # Navigate to worktree (using alias)
 # ... edit files ...
 
 # Pull latest from remote

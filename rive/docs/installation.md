@@ -44,6 +44,26 @@ Then reload your shell:
 source ~/.bashrc  # or source ~/.zshrc
 ```
 
+## Helpful Shell Aliases
+
+Add these to your `~/.bashrc` or `~/.zshrc` for easier navigation:
+
+```bash
+# Navigate to current app's worktree
+alias rivecd='cd $(rive cd)'
+
+# Or with argument support
+rivecd() {
+    cd "$(rive cd "$@")"
+}
+```
+
+Usage:
+```bash
+rivecd                    # cd to current app
+rivecd feature/new-ui     # cd to specific app
+```
+
 ## Updating
 
 To update to the latest version:

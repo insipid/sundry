@@ -41,7 +41,7 @@ rive --verbose create feature/branch
 rive config
 
 # Test the command manually in the worktree
-cd $(rive cd feature/branch)
+rivecd feature/branch  # or: cd $(rive cd feature/branch)
 npm run dev -- --port 40000
 ```
 
@@ -82,7 +82,7 @@ git ls-remote origin | grep branch-name
 
 If it doesn't exist, you can't pull. If it does exist but pull still fails, try:
 ```bash
-cd $(rive cd feature/branch)
+rivecd feature/branch
 git fetch --prune
 git pull
 ```
@@ -147,17 +147,17 @@ rm ~/.rive/state
 
 ```bash
 # Option 1: Commit the changes
-cd $(rive cd feature/branch)
+rivecd feature/branch
 git add .
 git commit -m "WIP"
 
 # Option 2: Discard the changes
-cd $(rive cd feature/branch)
+rivecd feature/branch
 git reset --hard
 git clean -fd
 
 # Option 3: Stash the changes
-cd $(rive cd feature/branch)
+rivecd feature/branch
 git stash
 
 # Then remove manually
