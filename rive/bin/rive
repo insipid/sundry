@@ -1,0 +1,589 @@
+#!/usr/bin/env bash
+# Rive CLI - Ephemeral review app manager
+# Version: 1.0.0
+
+set -euo pipefail
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(dirname "$SCRIPT_DIR")/lib"
+
+# Source library modules
+source "$LIB_DIR/utils.sh"
+source "$LIB_DIR/config.sh"
+source "$LIB_DIR/state.sh"
+source "$LIB_DIR/port.sh"
+source "$LIB_DIR/worktree.sh"
+source "$LIB_DIR/process.sh"
+
+# Show help
+show_help() {
+    cat << EOF
+Rive - Ephemeral review app manager
+
+USAGE:
+    rive <command> [options] [arguments]
+
+COMMANDS:
+    create <branch>      Create a new review app from a git branch
+      (aliases: new, start, add, up)
+    list                 List all running review apps
+    stop [branch|port]   Stop a review app (uses current if not specified)
+      (aliases: del, delete, remove, down)
+    restart [branch]     Restart a review app (uses current if not specified)
+    cd [branch|port]     Print the path to a review app's worktree
+    pull [branch|port]   Pull latest changes in a review app's worktree
+    logs [branch|port]   Tail the log file for a review app (uses current if not specified)
+    use [branch|port]    Set current app context (show current if not specified)
+    config               Show current configuration
+    clean                Clean up stale state entries
+    help                 Show this help message
+    version              Show version information
+
+OPTIONS:
+    --verbose, -v        Enable verbose output
+    --start-port PORT    Override starting port for allocation
+    --worktree-dir DIR   Override worktree base directory
+
+CONFIGURATION:
+    Configuration is loaded from (in order of precedence):
+    1. CLI flags (highest)
+    2. .env file in current directory
+    3. Environment variables (lowest)
+
+    Available variables:
+    - RIVE_START_PORT        Starting port (default: 40000)
+    - RIVE_WORKTREE_DIR      Worktree directory (default: ~/.rive/worktrees)
+    - RIVE_SERVER_COMMAND    Server command with %PORT% placeholder
+    - RIVE_AUTO_INSTALL      Auto-install dependencies (default: false)
+    - RIVE_VERBOSE           Verbose output (default: false)
+
+EXAMPLES:
+    # Create a review app
+    rive create feature/new-ui
+
+    # List all review apps
+    rive list
+
+    # Set current app context
+    rive use feature/new-ui
+
+    # Now you can use commands without specifying the app
+    rive cd              # Navigate to current app
+    rive pull            # Pull latest changes for current app
+    rive stop            # Stop current app
+
+    # Stop a review app by branch name
+    rive stop feature/new-ui
+
+    # Stop a review app by port
+    rive stop 40000
+
+    # Navigate to review app directory
+    cd \$(rive cd feature/new-ui)
+
+    # Show configuration
+    rive config
+
+EOF
+}
+
+# Command: create
+cmd_create() {
+    local branch="${1:-}"
+
+    if [[ -z "$branch" ]]; then
+        error_exit 1 "Branch name is required. Usage: rive create <branch>"
+    fi
+
+    # Check if review app already exists
+    if state_has_app "$branch"; then
+        local existing_port=$(get_port_for_branch "$branch")
+        log_error "Review app already exists for branch: $branch"
+        log_info "Running on port $existing_port"
+        log_info "Use 'rive stop $branch' to stop it first"
+        return 1
+    fi
+
+    # Find available port
+    local port=$(find_available_port) || {
+        error_exit 30 "Could not allocate port"
+    }
+
+    # Create worktree
+    local worktree
+    if ! worktree=$(create_worktree "$branch"); then
+        # Error already logged by create_worktree
+        return 1
+    fi
+
+    # Install dependencies if configured
+    install_dependencies "$worktree" || {
+        log_warning "Dependency installation failed, continuing..."
+    }
+
+    # Start server
+    local pid
+    if ! pid=$(start_server "$port" "$worktree"); then
+        log_error "Failed to start server, cleaning up..."
+        remove_worktree "$worktree"
+        return 1
+    fi
+
+    # Verify we got a PID
+    if [[ -z "$pid" ]]; then
+        log_error "Server start returned empty PID, cleaning up..."
+        remove_worktree "$worktree"
+        return 1
+    fi
+
+    # Save state
+    if ! state_add_app "$branch" "$port" "$worktree" "$pid"; then
+        log_error "Failed to save state, cleaning up..."
+        stop_server "$pid"
+        remove_worktree "$worktree"
+        return 1
+    fi
+
+    # Set as current app
+    set_current_app "$branch"
+    log_debug "Set as current app"
+
+    # Success message
+    echo ""
+    log_success "Review app created successfully!"
+    echo ""
+    echo "  Branch:   $branch"
+    echo "  Worktree: $worktree"
+    echo "  PID:      $pid"
+    echo ""
+    echo "  URL:      http://localhost:$port"
+    echo ""
+}
+
+# Command: list
+cmd_list() {
+    # Clean stale entries first
+    state_clean_stale
+
+    local apps=$(state_list_apps)
+
+    if [[ -z "$apps" ]]; then
+        echo "No running review apps"
+        return 0
+    fi
+
+    # Print header
+    printf "%-30s %-8s %-10s %-12s %-40s\n" \
+        "BRANCH" "PORT" "STATUS" "UPTIME" "WORKTREE"
+    printf "%-30s %-8s %-10s %-12s %-40s\n" \
+        "$(printf '%.0s─' {1..30})" \
+        "$(printf '%.0s─' {1..8})" \
+        "$(printf '%.0s─' {1..10})" \
+        "$(printf '%.0s─' {1..12})" \
+        "$(printf '%.0s─' {1..40})"
+
+    # List all apps
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+
+        local branch=$(parse_state_line "$line" "branch")
+        local port=$(parse_state_line "$line" "port")
+        local worktree=$(parse_state_line "$line" "worktree")
+        local pid=$(parse_state_line "$line" "pid")
+        local timestamp=$(parse_state_line "$line" "timestamp")
+
+        local status=$(get_process_status "$pid")
+        local uptime=$(calculate_uptime "$timestamp")
+
+        # Truncate worktree path if too long
+        local worktree_display="$worktree"
+        if [[ ${#worktree} -gt 38 ]]; then
+            worktree_display="...${worktree: -35}"
+        fi
+
+        printf "%-30s %-8s %-10s %-12s %-40s\n" \
+            "$branch" "$port" "$status" "$uptime" "$worktree_display"
+    done <<< "$apps"
+}
+
+# Command: stop
+cmd_stop() {
+    local identifier="${1:-}"
+
+    # Fall back to current app if no identifier provided
+    if [[ -z "$identifier" ]]; then
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive stop <branch|port>"
+        fi
+        log_debug "Using current app: $identifier"
+    fi
+
+    # Try to find by branch first
+    local app=$(state_get_app "$identifier")
+
+    # If not found, try by port
+    if [[ -z "$app" ]]; then
+        app=$(state_get_app_by_port "$identifier")
+    fi
+
+    if [[ -z "$app" ]]; then
+        error_exit 1 "Review app not found: $identifier"
+    fi
+
+    local branch=$(parse_state_line "$app" "branch")
+    local pid=$(parse_state_line "$app" "pid")
+    local worktree=$(parse_state_line "$app" "worktree")
+
+    # Stop server
+    stop_server "$pid"
+
+    # Remove from state
+    state_remove_app "$branch"
+
+    # Clear current app if it was this branch
+    if current=$(get_current_app 2>/dev/null); then
+        if [[ "$current" == "$branch" ]]; then
+            clear_current_app
+            log_debug "Cleared current app (was stopped)"
+        fi
+    fi
+
+    echo ""
+    log_success "Review app stopped: $branch"
+    echo ""
+
+    # Check if worktree is clean and remove it
+    if is_worktree_clean "$worktree"; then
+        log_info "Worktree is clean, removing it..."
+        remove_worktree "$worktree"
+        log_success "Worktree removed"
+    else
+        log_warning "Worktree has uncommitted changes, keeping it"
+        echo "Worktree location: $worktree"
+        echo ""
+        echo "The worktree has uncommitted or untracked changes."
+        echo "Please commit or discard changes, then remove manually:"
+        echo "  git worktree remove $worktree"
+    fi
+    echo ""
+}
+
+# Command: restart
+cmd_restart() {
+    local branch="${1:-}"
+
+    # Fall back to current app if no branch provided
+    if [[ -z "$branch" ]]; then
+        if ! branch=$(get_current_app); then
+            error_exit 1 "No branch specified and no current app set. Usage: rive restart <branch>"
+        fi
+        log_debug "Using current app: $branch"
+    fi
+
+    restart_server "$branch"
+}
+
+# Command: cd
+cmd_cd() {
+    local identifier="${1:-}"
+
+    # Fall back to current app if no identifier provided
+    if [[ -z "$identifier" ]]; then
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive cd <branch|port>"
+        fi
+        log_debug "Using current app: $identifier"
+    fi
+
+    # Try to find by branch first
+    local app=$(state_get_app "$identifier")
+
+    # If not found, try by port
+    if [[ -z "$app" ]]; then
+        app=$(state_get_app_by_port "$identifier")
+    fi
+
+    if [[ -z "$app" ]]; then
+        error_exit 1 "Review app not found: $identifier"
+    fi
+
+    local worktree=$(parse_state_line "$app" "worktree")
+    echo "$worktree"
+}
+
+# Command: pull
+cmd_pull() {
+    local identifier="${1:-}"
+
+    # Fall back to current app if no identifier provided
+    if [[ -z "$identifier" ]]; then
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive pull <branch|port>"
+        fi
+        log_debug "Using current app: $identifier"
+    fi
+
+    # Try to find by branch first
+    local app=$(state_get_app "$identifier")
+
+    # If not found, try by port
+    if [[ -z "$app" ]]; then
+        app=$(state_get_app_by_port "$identifier")
+    fi
+
+    if [[ -z "$app" ]]; then
+        error_exit 1 "Review app not found: $identifier"
+    fi
+
+    local branch=$(parse_state_line "$app" "branch")
+    local worktree=$(parse_state_line "$app" "worktree")
+
+    log_info "Pulling latest changes for $branch"
+    log_debug "Worktree: $worktree"
+
+    # Get upstream configuration from the MAIN repo (not the worktree)
+    local upstream
+    if ! upstream=$(git rev-parse --abbrev-ref "$branch@{upstream}" 2>/dev/null); then
+        log_error "Branch '$branch' has no upstream tracking branch configured"
+        echo ""
+        echo "To set one up, run:"
+        echo "  git push -u origin $branch"
+        return 1
+    fi
+
+    log_debug "Upstream from main repo: $upstream"
+
+    # Parse remote and branch from upstream (format: remote/branch)
+    local remote="${upstream%%/*}"
+    local remote_branch="${upstream#*/}"
+
+    log_debug "Remote: $remote, Branch: $remote_branch"
+
+    # Change to worktree and pull explicitly
+    if ! cd "$worktree"; then
+        error_exit 1 "Failed to change to worktree directory: $worktree"
+    fi
+
+    log_info "Pulling from $remote/$remote_branch..."
+    if git pull "$remote" "$remote_branch"; then
+        log_success "Successfully pulled latest changes"
+    else
+        log_error "Git pull failed"
+        echo ""
+        echo "You may need to resolve conflicts."
+        echo "Worktree location: $worktree"
+        return 1
+    fi
+}
+
+# Command: logs
+cmd_logs() {
+    local identifier="${1:-}"
+
+    # Fall back to current app if no identifier provided
+    if [[ -z "$identifier" ]]; then
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive logs <branch|port>"
+        fi
+        log_debug "Using current app: $identifier"
+    fi
+
+    # Try to find by branch first
+    local app=$(state_get_app "$identifier")
+
+    # If not found, try by port
+    if [[ -z "$app" ]]; then
+        app=$(state_get_app_by_port "$identifier")
+    fi
+
+    if [[ -z "$app" ]]; then
+        error_exit 1 "Review app not found: $identifier"
+    fi
+
+    local branch=$(parse_state_line "$app" "branch")
+    local worktree=$(parse_state_line "$app" "worktree")
+    local log_file="$worktree/.rive-server.log"
+
+    if [[ ! -f "$log_file" ]]; then
+        log_error "Log file not found: $log_file"
+        echo ""
+        echo "Logs are only available when RIVE_ENABLE_LOGS=true or --verbose is used."
+        echo "To enable logging for future apps, set:"
+        echo "  RIVE_ENABLE_LOGS=true"
+        echo ""
+        echo "Or add to your .env file:"
+        echo "  echo 'RIVE_ENABLE_LOGS=true' >> .env"
+        return 1
+    fi
+
+    log_info "Showing logs for $branch"
+    echo "Log file: $log_file"
+    echo "Press Ctrl+C to exit"
+    echo ""
+
+    # Tail the log file, following it
+    tail -f "$log_file"
+}
+
+# Command: config
+cmd_config() {
+    show_config
+}
+
+# Command: clean
+cmd_clean() {
+    log_info "Cleaning stale entries..."
+    state_clean_stale
+    log_success "Stale entries cleaned"
+}
+
+# Command: use
+cmd_use() {
+    local identifier="${1:-}"
+
+    # If --clear flag
+    if [[ "$identifier" == "--clear" ]]; then
+        clear_current_app
+        log_success "Cleared current app"
+        return 0
+    fi
+
+    # If no argument, show current app
+    if [[ -z "$identifier" ]]; then
+        if current=$(get_current_app); then
+            local app=$(state_get_app "$current")
+            if [[ -z "$app" ]]; then
+                log_error "Current app no longer exists: $current"
+                clear_current_app
+                return 1
+            fi
+
+            local branch=$(parse_state_line "$app" "branch")
+            local port=$(parse_state_line "$app" "port")
+            local worktree=$(parse_state_line "$app" "worktree")
+
+            echo "Current app: $branch"
+            echo "  Port:     $port"
+            echo "  Worktree: $worktree"
+            echo "  URL:      http://localhost:$port"
+            return 0
+        else
+            echo "No current app set"
+            echo ""
+            echo "Usage: rive use <branch|port>"
+            return 1
+        fi
+    fi
+
+    # Set current app
+    if set_current_app "$identifier"; then
+        local app=$(state_get_app "$identifier")
+        if [[ -z "$app" ]]; then
+            app=$(state_get_app_by_port "$identifier")
+        fi
+
+        local branch=$(parse_state_line "$app" "branch")
+        local port=$(parse_state_line "$app" "port")
+
+        log_success "Set current app to: $branch (port $port)"
+        return 0
+    else
+        error_exit 1 "Review app not found: $identifier"
+    fi
+}
+
+# Main entry point
+main() {
+    # Check dependencies first
+    check_dependencies || exit 1
+
+    # Parse global flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --verbose|-v)
+                export RIVE_VERBOSE=true
+                shift
+                ;;
+            --start-port)
+                export RIVE_START_PORT="$2"
+                shift 2
+                ;;
+            --worktree-dir)
+                export RIVE_WORKTREE_DIR="$2"
+                shift 2
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    # Initialize configuration
+    init_config
+
+    # Check if in git repository (except for help/version commands)
+    local command="${1:-help}"
+    if [[ "$command" != "help" && "$command" != "version" && "$command" != "config" ]]; then
+        check_git_repo
+    fi
+
+    # Initialize state
+    init_state_file
+
+    # Parse command
+    case "$command" in
+        create|new|start|add|up)
+            shift
+            cmd_create "$@"
+            ;;
+        list|ls)
+            cmd_list
+            ;;
+        stop|del|delete|remove|down)
+            shift
+            cmd_stop "$@"
+            ;;
+        restart)
+            shift
+            cmd_restart "$@"
+            ;;
+        cd)
+            shift
+            cmd_cd "$@"
+            ;;
+        pull)
+            shift
+            cmd_pull "$@"
+            ;;
+        logs)
+            shift
+            cmd_logs "$@"
+            ;;
+        use)
+            shift
+            cmd_use "$@"
+            ;;
+        config)
+            cmd_config
+            ;;
+        clean)
+            cmd_clean
+            ;;
+        version|-v|--version)
+            echo "rive version 1.0.0"
+            ;;
+        help|-h|--help|"")
+            show_help
+            ;;
+        *)
+            log_error "Unknown command: $command"
+            echo ""
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+# Run main function
+main "$@"
