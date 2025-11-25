@@ -46,16 +46,6 @@ load_env_file() {
         fi
     done < "$env_file"
 
-    # Update variables with .env values
-    RIVE_START_PORT="${RIVE_START_PORT:-40000}"
-    RIVE_HOSTNAME="${RIVE_HOSTNAME:-localhost}"
-    RIVE_WORKTREE_DIR="${RIVE_WORKTREE_DIR:-$HOME/.rive/worktrees}"
-    RIVE_SERVER_COMMAND="${RIVE_SERVER_COMMAND:-npm run dev -- --port %PORT%}"
-    RIVE_STATE_FILE="${RIVE_STATE_FILE:-$HOME/.rive/state}"
-    RIVE_AUTO_INSTALL="${RIVE_AUTO_INSTALL:-false}"
-    RIVE_INSTALL_COMMAND="${RIVE_INSTALL_COMMAND:-}"
-    RIVE_ENABLE_LOGS="${RIVE_ENABLE_LOGS:-false}"
-
     return 0
 }
 

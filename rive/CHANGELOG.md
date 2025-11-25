@@ -66,9 +66,8 @@ Rive is a lightweight CLI tool for managing ephemeral review applications. It cr
 
 #### Implementation
 - **Language**: Bash 4.0+
-- **Architecture**: Modular library design (890 lines across 6 modules)
+- **Architecture**: Modular library design across 6 modules
 - **Dependencies**: Git, lsof, standard Unix tools
-- **Line count**: ~2,200 lines total (code + docs)
 
 #### Library Modules
 - `config.sh` - Configuration loading and precedence
