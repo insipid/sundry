@@ -26,11 +26,11 @@ USAGE:
 
 COMMANDS:
     create <branch>      Create a new review app from a git branch
-      (aliases: new, start, add, up)
+      (aliases: start, add, up, new)
     list                 List all running review apps
       (aliases: ls, l)
     stop [branch|port]   Stop a review app (uses current if not specified)
-      (aliases: del, delete, remove, down, rm)
+      (aliases: down, remove, delete, del, rm)
     restart [branch]     Restart a review app (uses current if not specified)
     cd [branch|port]     Print the path to a review app's worktree
     pull [branch|port]   Pull latest changes in a review app's worktree
@@ -534,14 +534,14 @@ main() {
 
     # Parse command
     case "$command" in
-        create|new|start|add|up)
+        create|start|add|up|new)
             shift
             cmd_create "$@"
             ;;
         list|ls|l)
             cmd_list
             ;;
-        stop|del|delete|remove|down|rm)
+        stop|down|remove|delete|del|rm)
             shift
             cmd_stop "$@"
             ;;

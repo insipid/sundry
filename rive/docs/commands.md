@@ -4,7 +4,7 @@
 
 Create a new review app from a git branch.
 
-**Aliases:** `new`, `start`, `add`, `up`
+**Aliases:** `start`, `add`, `up`, `new`
 
 ```bash
 rive create <branch>
@@ -49,7 +49,7 @@ bugfix/login-error         40001   running    45m         ~/.rive/worktrees/myre
 
 Stop a running review app.
 
-**Aliases:** `del`, `delete`, `remove`, `down`, `rm`
+**Aliases:** `down`, `remove`, `delete`, `del`, `rm`
 
 ```bash
 rive stop [branch|port]
