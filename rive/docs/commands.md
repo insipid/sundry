@@ -1,18 +1,18 @@
 # Command Reference
 
-## create
+## add
 
 Create a new review app from a git branch.
 
-**Aliases:** `start`, `add`, `up`, `new`
+**Aliases:** `start`, `create`, `new`, `up`
 
 ```bash
-rive create <branch>
+rive add <branch>
 
 # Examples
-rive create feature/user-auth
+rive add feature/user-auth
 rive start bugfix/login-error
-rive up feature/new-ui
+rive create feature/new-ui
 ```
 
 **What happens:**
@@ -45,19 +45,19 @@ feature/user-auth          40000   running    2h 15m      ~/.rive/worktrees/myre
 bugfix/login-error         40001   running    45m         ~/.rive/worktrees/myrepo/login-error
 ```
 
-## stop
+## remove
 
 Stop a running review app.
 
-**Aliases:** `down`, `remove`, `delete`, `del`, `rm`
+**Aliases:** `stop`, `delete`, `del`, `down`, `rm`
 
 ```bash
-rive stop [branch|port]
+rive remove [branch|port]
 
 # Examples
-rive stop feature/user-auth    # Stop by branch name
-rive stop 40000                # Stop by port number
-rive stop                      # Stop current app (if set)
+rive remove feature/user-auth    # Remove by branch name
+rive remove 40000                # Remove by port number
+rive remove                      # Remove current app (if set)
 ```
 
 **Auto-Cleanup Behavior:**
