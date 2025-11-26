@@ -28,8 +28,9 @@ COMMANDS:
     create <branch>      Create a new review app from a git branch
       (aliases: new, start, add, up)
     list                 List all running review apps
+      (aliases: ls, l)
     stop [branch|port]   Stop a review app (uses current if not specified)
-      (aliases: del, delete, remove, down)
+      (aliases: del, delete, remove, down, rm)
     restart [branch]     Restart a review app (uses current if not specified)
     cd [branch|port]     Print the path to a review app's worktree
     pull [branch|port]   Pull latest changes in a review app's worktree
@@ -537,10 +538,10 @@ main() {
             shift
             cmd_create "$@"
             ;;
-        list|ls)
+        list|ls|l)
             cmd_list
             ;;
-        stop|del|delete|remove|down)
+        stop|del|delete|remove|down|rm)
             shift
             cmd_stop "$@"
             ;;

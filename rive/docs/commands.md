@@ -31,7 +31,7 @@ rive up feature/new-ui
 
 List all running review apps.
 
-**Aliases:** `ls`
+**Aliases:** `ls`, `l`
 
 ```bash
 rive list
@@ -49,7 +49,7 @@ bugfix/login-error         40001   running    45m         ~/.rive/worktrees/myre
 
 Stop a running review app.
 
-**Aliases:** `del`, `delete`, `remove`, `down`
+**Aliases:** `del`, `delete`, `remove`, `down`, `rm`
 
 ```bash
 rive stop [branch|port]
