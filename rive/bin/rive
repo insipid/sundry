@@ -25,11 +25,12 @@ USAGE:
     rive <command> [options] [arguments]
 
 COMMANDS:
-    create <branch>      Create a new review app from a git branch
-      (aliases: new, start, add, up)
+    add <branch>         Create a new review app from a git branch
+      (aliases: start, create, new, up)
     list                 List all running review apps
-    stop [branch|port]   Stop a review app (uses current if not specified)
-      (aliases: del, delete, remove, down)
+      (aliases: ls, l)
+    remove [branch|port] Stop a review app (uses current if not specified)
+      (aliases: stop, delete, del, down, rm)
     restart [branch]     Restart a review app (uses current if not specified)
     cd [branch|port]     Print the path to a review app's worktree
     pull [branch|port]   Pull latest changes in a review app's worktree
@@ -60,7 +61,7 @@ CONFIGURATION:
 
 EXAMPLES:
     # Create a review app
-    rive create feature/new-ui
+    rive add feature/new-ui
 
     # List all review apps
     rive list
@@ -71,13 +72,13 @@ EXAMPLES:
     # Now you can use commands without specifying the app
     rive cd              # Navigate to current app
     rive pull            # Pull latest changes for current app
-    rive stop            # Stop current app
+    rive remove          # Remove current app
 
-    # Stop a review app by branch name
-    rive stop feature/new-ui
+    # Remove a review app by branch name
+    rive remove feature/new-ui
 
-    # Stop a review app by port
-    rive stop 40000
+    # Remove a review app by port
+    rive remove 40000
 
     # Navigate to review app directory
     cd \$(rive cd feature/new-ui)
@@ -533,14 +534,14 @@ main() {
 
     # Parse command
     case "$command" in
-        create|new|start|add|up)
+        add|start|create|new|up)
             shift
             cmd_create "$@"
             ;;
-        list|ls)
+        list|ls|l)
             cmd_list
             ;;
-        stop|del|delete|remove|down)
+        remove|stop|delete|del|down|rm)
             shift
             cmd_stop "$@"
             ;;
