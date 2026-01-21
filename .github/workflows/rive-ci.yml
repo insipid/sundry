@@ -1,0 +1,62 @@
+name: Rive CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rive/**'
+      - '.github/workflows/rive-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'rive/**'
+      - '.github/workflows/rive-ci.yml'
+
+jobs:
+  lint:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on rive
+        run: |
+          shellcheck --severity=warning rive/bin/rive rive/lib/*.sh
+          echo "ShellCheck passed!"
+
+  test:
+    name: BATS Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install BATS
+        run: |
+          sudo apt-get install -y bats
+
+      - name: Run BATS tests
+        run: |
+          cd rive
+          bats test/rive.bats
+
+  test-macos:
+    name: BATS Tests (macOS)
+    runs-on: macos-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install BATS
+        run: brew install bats-core
+
+      - name: Run BATS tests
+        run: |
+          cd rive
+          bats test/rive.bats

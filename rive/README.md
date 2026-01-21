@@ -23,7 +23,7 @@ rive logs
 rive list
 
 # Stop when done
-rive stop
+rive remove
 # → Stops server, removes worktree if clean
 ```
 
@@ -67,9 +67,9 @@ See [docs/configuration.md](docs/configuration.md) for all options and framework
 ## Commands
 
 ```
-create <branch>      Create review app (aliases: new, start, add, up)
-list                 List all running apps
-stop [branch|port]   Stop app (aliases: del, delete, remove, down)
+create <branch>      Create review app (aliases: add, new, start, up)
+remove [branch|port] Stop app (aliases: stop, delete, del, down, rm)
+list                 List all running apps (aliases: ls, l)
 restart [branch]     Restart app
 cd [branch|port]     Print worktree path
 pull [branch|port]   Pull latest changes
@@ -77,6 +77,8 @@ logs [branch|port]   Tail server logs
 use [branch|port]    Set/show current app
 config               Show configuration
 clean                Clean stale entries
+help                 Show help message
+version              Show version
 ```
 
 See [docs/commands.md](docs/commands.md) for detailed command reference.
@@ -106,8 +108,8 @@ rive create feature/user-profile
 rive use feature/checkout-flow
 
 # Stop both when done
-rive stop feature/checkout-flow
-rive stop feature/user-profile
+rive remove feature/checkout-flow
+rive remove feature/user-profile
 ```
 
 ## Troubleshooting

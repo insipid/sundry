@@ -99,7 +99,8 @@ cmd_create() {
 
     # Check if review app already exists
     if state_has_app "$branch"; then
-        local existing_port=$(get_port_for_branch "$branch")
+        local existing_port
+        existing_port=$(get_port_for_branch "$branch")
         log_error "Review app already exists for branch: $branch"
         log_info "Running on port $existing_port"
         log_info "Use 'rive stop $branch' to stop it first"
@@ -107,7 +108,8 @@ cmd_create() {
     fi
 
     # Find available port
-    local port=$(find_available_port) || {
+    local port
+    port=$(find_available_port) || {
         error_exit 30 "Could not allocate port"
     }
 
@@ -167,7 +169,8 @@ cmd_list() {
     # Clean stale entries first
     state_clean_stale
 
-    local apps=$(state_list_apps)
+    local apps
+    apps=$(state_list_apps)
 
     if [[ -z "$apps" ]]; then
         echo "No running review apps"
@@ -188,14 +191,15 @@ cmd_list() {
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
 
-        local branch=$(parse_state_line "$line" "branch")
-        local port=$(parse_state_line "$line" "port")
-        local worktree=$(parse_state_line "$line" "worktree")
-        local pid=$(parse_state_line "$line" "pid")
-        local timestamp=$(parse_state_line "$line" "timestamp")
+        local branch port worktree pid timestamp status uptime
+        branch=$(parse_state_line "$line" "branch")
+        port=$(parse_state_line "$line" "port")
+        worktree=$(parse_state_line "$line" "worktree")
+        pid=$(parse_state_line "$line" "pid")
+        timestamp=$(parse_state_line "$line" "timestamp")
 
-        local status=$(get_process_status "$pid")
-        local uptime=$(calculate_uptime "$timestamp")
+        status=$(get_process_status "$pid")
+        uptime=$(calculate_uptime "$timestamp")
 
         # Truncate worktree path if too long
         local worktree_display="$worktree"
@@ -221,7 +225,8 @@ cmd_stop() {
     fi
 
     # Try to find by branch first
-    local app=$(state_get_app "$identifier")
+    local app
+    app=$(state_get_app "$identifier")
 
     # If not found, try by port
     if [[ -z "$app" ]]; then
@@ -232,9 +237,10 @@ cmd_stop() {
         error_exit 1 "Review app not found: $identifier"
     fi
 
-    local branch=$(parse_state_line "$app" "branch")
-    local pid=$(parse_state_line "$app" "pid")
-    local worktree=$(parse_state_line "$app" "worktree")
+    local branch pid worktree
+    branch=$(parse_state_line "$app" "branch")
+    pid=$(parse_state_line "$app" "pid")
+    worktree=$(parse_state_line "$app" "worktree")
 
     # Stop server
     stop_server "$pid"
@@ -298,7 +304,8 @@ cmd_cd() {
     fi
 
     # Try to find by branch first
-    local app=$(state_get_app "$identifier")
+    local app
+    app=$(state_get_app "$identifier")
 
     # If not found, try by port
     if [[ -z "$app" ]]; then
@@ -309,7 +316,8 @@ cmd_cd() {
         error_exit 1 "Review app not found: $identifier"
     fi
 
-    local worktree=$(parse_state_line "$app" "worktree")
+    local worktree
+    worktree=$(parse_state_line "$app" "worktree")
     echo "$worktree"
 }
 
@@ -326,7 +334,8 @@ cmd_pull() {
     fi
 
     # Try to find by branch first
-    local app=$(state_get_app "$identifier")
+    local app
+    app=$(state_get_app "$identifier")
 
     # If not found, try by port
     if [[ -z "$app" ]]; then
@@ -337,8 +346,9 @@ cmd_pull() {
         error_exit 1 "Review app not found: $identifier"
     fi
 
-    local branch=$(parse_state_line "$app" "branch")
-    local worktree=$(parse_state_line "$app" "worktree")
+    local branch worktree
+    branch=$(parse_state_line "$app" "branch")
+    worktree=$(parse_state_line "$app" "worktree")
 
     log_info "Pulling latest changes for $branch"
     log_debug "Worktree: $worktree"
@@ -391,7 +401,8 @@ cmd_logs() {
     fi
 
     # Try to find by branch first
-    local app=$(state_get_app "$identifier")
+    local app
+    app=$(state_get_app "$identifier")
 
     # If not found, try by port
     if [[ -z "$app" ]]; then
@@ -402,8 +413,9 @@ cmd_logs() {
         error_exit 1 "Review app not found: $identifier"
     fi
 
-    local branch=$(parse_state_line "$app" "branch")
-    local worktree=$(parse_state_line "$app" "worktree")
+    local branch worktree
+    branch=$(parse_state_line "$app" "branch")
+    worktree=$(parse_state_line "$app" "worktree")
     local log_file="$worktree/.rive-server.log"
 
     if [[ ! -f "$log_file" ]]; then
@@ -452,17 +464,20 @@ cmd_use() {
 
     # If no argument, show current app
     if [[ -z "$identifier" ]]; then
+        local current
         if current=$(get_current_app); then
-            local app=$(state_get_app "$current")
+            local app
+            app=$(state_get_app "$current")
             if [[ -z "$app" ]]; then
                 log_error "Current app no longer exists: $current"
                 clear_current_app
                 return 1
             fi
 
-            local branch=$(parse_state_line "$app" "branch")
-            local port=$(parse_state_line "$app" "port")
-            local worktree=$(parse_state_line "$app" "worktree")
+            local branch port worktree
+            branch=$(parse_state_line "$app" "branch")
+            port=$(parse_state_line "$app" "port")
+            worktree=$(parse_state_line "$app" "worktree")
 
             echo "Current app: $branch"
             echo "  Port:     $port"
@@ -479,13 +494,15 @@ cmd_use() {
 
     # Set current app
     if set_current_app "$identifier"; then
-        local app=$(state_get_app "$identifier")
+        local app
+        app=$(state_get_app "$identifier")
         if [[ -z "$app" ]]; then
             app=$(state_get_app_by_port "$identifier")
         fi
 
-        local branch=$(parse_state_line "$app" "branch")
-        local port=$(parse_state_line "$app" "port")
+        local branch port
+        branch=$(parse_state_line "$app" "branch")
+        port=$(parse_state_line "$app" "port")
 
         log_success "Set current app to: $branch (port $port)"
         return 0

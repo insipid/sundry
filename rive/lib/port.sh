@@ -16,10 +16,12 @@ is_port_in_use() {
 # Check if port is allocated to a review app
 is_port_allocated() {
     local port="$1"
-    local app=$(state_get_app_by_port "$port")
+    local app
+    app=$(state_get_app_by_port "$port")
 
     if [[ -n "$app" ]]; then
-        local pid=$(parse_state_line "$app" "pid")
+        local pid
+        pid=$(parse_state_line "$app" "pid")
 
         # Check if process is actually running
         if ps -p "$pid" >/dev/null 2>&1; then
@@ -36,7 +38,8 @@ is_port_allocated() {
 # Find first available port
 find_available_port() {
     local start_port="$RIVE_START_PORT"
-    local end_port=$((start_port + 1000))  # Search up to 1000 ports
+    local max_search=1000
+    local end_port=$((start_port + max_search))
     local current_port=$start_port
 
     log_debug "Searching for available port starting from $start_port"
@@ -53,14 +56,20 @@ find_available_port() {
         current_port=$((current_port + 1))
     done
 
-    log_error "No available ports in range $start_port-$end_port"
+    log_error "No available ports found after searching $max_search ports ($start_port-$((end_port - 1)))"
+    log_error "Possible causes:"
+    log_error "  - Too many review apps running (use 'rive list' to check)"
+    log_error "  - Other services using ports in this range"
+    log_error "  - Stale state entries (use 'rive clean' to remove)"
+    log_error "You can change the starting port with RIVE_START_PORT or --start-port"
     return 1
 }
 
 # Get port for a specific branch
 get_port_for_branch() {
     local branch="$1"
-    local app=$(state_get_app "$branch")
+    local app
+    app=$(state_get_app "$branch")
 
     if [[ -n "$app" ]]; then
         parse_state_line "$app" "port"

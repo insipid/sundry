@@ -7,7 +7,8 @@ RIVE_CURRENT_FILE="${RIVE_CURRENT_FILE:-$HOME/.rive/current}"
 # Initialize state file
 init_state_file() {
     local state_file="$RIVE_STATE_FILE"
-    local state_dir=$(dirname "$state_file")
+    local state_dir
+    state_dir=$(dirname "$state_file")
 
     # Create directory if needed
     if [[ ! -d "$state_dir" ]]; then
@@ -34,7 +35,8 @@ state_add_app() {
     local pid="$4"
 
     local state_file="$RIVE_STATE_FILE"
-    local timestamp=$(date +%s)
+    local timestamp
+    timestamp=$(date +%s)
 
     # Format: branch|port|worktree|pid|timestamp
     echo "$branch|$port|$worktree|$pid|$timestamp" >> "$state_file"
@@ -99,7 +101,8 @@ state_list_apps() {
 # Check if branch has a review app
 state_has_app() {
     local branch="$1"
-    local app=$(state_get_app "$branch")
+    local app
+    app=$(state_get_app "$branch")
 
     if [[ -n "$app" ]]; then
         return 0
@@ -134,18 +137,20 @@ state_clean_stale() {
         return 0
     fi
 
-    > "$temp_file"
+    : > "$temp_file"
 
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
 
-        local pid=$(parse_state_line "$line" "pid")
+        local pid
+        pid=$(parse_state_line "$line" "pid")
 
         # Keep the entry if process is still running
         if ps -p "$pid" >/dev/null 2>&1; then
             echo "$line" >> "$temp_file"
         else
-            local branch=$(parse_state_line "$line" "branch")
+            local branch
+            branch=$(parse_state_line "$line" "branch")
             log_debug "Removing stale entry for $branch (PID $pid no longer running)"
         fi
     done < "$state_file"
@@ -158,7 +163,8 @@ set_current_app() {
     local identifier="$1"
 
     # Validate that the app exists
-    local app=$(state_get_app "$identifier")
+    local app
+    app=$(state_get_app "$identifier")
     if [[ -z "$app" ]]; then
         app=$(state_get_app_by_port "$identifier")
     fi
@@ -168,7 +174,8 @@ set_current_app() {
     fi
 
     # Get the branch name to store
-    local branch=$(parse_state_line "$app" "branch")
+    local branch
+    branch=$(parse_state_line "$app" "branch")
 
     # Write to current file
     echo "$branch" > "$RIVE_CURRENT_FILE"
