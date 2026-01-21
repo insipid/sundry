@@ -81,6 +81,53 @@ validate_config() {
     return 0
 }
 
+# Check if a path is writable (or can be created)
+check_path_writable() {
+    local path="$1"
+    local description="$2"
+
+    if [[ -d "$path" ]]; then
+        # Directory exists - check if writable
+        if [[ ! -w "$path" ]]; then
+            log_error "$description is not writable: $path"
+            return 1
+        fi
+    else
+        # Directory doesn't exist - check if parent is writable
+        local parent_dir=$(dirname "$path")
+        # Walk up until we find an existing directory
+        while [[ ! -d "$parent_dir" ]] && [[ "$parent_dir" != "/" ]]; do
+            parent_dir=$(dirname "$parent_dir")
+        done
+        if [[ ! -w "$parent_dir" ]]; then
+            log_error "Cannot create $description - parent directory not writable: $parent_dir"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# Validate that required directories are writable
+validate_paths_writable() {
+    local errors=0
+
+    # Check worktree directory
+    if ! check_path_writable "$RIVE_WORKTREE_DIR" "Worktree directory"; then
+        ((errors++))
+    fi
+
+    # Check state file directory
+    local state_dir=$(dirname "$RIVE_STATE_FILE")
+    if ! check_path_writable "$state_dir" "State directory"; then
+        ((errors++))
+    fi
+
+    if (( errors > 0 )); then
+        return 1
+    fi
+    return 0
+}
+
 # Initialize configuration
 init_config() {
     # Load .env file first (lower precedence)
@@ -91,6 +138,9 @@ init_config() {
 
     # Validate configuration
     validate_config || error_exit 10 "Configuration validation failed"
+
+    # Validate paths are writable
+    validate_paths_writable || error_exit 11 "Path validation failed - check directory permissions"
 
     log_debug "Configuration initialized:"
     log_debug "  RIVE_START_PORT=$RIVE_START_PORT"

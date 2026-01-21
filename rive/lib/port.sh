@@ -36,7 +36,8 @@ is_port_allocated() {
 # Find first available port
 find_available_port() {
     local start_port="$RIVE_START_PORT"
-    local end_port=$((start_port + 1000))  # Search up to 1000 ports
+    local max_search=1000
+    local end_port=$((start_port + max_search))
     local current_port=$start_port
 
     log_debug "Searching for available port starting from $start_port"
@@ -53,7 +54,12 @@ find_available_port() {
         current_port=$((current_port + 1))
     done
 
-    log_error "No available ports in range $start_port-$end_port"
+    log_error "No available ports found after searching $max_search ports ($start_port-$((end_port - 1)))"
+    log_error "Possible causes:"
+    log_error "  - Too many review apps running (use 'rive list' to check)"
+    log_error "  - Other services using ports in this range"
+    log_error "  - Stale state entries (use 'rive clean' to remove)"
+    log_error "You can change the starting port with RIVE_START_PORT or --start-port"
     return 1
 }
 
