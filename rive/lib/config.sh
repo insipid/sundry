@@ -14,7 +14,7 @@ RIVE_VERBOSE="${RIVE_VERBOSE:-false}"
 
 # Load .env file if it exists
 load_env_file() {
-    local env_file="${1:-.env}"
+    local env_file=".env"
 
     if [[ ! -f "$env_file" ]]; then
         log_debug "No .env file found at $env_file"
