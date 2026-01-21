@@ -16,10 +16,12 @@ is_port_in_use() {
 # Check if port is allocated to a review app
 is_port_allocated() {
     local port="$1"
-    local app=$(state_get_app_by_port "$port")
+    local app
+    app=$(state_get_app_by_port "$port")
 
     if [[ -n "$app" ]]; then
-        local pid=$(parse_state_line "$app" "pid")
+        local pid
+        pid=$(parse_state_line "$app" "pid")
 
         # Check if process is actually running
         if ps -p "$pid" >/dev/null 2>&1; then
@@ -66,7 +68,8 @@ find_available_port() {
 # Get port for a specific branch
 get_port_for_branch() {
     local branch="$1"
-    local app=$(state_get_app "$branch")
+    local app
+    app=$(state_get_app "$branch")
 
     if [[ -n "$app" ]]; then
         parse_state_line "$app" "port"

@@ -123,7 +123,8 @@ get_process_status() {
 # Calculate uptime from timestamp
 calculate_uptime() {
     local start_time="$1"
-    local now=$(date +%s)
+    local now
+    now=$(date +%s)
     local uptime_seconds=$((now - start_time))
 
     local days=$((uptime_seconds / 86400))
@@ -142,15 +143,17 @@ calculate_uptime() {
 # Restart server process
 restart_server() {
     local branch="$1"
-    local app=$(state_get_app "$branch")
+    local app
+    app=$(state_get_app "$branch")
 
     if [[ -z "$app" ]]; then
         error_exit 1 "Review app not found: $branch"
     fi
 
-    local port=$(parse_state_line "$app" "port")
-    local worktree=$(parse_state_line "$app" "worktree")
-    local pid=$(parse_state_line "$app" "pid")
+    local port worktree pid
+    port=$(parse_state_line "$app" "port")
+    worktree=$(parse_state_line "$app" "worktree")
+    pid=$(parse_state_line "$app" "pid")
 
     # Stop existing server
     stop_server "$pid"

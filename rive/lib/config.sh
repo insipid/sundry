@@ -94,7 +94,8 @@ check_path_writable() {
         fi
     else
         # Directory doesn't exist - check if parent is writable
-        local parent_dir=$(dirname "$path")
+        local parent_dir
+        parent_dir=$(dirname "$path")
         # Walk up until we find an existing directory
         while [[ ! -d "$parent_dir" ]] && [[ "$parent_dir" != "/" ]]; do
             parent_dir=$(dirname "$parent_dir")
@@ -117,7 +118,8 @@ validate_paths_writable() {
     fi
 
     # Check state file directory
-    local state_dir=$(dirname "$RIVE_STATE_FILE")
+    local state_dir
+    state_dir=$(dirname "$RIVE_STATE_FILE")
     if ! check_path_writable "$state_dir" "State directory"; then
         ((errors++))
     fi

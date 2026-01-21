@@ -1,0 +1,306 @@
+#!/usr/bin/env bats
+# BATS integration tests for rive CLI
+# Run with: bats test/rive.bats
+
+# Test directory setup
+setup_file() {
+    export RIVE_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+    export LIB_DIR="$RIVE_DIR/lib"
+}
+
+setup() {
+    # Create temp directory for each test
+    TEST_TEMP="$(mktemp -d)"
+
+    # Override rive config for testing
+    export RIVE_WORKTREE_DIR="$TEST_TEMP/worktrees"
+    export RIVE_STATE_FILE="$TEST_TEMP/state"
+    export RIVE_CURRENT_FILE="$TEST_TEMP/current"
+    export RIVE_START_PORT=50000
+    export RIVE_SERVER_COMMAND="echo test --port %PORT%"
+    export RIVE_VERBOSE=false
+    export RIVE_AUTO_INSTALL=false
+
+    # Source libraries
+    source "$LIB_DIR/utils.sh"
+    source "$LIB_DIR/config.sh"
+    source "$LIB_DIR/state.sh"
+    source "$LIB_DIR/port.sh"
+    source "$LIB_DIR/worktree.sh"
+    source "$LIB_DIR/process.sh"
+
+    # Create test directories
+    mkdir -p "$RIVE_WORKTREE_DIR"
+    mkdir -p "$(dirname "$RIVE_STATE_FILE")"
+}
+
+teardown() {
+    # Clean up temp directory after each test
+    if [[ -n "$TEST_TEMP" && -d "$TEST_TEMP" ]]; then
+        rm -rf "$TEST_TEMP"
+    fi
+}
+
+#############################################
+# Configuration Tests
+#############################################
+
+@test "config: defaults are set" {
+    [[ -n "$RIVE_START_PORT" ]]
+    [[ -n "$RIVE_WORKTREE_DIR" ]]
+}
+
+@test "config: valid port passes validation" {
+    RIVE_START_PORT=8080
+    run validate_config
+    [ "$status" -eq 0 ]
+}
+
+@test "config: port below 1024 fails validation" {
+    RIVE_START_PORT=100
+    run validate_config
+    [ "$status" -ne 0 ]
+}
+
+@test "config: non-numeric port fails validation" {
+    RIVE_START_PORT="abc"
+    run validate_config
+    [ "$status" -ne 0 ]
+}
+
+@test "config: missing %PORT% placeholder fails validation" {
+    RIVE_SERVER_COMMAND="npm start"
+    run validate_config
+    [ "$status" -ne 0 ]
+}
+
+@test "config: relative worktree path fails validation" {
+    RIVE_WORKTREE_DIR="relative/path"
+    run validate_config
+    [ "$status" -ne 0 ]
+}
+
+@test "config: writable existing directory passes check" {
+    local test_dir="$TEST_TEMP/writable_test"
+    mkdir -p "$test_dir"
+    run check_path_writable "$test_dir" "Test dir"
+    [ "$status" -eq 0 ]
+}
+
+@test "config: non-existent but creatable path passes check" {
+    local test_dir="$TEST_TEMP/new_subdir/deep/path"
+    run check_path_writable "$test_dir" "Test dir"
+    [ "$status" -eq 0 ]
+}
+
+#############################################
+# State Management Tests
+#############################################
+
+@test "state: file initialization creates state file" {
+    init_state_file
+    [ -f "$RIVE_STATE_FILE" ]
+}
+
+@test "state: add app writes to state file" {
+    init_state_file
+    state_add_app "test-branch" "50001" "$TEST_TEMP/worktree1" "12345"
+    grep -q "test-branch|50001" "$RIVE_STATE_FILE"
+}
+
+@test "state: get app by branch returns correct entry" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "feature/test" "50002" "$TEST_TEMP/worktree2" "12346"
+    run state_get_app "feature/test"
+    [[ "$output" == *"feature/test"* ]]
+}
+
+@test "state: get app by port returns correct entry" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "feature/port-test" "50003" "$TEST_TEMP/worktree3" "12347"
+    run state_get_app_by_port "50003"
+    [[ "$output" == *"feature/port-test"* ]]
+}
+
+@test "state: remove app deletes entry from state" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "to-remove" "50004" "$TEST_TEMP/worktree4" "12348"
+    state_remove_app "to-remove"
+    run grep "to-remove" "$RIVE_STATE_FILE"
+    [ "$status" -ne 0 ]
+}
+
+@test "state: has_app returns true for existing branch" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "existing-branch" "50005" "$TEST_TEMP/worktree5" "12349"
+    run state_has_app "existing-branch"
+    [ "$status" -eq 0 ]
+}
+
+@test "state: has_app returns false for missing branch" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    run state_has_app "nonexistent-branch"
+    [ "$status" -ne 0 ]
+}
+
+@test "state: parse_state_line extracts all fields correctly" {
+    local line="my-branch|40001|/path/to/worktree|99999|1700000000"
+
+    run parse_state_line "$line" "branch"
+    [ "$output" = "my-branch" ]
+
+    run parse_state_line "$line" "port"
+    [ "$output" = "40001" ]
+
+    run parse_state_line "$line" "worktree"
+    [ "$output" = "/path/to/worktree" ]
+
+    run parse_state_line "$line" "pid"
+    [ "$output" = "99999" ]
+
+    run parse_state_line "$line" "timestamp"
+    [ "$output" = "1700000000" ]
+}
+
+@test "state: set and get current app" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "current-test" "50006" "$TEST_TEMP/worktree6" "12350"
+    set_current_app "current-test"
+    run get_current_app
+    [ "$output" = "current-test" ]
+}
+
+@test "state: clear current app removes file" {
+    echo "some-branch" > "$RIVE_CURRENT_FILE"
+    clear_current_app
+    [ ! -f "$RIVE_CURRENT_FILE" ]
+}
+
+#############################################
+# Port Management Tests
+#############################################
+
+@test "port: unused port is detected as not in use" {
+    # Port 59999 is very unlikely to be in use
+    run is_port_in_use 59999
+    [ "$status" -ne 0 ]
+}
+
+@test "port: allocation returns valid port number" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    run find_available_port
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ ^[0-9]+$ ]]
+    [ "$output" -ge "$RIVE_START_PORT" ]
+}
+
+#############################################
+# Utility Function Tests
+#############################################
+
+@test "utils: valid branch name passes validation" {
+    run validate_branch_name "feature/my-branch"
+    [ "$status" -eq 0 ]
+}
+
+@test "utils: branch with numbers passes validation" {
+    run validate_branch_name "feature/JIRA-123-add-login"
+    [ "$status" -eq 0 ]
+}
+
+@test "utils: branch with .. fails validation" {
+    # Run in subshell since validate_branch_name calls error_exit
+    run bash -c 'source "$LIB_DIR/utils.sh"; validate_branch_name "feature/../escape"'
+    [ "$status" -ne 0 ]
+}
+
+@test "utils: branch with semicolon fails validation" {
+    run bash -c 'source "$LIB_DIR/utils.sh"; validate_branch_name "feature;rm -rf /"'
+    [ "$status" -ne 0 ]
+}
+
+@test "utils: branch with backtick fails validation" {
+    run bash -c 'source "$LIB_DIR/utils.sh"; validate_branch_name "feature/\`whoami\`"'
+    [ "$status" -ne 0 ]
+}
+
+@test "utils: branch with pipe fails validation" {
+    run bash -c 'source "$LIB_DIR/utils.sh"; validate_branch_name "feature|cat /etc/passwd"'
+    [ "$status" -ne 0 ]
+}
+
+@test "utils: sanitize branch name replaces slashes" {
+    run sanitize_branch_name "feature/my-branch"
+    [ "$output" = "feature-my-branch" ]
+}
+
+@test "utils: sanitize branch name handles multiple slashes" {
+    run sanitize_branch_name "refs/heads/feature/test"
+    [ "$output" = "refs-heads-feature-test" ]
+}
+
+#############################################
+# Process Management Tests
+#############################################
+
+@test "process: status for non-running process returns stopped" {
+    run get_process_status "999999"
+    [ "$output" = "stopped" ]
+}
+
+@test "process: status for empty PID returns unknown" {
+    run get_process_status ""
+    [ "$output" = "unknown" ]
+}
+
+@test "process: calculate uptime shows hours" {
+    local now
+    now=$(date +%s)
+    local one_hour_ago=$((now - 3600))
+    run calculate_uptime "$one_hour_ago"
+    [[ "$output" == *"h"* ]]
+}
+
+@test "process: calculate uptime shows days" {
+    local now
+    now=$(date +%s)
+    local two_days_ago=$((now - 172800))
+    run calculate_uptime "$two_days_ago"
+    [[ "$output" == *"d"* ]]
+}
+
+#############################################
+# CLI Integration Tests
+#############################################
+
+@test "cli: help command shows usage" {
+    run "$RIVE_DIR/bin/rive" help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Rive - Ephemeral review app manager"* ]]
+}
+
+@test "cli: version command shows version" {
+    run "$RIVE_DIR/bin/rive" version
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}
+
+@test "cli: config command shows configuration" {
+    run "$RIVE_DIR/bin/rive" config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_START_PORT"* ]]
+}
+
+@test "cli: list with empty state shows no apps" {
+    : > "$RIVE_STATE_FILE"
+    run "$RIVE_DIR/bin/rive" list
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No running review apps"* ]]
+}

@@ -54,7 +54,8 @@ create_worktree() {
     validate_branch "$branch" || return 1
 
     # Check if branch is currently checked out in main working directory
-    local current_branch=$(git branch --show-current 2>/dev/null)
+    local current_branch
+    current_branch=$(git branch --show-current 2>/dev/null)
     if [[ "$current_branch" == "$branch" ]]; then
         log_error "Branch '$branch' is currently checked out in the main working directory"
         log_error "Git cannot create a worktree for a branch that is already checked out"
@@ -65,11 +66,13 @@ create_worktree() {
     fi
 
     # Get repository name for namespacing
-    local repo_name=$(get_repo_name)
+    local repo_name
+    repo_name=$(get_repo_name)
     log_debug "Repository name: $repo_name"
 
     # Generate worktree path with repo namespace
-    local sanitized=$(sanitize_branch_name "$branch")
+    local sanitized
+    sanitized=$(sanitize_branch_name "$branch")
     local worktree_path="$base_dir/$repo_name/$sanitized"
 
     # Check if worktree already exists
