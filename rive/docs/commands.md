@@ -1,18 +1,18 @@
 # Command Reference
 
-## add
+## create
 
 Create a new review app from a git branch.
 
-**Aliases:** `start`, `create`, `new`, `up`
+**Aliases:** `add`, `start`, `new`, `up`
 
 ```bash
-rive add <branch>
+rive create <branch>
 
 # Examples
-rive add feature/user-auth
+rive create feature/user-auth
 rive start bugfix/login-error
-rive create feature/new-ui
+rive add feature/new-ui
 ```
 
 **What happens:**

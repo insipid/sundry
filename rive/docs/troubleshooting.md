@@ -1,11 +1,25 @@
 # Troubleshooting
 
-## "Port already in use" error
+## "Port already in use" or "No available ports found" error
 
-**Solution:** The automatic port allocation failed. Try:
+**Possible causes:**
+- Too many review apps running
+- Other services using ports in the configured range
+- Stale state entries from crashed processes
+
+**Solutions:**
 ```bash
+# Check how many apps are running
+rive list
+
+# Clean up stale entries from crashed processes
+rive clean
+
 # Use a different starting port
 rive --start-port 50000 create feature/branch
+
+# Or set permanently in .env
+echo "RIVE_START_PORT=50000" >> .env
 ```
 
 ## "Branch not found" error

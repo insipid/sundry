@@ -24,9 +24,9 @@ Rive is a lightweight CLI tool for managing ephemeral review applications. It cr
 - **Stale entry cleanup** for crashed/orphaned processes
 
 #### Commands
-- `create/start/new/add/up` - Create and start review app
-- `list/ls` - Show all running apps with status, uptime, and details
-- `stop/delete/remove/down` - Stop app and cleanup worktree
+- `create/add/start/new/up` - Create and start review app
+- `list/ls/l` - Show all running apps with status, uptime, and details
+- `remove/stop/delete/del/down/rm` - Stop app and cleanup worktree
 - `restart` - Restart existing app on same port
 - `cd` - Navigate to app's worktree directory
 - `pull` - Pull latest changes from remote
@@ -106,7 +106,6 @@ This release represents 15 commits of iterative development:
 
 ### Known Limitations
 
-- No automated tests (manual testing used for v1.0)
 - No package manager distribution (manual installation)
 - Single machine only (no remote deployment)
 - Bash 4.0+ required (not compatible with older bash versions)
@@ -116,7 +115,6 @@ This release represents 15 commits of iterative development:
 These features were considered but deferred beyond v1.0:
 
 - Package manager distribution (Homebrew, apt, etc.)
-- Automated test suite (shellcheck, integration tests)
 - Status command for detailed single-app info
 - GIF demos in README
 - Multi-service support
