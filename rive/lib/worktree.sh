@@ -37,6 +37,12 @@ select_branch_interactive() {
     local local_branches
     local_branches=$(git branch --format='%(refname:short)' | sort)
     
+    # Build an associative array of local branches for fast lookup
+    declare -A local_branch_map
+    while IFS= read -r branch; do
+        [[ -n "$branch" ]] && local_branch_map["$branch"]=1
+    done <<< "$local_branches"
+    
     # Get all remote branches that don't have a local counterpart
     # Format: remote/branch-name -> branch-name (for comparison)
     local remote_only_branches
@@ -45,8 +51,8 @@ select_branch_interactive() {
         git branch -r --format='%(refname:short)' | grep -v '/HEAD' | while IFS= read -r remote_branch; do
             # Extract the branch name without remote prefix (e.g., origin/feature -> feature)
             local branch_name="${remote_branch#*/}"
-            # Check if this branch exists locally
-            if ! echo "$local_branches" | grep -qx "$branch_name"; then
+            # Check if this branch exists locally using the map
+            if [[ -z "${local_branch_map[$branch_name]}" ]]; then
                 echo "$remote_branch"
             fi
         done | sort
@@ -55,7 +61,7 @@ select_branch_interactive() {
     # Combine local and remote-only branches
     local branches
     if [[ -n "$remote_only_branches" ]]; then
-        branches=$(printf "%s\n%s" "$local_branches" "$remote_only_branches")
+        branches=$(printf '%s\n%s\n' "$local_branches" "$remote_only_branches")
     else
         branches="$local_branches"
     fi
