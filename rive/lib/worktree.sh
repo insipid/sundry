@@ -34,8 +34,31 @@ select_branch_interactive() {
     current_branch=$(git branch --show-current 2>/dev/null)
 
     # Get all local branches
+    local local_branches
+    local_branches=$(git branch --format='%(refname:short)' | sort)
+    
+    # Get all remote branches that don't have a local counterpart
+    # Format: origin/branch-name -> branch-name (for comparison)
+    local remote_only_branches
+    remote_only_branches=$(
+        # Get all remote branches
+        git branch -r --format='%(refname:short)' | grep -v '/HEAD' | while IFS= read -r remote_branch; do
+            # Extract the branch name without remote prefix (e.g., origin/feature -> feature)
+            local branch_name="${remote_branch#origin/}"
+            # Check if this branch exists locally
+            if ! echo "$local_branches" | grep -qx "$branch_name"; then
+                echo "$remote_branch"
+            fi
+        done | sort
+    )
+    
+    # Combine local and remote-only branches
     local branches
-    branches=$(git branch --format='%(refname:short)' | sort)
+    if [[ -n "$remote_only_branches" ]]; then
+        branches=$(printf "%s\n%s" "$local_branches" "$remote_only_branches")
+    else
+        branches="$local_branches"
+    fi
 
     if [[ -z "$branches" ]]; then
         log_error "No branches found in repository"
@@ -49,7 +72,15 @@ select_branch_interactive() {
     while IFS= read -r branch; do
         local info="$branch"
         local worktree_path
-        worktree_path=$(get_worktree_for_branch "$branch")
+        local branch_for_worktree="$branch"
+        
+        # For remote branches, check worktree using the local name
+        if [[ "$branch" == origin/* ]]; then
+            branch_for_worktree="${branch#origin/}"
+            info="$info (remote)"
+        fi
+        
+        worktree_path=$(get_worktree_for_branch "$branch_for_worktree")
 
         # Mark current branch
         if [[ "$branch" == "$current_branch" ]]; then
