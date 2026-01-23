@@ -51,7 +51,7 @@ select_branch_interactive() {
     local current_path=""
     local branch_name=""
     while IFS= read -r line; do
-        if [[ "$line" == worktree* ]]; then
+        if [[ "$line" =~ ^worktree[[:space:]] ]]; then
             # Start of a new worktree entry - save previous mapping if available
             if [[ -n "$current_path" && -n "$branch_name" ]]; then
                 worktree_map["$branch_name"]="$current_path"
@@ -59,7 +59,7 @@ select_branch_interactive() {
             # Reset and set new path
             current_path="${line#worktree }"
             branch_name=""
-        elif [[ "$line" == branch* ]]; then
+        elif [[ "$line" =~ ^branch[[:space:]] ]]; then
             # Extract branch name only if it's a proper branch ref
             if [[ "${line#branch }" == refs/heads/* ]]; then
                 branch_name="${line#branch refs/heads/}"
@@ -80,7 +80,7 @@ select_branch_interactive() {
         fi
 
         # Mark if has worktree (lookup from map)
-        if [[ -n "${worktree_map[$branch]}" ]]; then
+        if [[ -n "${worktree_map[$branch]:-}" ]]; then
             info="$info [worktree: ${worktree_map[$branch]}]"
         fi
 
