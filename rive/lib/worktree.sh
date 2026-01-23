@@ -38,13 +38,13 @@ select_branch_interactive() {
     local_branches=$(git branch --format='%(refname:short)' | sort)
     
     # Get all remote branches that don't have a local counterpart
-    # Format: origin/branch-name -> branch-name (for comparison)
+    # Format: remote/branch-name -> branch-name (for comparison)
     local remote_only_branches
     remote_only_branches=$(
         # Get all remote branches
         git branch -r --format='%(refname:short)' | grep -v '/HEAD' | while IFS= read -r remote_branch; do
             # Extract the branch name without remote prefix (e.g., origin/feature -> feature)
-            local branch_name="${remote_branch#origin/}"
+            local branch_name="${remote_branch#*/}"
             # Check if this branch exists locally
             if ! echo "$local_branches" | grep -qx "$branch_name"; then
                 echo "$remote_branch"
@@ -75,8 +75,8 @@ select_branch_interactive() {
         local branch_for_worktree="$branch"
         
         # For remote branches, check worktree using the local name
-        if [[ "$branch" == origin/* ]]; then
-            branch_for_worktree="${branch#origin/}"
+        if [[ "$branch" == */* ]]; then
+            branch_for_worktree="${branch#*/}"
             info="$info (remote)"
         fi
         
