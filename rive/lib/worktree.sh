@@ -12,6 +12,101 @@ get_repo_name() {
     echo "$repo_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g'
 }
 
+# Get worktree path for a branch if it exists
+get_worktree_for_branch() {
+    local branch="$1"
+
+    # List all worktrees and find the one for this branch
+    git worktree list --porcelain | awk -v branch="$branch" '
+        /^worktree / { path = substr($0, 10) }
+        /^branch / {
+            if (substr($0, 8) == "refs/heads/" branch) {
+                print path
+                exit
+            }
+        }
+    '
+}
+
+# Interactive branch selection with FZF or numbered menu
+select_branch_interactive() {
+    local current_branch
+    current_branch=$(git branch --show-current 2>/dev/null)
+
+    # Get all local branches
+    local branches
+    branches=$(git branch --format='%(refname:short)' | sort)
+
+    if [[ -z "$branches" ]]; then
+        log_error "No branches found in repository"
+        return 1
+    fi
+
+    # Build branch info with worktree status
+    local branch_info=()
+    local branch_list=()
+
+    while IFS= read -r branch; do
+        local info="$branch"
+        local worktree_path
+        worktree_path=$(get_worktree_for_branch "$branch")
+
+        # Mark current branch
+        if [[ "$branch" == "$current_branch" ]]; then
+            info="$info (current)"
+        fi
+
+        # Mark if has worktree
+        if [[ -n "$worktree_path" ]]; then
+            info="$info [worktree: $worktree_path]"
+        fi
+
+        branch_info+=("$info")
+        branch_list+=("$branch")
+    done <<< "$branches"
+
+    # Try to use FZF if available
+    if command_exists fzf; then
+        log_info "Select a branch (use arrow keys, type to filter):"
+        local selected_info
+        selected_info=$(printf '%s\n' "${branch_info[@]}" | fzf --height=40% --reverse --prompt="Select branch: ")
+
+        if [[ -z "$selected_info" ]]; then
+            log_error "No branch selected"
+            return 1
+        fi
+
+        # Extract branch name (first word)
+        echo "$selected_info" | awk '{print $1}'
+        return 0
+    else
+        # Fallback to numbered menu
+        echo ""
+        log_info "Available branches:"
+        echo ""
+
+        local i=1
+        for info in "${branch_info[@]}"; do
+            printf "  %2d) %s\n" "$i" "$info"
+            ((i++))
+        done
+
+        echo ""
+        printf "Select branch number (1-%d): " "${#branch_list[@]}"
+        read -r selection
+
+        # Validate selection
+        if [[ ! "$selection" =~ ^[0-9]+$ ]] || [[ "$selection" -lt 1 ]] || [[ "$selection" -gt "${#branch_list[@]}" ]]; then
+            log_error "Invalid selection: $selection"
+            return 1
+        fi
+
+        # Return selected branch (array is 0-indexed)
+        echo "${branch_list[$((selection - 1))]}"
+        return 0
+    fi
+}
+
 # Validate branch exists
 validate_branch() {
     local branch="$1"

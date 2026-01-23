@@ -25,7 +25,8 @@ USAGE:
     rive <command> [options] [arguments]
 
 COMMANDS:
-    add <branch>         Create a new review app from a git branch
+    add [branch]         Create a new review app from a git branch
+                         If no branch is specified, shows interactive selection
       (aliases: start, create, new, up)
     list                 List all running review apps
       (aliases: ls, l)
@@ -60,7 +61,10 @@ CONFIGURATION:
     - RIVE_VERBOSE           Verbose output (default: false)
 
 EXAMPLES:
-    # Create a review app
+    # Create a review app (interactive branch selection)
+    rive add
+
+    # Create a review app for a specific branch
     rive add feature/new-ui
 
     # List all review apps
@@ -93,11 +97,153 @@ EOF
 cmd_create() {
     local branch="${1:-}"
 
+    # If no branch specified, show interactive selection
     if [[ -z "$branch" ]]; then
-        error_exit 1 "Branch name is required. Usage: rive create <branch>"
+        log_info "No branch specified, showing branch selection..."
+        if ! branch=$(select_branch_interactive); then
+            return 1
+        fi
+        log_debug "Selected branch: $branch"
     fi
 
-    # Check if review app already exists
+    # Check if this is the current branch
+    local current_branch
+    current_branch=$(git branch --show-current 2>/dev/null)
+    if [[ "$branch" == "$current_branch" ]]; then
+        log_info "Selected branch '$branch' is the current branch"
+        log_info "Starting server in current directory..."
+
+        # Get current working directory (the repo root)
+        local worktree
+        worktree=$(git rev-parse --show-toplevel)
+
+        # Check if we already have an app for this branch
+        if state_has_app "$branch"; then
+            local existing_port
+            existing_port=$(get_port_for_branch "$branch")
+            log_error "Review app already exists for branch: $branch"
+            log_info "Running on port $existing_port"
+            log_info "Use 'rive stop $branch' to stop it first"
+            return 1
+        fi
+
+        # Find available port
+        local port
+        port=$(find_available_port) || {
+            error_exit 30 "Could not allocate port"
+        }
+
+        # Install dependencies if configured
+        install_dependencies "$worktree" || {
+            log_warning "Dependency installation failed, continuing..."
+        }
+
+        # Start server
+        local pid
+        if ! pid=$(start_server "$port" "$worktree"); then
+            log_error "Failed to start server"
+            return 1
+        fi
+
+        # Verify we got a PID
+        if [[ -z "$pid" ]]; then
+            log_error "Server start returned empty PID"
+            return 1
+        fi
+
+        # Save state
+        if ! state_add_app "$branch" "$port" "$worktree" "$pid"; then
+            log_error "Failed to save state, cleaning up..."
+            stop_server "$pid"
+            return 1
+        fi
+
+        # Set as current app
+        set_current_app "$branch"
+        log_debug "Set as current app"
+
+        # Success message
+        echo ""
+        log_success "Review app started in current directory!"
+        echo ""
+        echo "  Branch:   $branch"
+        echo "  Directory: $worktree"
+        echo "  PID:      $pid"
+        echo ""
+        echo "  URL:      http://localhost:$port"
+        echo ""
+        return 0
+    fi
+
+    # Check if branch already has a worktree
+    local existing_worktree
+    existing_worktree=$(get_worktree_for_branch "$branch")
+
+    if [[ -n "$existing_worktree" ]]; then
+        log_info "Branch '$branch' already has a worktree at: $existing_worktree"
+
+        # Check if review app already exists for this branch
+        if state_has_app "$branch"; then
+            local existing_port
+            existing_port=$(get_port_for_branch "$branch")
+            log_error "Review app already running for branch: $branch"
+            log_info "Running on port $existing_port at $existing_worktree"
+            log_info "Use 'rive stop $branch' to stop it first"
+            return 1
+        fi
+
+        log_info "Using existing worktree to start review app..."
+
+        # Find available port
+        local port
+        port=$(find_available_port) || {
+            error_exit 30 "Could not allocate port"
+        }
+
+        # Install dependencies if configured
+        install_dependencies "$existing_worktree" || {
+            log_warning "Dependency installation failed, continuing..."
+        }
+
+        # Start server
+        local pid
+        if ! pid=$(start_server "$port" "$existing_worktree"); then
+            log_error "Failed to start server"
+            return 1
+        fi
+
+        # Verify we got a PID
+        if [[ -z "$pid" ]]; then
+            log_error "Server start returned empty PID"
+            return 1
+        fi
+
+        # Save state
+        if ! state_add_app "$branch" "$port" "$existing_worktree" "$pid"; then
+            log_error "Failed to save state, cleaning up..."
+            stop_server "$pid"
+            return 1
+        fi
+
+        # Set as current app
+        set_current_app "$branch"
+        log_debug "Set as current app"
+
+        # Success message
+        echo ""
+        log_success "Review app started using existing worktree!"
+        echo ""
+        echo "  Branch:   $branch"
+        echo "  Worktree: $existing_worktree"
+        echo "  PID:      $pid"
+        echo ""
+        echo "  URL:      http://localhost:$port"
+        echo ""
+        return 0
+    fi
+
+    # No existing worktree, create a new one
+    # Check if review app already exists (shouldn't happen but double-check)
     if state_has_app "$branch"; then
         local existing_port
         existing_port=$(get_port_for_branch "$branch")
@@ -462,10 +608,11 @@ cmd_use() {
         return 0
     fi
 
-    # If no argument, show current app
+    # If no argument, check if we should show current or select interactively
     if [[ -z "$identifier" ]]; then
         local current
-        if current=$(get_current_app); then
+        if current=$(get_current_app 2>/dev/null); then
+            # Show current app
             local app
             app=$(state_get_app "$current")
             if [[ -z "$app" ]]; then
@@ -485,10 +632,34 @@ cmd_use() {
             echo "  URL:      http://localhost:$port"
             return 0
         else
-            echo "No current app set"
-            echo ""
-            echo "Usage: rive use <branch|port>"
-            return 1
+            # No current app, offer interactive selection
+            log_info "No current app set"
+
+            # Check if there are any running apps
+            local apps
+            apps=$(state_list_apps)
+            if [[ -z "$apps" ]]; then
+                echo "No running review apps"
+                echo ""
+                echo "Usage: rive use <branch|port>"
+                echo "   or: rive add [branch]"
+                return 1
+            fi
+
+            # Offer to select from running apps
+            log_info "Would you like to select from running apps? (y/n)"
+            read -r response
+            if [[ "$response" =~ ^[Yy] ]]; then
+                # Show interactive selection of running apps
+                log_info "Select a branch to switch to..."
+                if ! identifier=$(select_branch_interactive); then
+                    return 1
+                fi
+            else
+                echo ""
+                echo "Usage: rive use <branch|port>"
+                return 1
+            fi
         fi
     fi
 
