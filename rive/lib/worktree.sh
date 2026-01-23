@@ -60,8 +60,11 @@ select_branch_interactive() {
             current_path="${line#worktree }"
             branch_name=""
         elif [[ "$line" == branch* ]]; then
-            # Extract branch name from "branch refs/heads/branch-name"
-            branch_name="${line#branch refs/heads/}"
+            # Extract branch name only if it's a proper branch ref
+            local ref="${line#branch }"
+            if [[ "$ref" == refs/heads/* ]]; then
+                branch_name="${ref#refs/heads/}"
+            fi
         fi
     done < <(git worktree list --porcelain)
     # Handle the last entry
