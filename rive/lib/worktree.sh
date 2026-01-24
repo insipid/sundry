@@ -142,18 +142,18 @@ select_branch_interactive() {
         return 0
     else
         # Fallback to numbered menu
-        echo ""
+        echo "" >&2
         log_info "Available branches:"
-        echo ""
+        echo "" >&2
 
         local i=1
         for info in "${branch_info[@]}"; do
-            printf "  %2d) %s\n" "$i" "$info"
+            printf "  %2d) %s\n" "$i" "$info" >&2
             ((i++))
         done
 
-        echo ""
-        printf "Select branch number (1-%d): " "${#branch_list[@]}"
+        echo "" >&2
+        printf "Select branch number (1-%d): " "${#branch_list[@]}" >&2
         read -r selection
 
         # Validate selection
