@@ -74,8 +74,8 @@ select_branch_interactive() {
         local worktree_path
         local branch_for_worktree="$branch"
         
-        # For remote branches, check worktree using the local name
-        if [[ "$branch" == */* ]]; then
+        # Check if this branch is in the remote-only list
+        if grep -qxF "$branch" <<< "$remote_only_branches"; then
             branch_for_worktree="${branch#*/}"
             info="$info (remote)"
         fi
