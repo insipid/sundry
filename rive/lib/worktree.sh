@@ -74,6 +74,31 @@ select_branch_interactive() {
     local branch_info=()
     local branch_list=()
 
+    # Build branch-to-path map by calling git worktree list once
+    local -A worktree_map
+    local current_path=""
+    local branch_name=""
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^worktree\  ]]; then
+            # Start of a new worktree entry - save previous mapping if available
+            if [[ -n "$current_path" && -n "$branch_name" ]]; then
+                worktree_map["$branch_name"]="$current_path"
+            fi
+            # Reset and set new path
+            current_path="${line#worktree }"
+            branch_name=""
+        elif [[ "$line" =~ ^branch\  ]]; then
+            # Extract branch name only if it's a proper branch ref
+            if [[ "${line#branch }" == refs/heads/* ]]; then
+                branch_name="${line#branch refs/heads/}"
+            fi
+        fi
+    done < <(git worktree list --porcelain)
+    # Handle the last entry
+    if [[ -n "$current_path" && -n "$branch_name" ]]; then
+        worktree_map["$branch_name"]="$current_path"
+    fi
+
     while IFS= read -r branch; do
         local info="$branch"
         local worktree_path
@@ -92,9 +117,9 @@ select_branch_interactive() {
             info="$info (current)"
         fi
 
-        # Mark if has worktree
-        if [[ -n "$worktree_path" ]]; then
-            info="$info [worktree: $worktree_path]"
+        # Mark if has worktree (lookup from map)
+        if [[ -n "${worktree_map[$branch]:-}" ]]; then
+            info="$info [worktree: ${worktree_map[$branch]}]"
         fi
 
         branch_info+=("$info")
