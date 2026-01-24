@@ -34,8 +34,36 @@ select_branch_interactive() {
     current_branch=$(git branch --show-current 2>/dev/null)
 
     # Get all local branches
+    local local_branches
+    local_branches=$(git branch --format='%(refname:short)' | sort)
+    
+    # Get all remote branches that don't have a local counterpart
+    # Format: remote/branch-name -> branch-name (for comparison)
+    local remote_only_branches
+    remote_only_branches=$(
+        # Get all remote branches
+        git branch -r --format='%(refname:short)' | grep -v '/HEAD' | sort | while IFS= read -r remote_branch; do
+            # Skip if the branch doesn't contain a slash (invalid remote branch format)
+            if [[ "$remote_branch" != */* ]]; then
+                continue
+            fi
+            
+            # Extract the branch name without remote prefix (e.g., origin/feature -> feature)
+            branch_name="${remote_branch#*/}"
+            # Check if this branch exists locally
+            if ! grep -qxF "$branch_name" <<< "$local_branches"; then
+                echo "$remote_branch"
+            fi
+        done
+    )
+    
+    # Combine local and remote-only branches
     local branches
-    branches=$(git branch --format='%(refname:short)' | sort)
+    if [[ -n "$remote_only_branches" ]]; then
+        branches=$(printf '%s\n%s\n' "$local_branches" "$remote_only_branches")
+    else
+        branches="$local_branches"
+    fi
 
     if [[ -z "$branches" ]]; then
         log_error "No branches found in repository"
@@ -73,6 +101,16 @@ select_branch_interactive() {
 
     while IFS= read -r branch; do
         local info="$branch"
+        local worktree_path
+        local branch_for_worktree="$branch"
+        
+        # Check if this branch is in the remote-only list
+        if grep -qxF "$branch" <<< "$remote_only_branches"; then
+            branch_for_worktree="${branch#*/}"
+            info="$info (remote)"
+        fi
+        
+        worktree_path=$(get_worktree_for_branch "$branch_for_worktree")
 
         # Mark current branch
         if [[ "$branch" == "$current_branch" ]]; then
