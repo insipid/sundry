@@ -43,6 +43,11 @@ select_branch_interactive() {
     remote_only_branches=$(
         # Get all remote branches
         git branch -r --format='%(refname:short)' | grep -v '/HEAD' | sort | while IFS= read -r remote_branch; do
+            # Skip if the branch doesn't contain a slash (invalid remote branch format)
+            if [[ "$remote_branch" != */* ]]; then
+                continue
+            fi
+            
             # Extract the branch name without remote prefix (e.g., origin/feature -> feature)
             branch_name="${remote_branch#*/}"
             # Check if this branch exists locally
