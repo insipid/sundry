@@ -12,6 +12,162 @@ get_repo_name() {
     echo "$repo_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g'
 }
 
+# Get worktree path for a branch if it exists
+get_worktree_for_branch() {
+    local branch="$1"
+
+    # List all worktrees and find the one for this branch
+    git worktree list --porcelain | awk -v branch="$branch" '
+        /^worktree / { path = substr($0, 10) }
+        /^branch / {
+            if (substr($0, 8) == "refs/heads/" branch) {
+                print path
+                exit
+            }
+        }
+    '
+}
+
+# Interactive branch selection with FZF or numbered menu
+select_branch_interactive() {
+    local current_branch
+    current_branch=$(git branch --show-current 2>/dev/null)
+
+    # Get all local branches
+    local local_branches
+    local_branches=$(git branch --format='%(refname:short)' | sort)
+    
+    # Get all remote branches that don't have a local counterpart
+    # Format: remote/branch-name -> branch-name (for comparison)
+    local remote_only_branches
+    remote_only_branches=$(
+        # Get all remote branches
+        git branch -r --format='%(refname:short)' | grep -v '/HEAD' | sort | while IFS= read -r remote_branch; do
+            # Skip if the branch doesn't contain a slash (invalid remote branch format)
+            if [[ "$remote_branch" != */* ]]; then
+                continue
+            fi
+            
+            # Extract the branch name without remote prefix (e.g., origin/feature -> feature)
+            branch_name="${remote_branch#*/}"
+            # Check if this branch exists locally
+            if ! grep -qxF "$branch_name" <<< "$local_branches"; then
+                echo "$remote_branch"
+            fi
+        done
+    )
+    
+    # Combine local and remote-only branches
+    local branches
+    if [[ -n "$remote_only_branches" ]]; then
+        branches=$(printf '%s\n%s\n' "$local_branches" "$remote_only_branches")
+    else
+        branches="$local_branches"
+    fi
+
+    if [[ -z "$branches" ]]; then
+        log_error "No branches found in repository"
+        return 1
+    fi
+
+    # Build branch info with worktree status
+    local branch_info=()
+    local branch_list=()
+
+    # Build branch-to-path map by calling git worktree list once
+    local -A worktree_map
+    local current_path=""
+    local branch_name=""
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^worktree\  ]]; then
+            # Start of a new worktree entry - save previous mapping if available
+            if [[ -n "$current_path" && -n "$branch_name" ]]; then
+                worktree_map["$branch_name"]="$current_path"
+            fi
+            # Reset and set new path
+            current_path="${line#worktree }"
+            branch_name=""
+        elif [[ "$line" =~ ^branch\  ]]; then
+            # Extract branch name only if it's a proper branch ref
+            if [[ "${line#branch }" == refs/heads/* ]]; then
+                branch_name="${line#branch refs/heads/}"
+            fi
+        fi
+    done < <(git worktree list --porcelain)
+    # Handle the last entry
+    if [[ -n "$current_path" && -n "$branch_name" ]]; then
+        worktree_map["$branch_name"]="$current_path"
+    fi
+
+    while IFS= read -r branch; do
+        local info="$branch"
+        local worktree_path
+        local branch_for_worktree="$branch"
+        
+        # Check if this branch is in the remote-only list
+        if grep -qxF "$branch" <<< "$remote_only_branches"; then
+            branch_for_worktree="${branch#*/}"
+            info="$info (remote)"
+        fi
+        
+        worktree_path=$(get_worktree_for_branch "$branch_for_worktree")
+
+        # Mark current branch
+        if [[ "$branch" == "$current_branch" ]]; then
+            info="$info (current)"
+        fi
+
+        # Mark if has worktree (lookup from map)
+        if [[ -n "${worktree_map[$branch]:-}" ]]; then
+            info="$info [worktree: ${worktree_map[$branch]}]"
+        fi
+
+        branch_info+=("$info")
+        branch_list+=("$branch")
+    done <<< "$branches"
+
+    # Try to use FZF if available
+    if command_exists fzf; then
+        log_info "Select a branch (use arrow keys, type to filter):"
+        local selected_info
+        selected_info=$(printf '%s\n' "${branch_info[@]}" | fzf --height=40% --reverse --prompt="Select branch: ")
+
+        if [[ -z "$selected_info" ]]; then
+            log_error "No branch selected"
+            return 1
+        fi
+
+        # Extract branch name (first word)
+        echo "$selected_info" | awk '{print $1}'
+        return 0
+    else
+        # Fallback to numbered menu
+        echo "" >&2
+        log_info "Available branches:"
+        echo "" >&2
+
+        local i=1
+        for info in "${branch_info[@]}"; do
+            printf "  %2d) %s\n" "$i" "$info" >&2
+            ((i++))
+        done
+
+        echo "" >&2
+        printf "Select branch number (1-%d): " "${#branch_list[@]}" >&2
+        read -r selection
+
+        # Validate selection
+        if [[ ! "$selection" =~ ^[0-9]+$ ]] || [[ "$selection" -lt 1 ]] || [[ "$selection" -gt "${#branch_list[@]}" ]]; then
+            log_error "Invalid selection: $selection"
+            return 1
+        fi
+
+        # Return selected branch (array is 0-indexed)
+        echo "${branch_list[$((selection - 1))]}"
+        return 0
+    fi
+}
+
 # Validate branch exists
 validate_branch() {
     local branch="$1"
