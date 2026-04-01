@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
-from memories.firefox import find_default_profile, load_entries, FirefoxProfileError
+from memories.firefox import find_default_profile, load_entries, _resolve_places_path, FirefoxProfileError
 
 
 # ---------------------------------------------------------------------------
@@ -183,3 +183,54 @@ def test_missing_places_sqlite_raises(tmp_path):
     profile = mozilla / "profiles/test.default"
     with pytest.raises(FirefoxProfileError, match="places.sqlite not found"):
         load_entries(profile_path=profile)
+
+
+# ---------------------------------------------------------------------------
+# Environment variable tests
+# ---------------------------------------------------------------------------
+
+def test_memories_places_env_var(tmp_path, monkeypatch):
+    """MEMORIES_PLACES pointing directly at a places.sqlite is used."""
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    db = make_places_db(profile, history=[
+        {"url": "https://envvar.example.com", "title": "EnvVar Test", "visit_count": 3},
+    ])
+    monkeypatch.setenv("MEMORIES_PLACES", str(db))
+    # profile_path=None so auto-detect would normally run, but env var wins
+    entries = load_entries(profile_path=None, sources=["history"])
+    assert any(e["url"] == "https://envvar.example.com" for e in entries)
+
+
+def test_memories_firefox_profile_env_var(tmp_path, monkeypatch):
+    """MEMORIES_FIREFOX_PROFILE pointing at a profile directory is used."""
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    make_places_db(profile, bookmarks=[
+        {"url": "https://profileenv.example.com", "title": "Profile Env", "visit_count": 1},
+    ])
+    monkeypatch.setenv("MEMORIES_FIREFOX_PROFILE", str(profile))
+    monkeypatch.delenv("MEMORIES_PLACES", raising=False)
+    entries = load_entries(profile_path=None, sources=["bookmarks"])
+    assert any(e["url"] == "https://profileenv.example.com" for e in entries)
+
+
+def test_memories_places_env_var_missing_file(tmp_path, monkeypatch):
+    """MEMORIES_PLACES pointing at a non-existent file raises a clear error."""
+    monkeypatch.setenv("MEMORIES_PLACES", str(tmp_path / "nonexistent.sqlite"))
+    monkeypatch.delenv("MEMORIES_FIREFOX_PROFILE", raising=False)
+    with pytest.raises(FirefoxProfileError, match="MEMORIES_PLACES points to missing file"):
+        _resolve_places_path(None)
+
+
+def test_memories_places_takes_priority_over_profile(tmp_path, monkeypatch):
+    """MEMORIES_PLACES wins even when MEMORIES_FIREFOX_PROFILE is also set."""
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    db = make_places_db(profile, history=[
+        {"url": "https://priority.example.com", "title": "Priority", "visit_count": 1},
+    ])
+    monkeypatch.setenv("MEMORIES_PLACES", str(db))
+    monkeypatch.setenv("MEMORIES_FIREFOX_PROFILE", str(tmp_path / "other_profile"))
+    resolved = _resolve_places_path(None)
+    assert resolved == db

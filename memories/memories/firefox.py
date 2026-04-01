@@ -3,20 +3,38 @@
 from __future__ import annotations
 
 import configparser
+import os
 import shutil
 import sqlite3
+import sys
 import tempfile
 from pathlib import Path
 from typing import Optional
 
-_MOZILLA_DIR = Path.home() / ".mozilla" / "firefox"
+# Environment variables the user can set to override auto-detection:
+#   MEMORIES_PLACES         – direct path to a places.sqlite file
+#   MEMORIES_FIREFOX_PROFILE – path to a Firefox profile directory
+
+
+def _default_mozilla_dir() -> Path:
+    """Return the platform-appropriate Firefox application data directory."""
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Firefox"
+    if sys.platform == "win32":
+        appdata = os.environ.get("APPDATA", "")
+        return Path(appdata) / "Mozilla" / "Firefox"
+    # Linux / other POSIX
+    return Path.home() / ".mozilla" / "firefox"
 
 
 class FirefoxProfileError(RuntimeError):
     pass
 
 
-def find_default_profile(mozilla_dir: Path = _MOZILLA_DIR) -> Path:
+def find_default_profile(mozilla_dir: Path | None = None) -> Path:
+    """Return the path to the default Firefox profile directory."""
+    if mozilla_dir is None:
+        mozilla_dir = _default_mozilla_dir()
     """Return the path to the default Firefox profile directory."""
     ini_path = mozilla_dir / "profiles.ini"
     if not ini_path.exists():
@@ -128,6 +146,42 @@ def _row_to_dict(row: sqlite3.Row, source: str) -> dict:
     }
 
 
+def _resolve_places_path(profile_path: Optional[Path]) -> Path:
+    """Determine the path to places.sqlite, respecting env vars.
+
+    Priority (highest to lowest):
+      1. MEMORIES_PLACES env var  – direct path to places.sqlite
+      2. MEMORIES_FIREFOX_PROFILE env var – profile directory
+      3. profile_path argument    – from config file
+      4. Platform-aware auto-detection via profiles.ini
+    """
+    # 1. Direct path to the SQLite file
+    env_places = os.environ.get("MEMORIES_PLACES", "").strip()
+    if env_places:
+        p = Path(env_places).expanduser()
+        if not p.exists():
+            raise FirefoxProfileError(f"MEMORIES_PLACES points to missing file: {p}")
+        return p
+
+    # 2. Profile directory from env var
+    env_profile = os.environ.get("MEMORIES_FIREFOX_PROFILE", "").strip()
+    if env_profile:
+        profile_path = Path(env_profile).expanduser()
+
+    # 3 & 4. profile_path argument or auto-detection
+    if profile_path is None:
+        profile_path = find_default_profile()
+
+    places = profile_path / "places.sqlite"
+    if not places.exists():
+        raise FirefoxProfileError(
+            f"places.sqlite not found at {places}\n"
+            "Tip: set MEMORIES_PLACES=/path/to/places.sqlite or "
+            "MEMORIES_FIREFOX_PROFILE=/path/to/profile"
+        )
+    return places
+
+
 def load_entries(
     profile_path: Optional[Path] = None,
     sources: Optional[list[str]] = None,
@@ -140,10 +194,7 @@ def load_entries(
     if sources is None:
         sources = ["bookmarks", "history"]
 
-    if profile_path is None:
-        profile_path = find_default_profile()
-
-    places_path = profile_path / "places.sqlite"
+    places_path = _resolve_places_path(profile_path)
     if not places_path.exists():
         raise FirefoxProfileError(f"places.sqlite not found at {places_path}")
 
