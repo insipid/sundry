@@ -137,8 +137,7 @@ def create_app(cfg: Config) -> Flask:
 def run(cfg: Config) -> None:
     """Start the Flask development server (blocking)."""
     app = create_app(cfg)
-    # Suppress Flask's default startup banner — daemon prints its own
-    import os
-    os.environ.setdefault("WERKZEUG_RUN_MAIN", "true")
+    # Silence Werkzeug's "Running on http://..." startup line — the CLI prints its own.
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
     logging.basicConfig(level=logging.INFO)
     app.run(host="127.0.0.1", port=cfg.server.port, debug=False, use_reloader=False)
