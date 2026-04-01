@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>memories</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>memories</h1>
+      <div id="search-wrap">
+        <input
+          id="search"
+          type="text"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="Search bookmarks and history…"
+          autofocus
+        />
+        <span id="result-count"></span>
+      </div>
+    </header>
+
+    <main>
+      <ul id="results" role="listbox" aria-label="Search results"></ul>
+      <p id="empty-msg" hidden>No results.</p>
+      <p id="error-msg" hidden></p>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

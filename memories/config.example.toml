@@ -1,0 +1,37 @@
+# memories – example configuration
+# Copy to ~/.config/memories/config.toml and edit as needed.
+
+[server]
+port = 8765
+open_browser = true
+# true  → server calls xdg-open (opens a new tab in your default browser)
+# false → result opens in the same tab as the memories UI (navigates away)
+open_in_new_tab = true
+
+[firefox]
+# Leave blank to auto-detect the default Firefox profile.
+profile = ""
+# How often (seconds) to re-read places.sqlite from disk.
+# Set to 0 to re-read on every search query (slower but always fresh).
+refresh_interval = 300
+
+[search]
+max_results = 50
+# Include "bookmarks", "history", or both.
+sources = ["bookmarks", "history"]
+
+[weights]
+# These four values should sum to 1.0 (they are normalised if they don't).
+frecency = 0.4    # Firefox's built-in frecency score (visit frequency × recency)
+tfidf    = 0.3    # TF-IDF cosine similarity (title + tags corpus)
+fuzzy    = 0.2    # rapidfuzz partial_ratio against title and URL
+recency  = 0.1    # Boost for recently visited pages
+
+[filter]
+# List of Python regex patterns. Any URL matching one of these is excluded.
+# Example: exclude_url_patterns = ["^moz-extension://", "^file://"]
+exclude_url_patterns = []
+
+# Minimum number of visits for a history entry to appear.
+# Bookmarks are always included regardless of this setting.
+min_visit_count = 0
