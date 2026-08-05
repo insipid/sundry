@@ -16,6 +16,7 @@
 #   (none)           CAPTAINSLOG_RECORDINGS_DIR      auto-detected (see below)
 #   -q, --quiet      (no env var)                    off — status messages print
 #   --with-viewer    CAPTAINSLOG_WITH_VIEWER         off — viewer not launched
+#   -k, --kill       (no env var)                    n/a — always an explicit action
 #
 # Behavior:
 #   - No state file. The "cursor" (how far we've already logged) is derived
@@ -52,6 +53,21 @@
 #     file, and stopped automatically when this script stops (same trap
 #     that handles Ctrl-C/kill for the watch loop itself also stops the
 #     viewer, so there's nothing left running behind).
+#   - -k, --kill: finds every OTHER running captainslog.sh process (matching
+#     on "captainslog.sh" in the full command line, the same way `pkill -f
+#     captainslog.sh` would) and sends it SIGTERM — the current process
+#     always excludes itself first, so this is safe to combine with other
+#     flags. Uses SIGTERM specifically (not SIGKILL) so any instance being
+#     killed still runs its own trap: "Stopped.", and — if it was started
+#     with --with-viewer — cleanly stops its own viewer too, rather than
+#     orphaning it.
+#     If -k/--kill is the ONLY argument given, it exits immediately after
+#     killing. If other arguments are given alongside it, it kills first
+#     and then this same process just continues on with those arguments —
+#     effectively "kill whatever's running, then take over" in one command.
+#     This does NOT clean up a viewer left behind by an instance that isn't
+#     found (e.g. one already dead, or one started from a different copy
+#     of this script) — it only stops what -k itself can see and kill.
 #
 # CAPTAINSLOG_RECORDINGS_DIR, if set, is used as-is (skipping auto-detection)
 # and must point directly at Superwhisper's recordings folder — the one
@@ -91,6 +107,16 @@ RECORDINGS_DIR_OVERRIDE=""
 
 QUIET=0
 
+# Pre-scan for -q/--quiet before the real argument parsing loop below, so
+# it's already in effect no matter where in the argument list it appears —
+# in particular, so that -k/--kill (which can act before the main loop
+# reaches a later -q) already knows whether to stay quiet.
+for _prescan_arg in "$@"; do
+  case "$_prescan_arg" in
+    -q|--quiet) QUIET=1 ;;
+  esac
+done
+
 WITH_VIEWER=0
 [ -n "${CAPTAINSLOG_WITH_VIEWER:-}" ] && WITH_VIEWER=1
 
@@ -103,9 +129,29 @@ log() {
   [ "$QUIET" -eq 1 ] || printf '%s\n' "$*"
 }
 
+# Kills every OTHER running captainslog.sh, excluding this process itself
+# so -k/--kill can safely be combined with other flags to "kill, then take
+# over". Matches on the full command line the same way `pkill -f
+# captainslog.sh` would, but via pgrep+kill instead of pkill directly —
+# pkill's own self-exclusion only covers the pkill process, not the shell
+# that invoked it, and this script's own command line also contains
+# "captainslog.sh", so a plain `pkill -f captainslog.sh` run from inside
+# this script would also match and kill itself.
+kill_other_instances() {
+  local self_pid=$$
+  local pids
+  pids="$(pgrep -f 'captainslog\.sh' 2>/dev/null | grep -v -x "$self_pid")"
+  if [ -n "$pids" ]; then
+    echo "$pids" | xargs kill 2>/dev/null
+    log "Killed other captainslog.sh instance(s): $(echo "$pids" | tr '\n' ' ' | sed 's/ *$//')"
+  else
+    log "No other captainslog.sh instances running."
+  fi
+}
+
 usage() {
   cat <<USAGE
-Usage: $(basename "$0") [output-file] [--mode "Mode Name"] [--watch [SECONDS]] [-q] [--with-viewer]
+Usage: $(basename "$0") [output-file] [--mode "Mode Name"] [--watch [SECONDS]] [-q] [--with-viewer] [-k]
 
   output-file    Where transcriptions get appended.
                  Default: \$CAPTAINSLOG_FILE, or ~/Desktop/voice-notes.txt
@@ -133,6 +179,13 @@ Usage: $(basename "$0") [output-file] [--mode "Mode Name"] [--watch [SECONDS]] [
                  Default source if flag omitted: \$CAPTAINSLOG_WITH_VIEWER
                  (any non-empty value enables it)
 
+  -k, --kill     Kill every other running captainslog.sh (SIGTERM, so they
+                 clean up their own viewer/state before exiting). Excludes
+                 this process itself. If -k is the ONLY argument given,
+                 exits right after. If given alongside other arguments,
+                 kills first and then continues on with those arguments —
+                 "kill whatever's running, then take over."
+
   Also honored: \$CAPTAINSLOG_RECORDINGS_DIR to point directly at
   Superwhisper's recordings folder instead of auto-detecting it.
 
@@ -144,8 +197,20 @@ Usage: $(basename "$0") [output-file] [--mode "Mode Name"] [--watch [SECONDS]] [
 USAGE
 }
 
+# Captured before the loop consumes anything, since "was -k the ONLY
+# argument" needs the original count, not however many are left at
+# whatever point the loop happens to reach -k.
+TOTAL_ARGS=$#
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -k|--kill)
+      kill_other_instances
+      if [ "$TOTAL_ARGS" -eq 1 ]; then
+        exit 0
+      fi
+      shift 1
+      ;;
     --mode)
       MODE_NAME="${2:-}"; shift 2 ;;
     --watch)

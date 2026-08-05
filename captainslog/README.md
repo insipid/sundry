@@ -32,7 +32,7 @@ _N.B. This is necessarily based on precisely "Superwhisper running on MacOS", be
 ## Usage
 
 ```
-captainslog.sh [output-file] [--mode "Mode Name"] [--watch [SECONDS]] [-q] [--with-viewer]
+captainslog.sh [output-file] [--mode "Mode Name"] [--watch [SECONDS]] [-q] [--with-viewer] [-k]
 ```
 
 | Flag | Env var | Default |
@@ -42,6 +42,7 @@ captainslog.sh [output-file] [--mode "Mode Name"] [--watch [SECONDS]] [-q] [--wi
 | `--watch` | `CAPTAINSLOG_WATCH` | off (single pass, then exit) |
 | `-q`, `--quiet` | — | off (status messages print) |
 | `--with-viewer` | `CAPTAINSLOG_WITH_VIEWER` | off |
+| `-k`, `--kill` | — | n/a — always an explicit action |
 | (recordings folder) | `CAPTAINSLOG_RECORDINGS_DIR` | auto-detected |
 
 Command-line flags win over environment variables, which win over the defaults above.
@@ -49,15 +50,19 @@ Command-line flags win over environment variables, which win over the defaults a
 **Examples**
 
 ```bash
-captainslog.sh                           # one pass, pull whatever's new, exit
-captainslog.sh --watch 30                # poll every 30 seconds
-captainslog.sh --watch                   # event-driven via fswatch (falls back to polling every 60s if fswatch isn't installed)
-captainslog.sh --watch --with-viewer     # also opens the live web viewer, stops it automatically when you stop this
-captainslog.sh -q --watch 60             # same, but silent — only real errors print
+captainslog.sh                         # one pass, pull whatever's new, exit
+captainslog.sh --watch 30              # poll every 30 seconds
+captainslog.sh --watch                 # event-driven via fswatch (falls back to polling every 60s if fswatch isn't installed)
+captainslog.sh --watch --with-viewer   # also opens the live web viewer, stops it automatically when you stop this
+captainslog.sh -q --watch 60           # same, but silent — only real errors print
 captainslog.sh ~/notes/log.txt --mode "Work Notes"
+captainslog.sh -k                      # kill any other running captainslog.sh instance(s), then exit
+captainslog.sh -k --watch 30           # kill any existing instance(s), then start this one — "kill and relaunch"
 ```
 
-**Stopping a `--watch` run**: Ctrl-C if it's in the foreground. If you backgrounded it yourself with `&`, use plain `kill <pid>` (or `pkill -f "captainslog"`) — not `kill -INT`. This is a real POSIX shell quirk, not a choice this script makes: SIGINT is automatically ignored for anything launched with `&`, and no amount of `trap`-ing inside the script can override that. SIGTERM (what plain `kill` sends) has no such restriction, which is why that's the reliable way to stop a backgrounded instance.
+**Stopping a `--watch` run**: Ctrl-C if it's in the foreground. If you backgrounded it yourself with `&`, the easiest way is `captainslog.sh -k` — it finds and stops any other running instance(s) for you. Equivalent by hand: plain `kill <pid>` (or `pkill -f "captainslog"`) — not `kill -INT`. This is a real POSIX shell quirk, not a choice this script makes: SIGINT is automatically ignored for anything launched with `&`, and no amount of `trap`-ing inside the script can override that. SIGTERM (what plain `kill` and `-k` both send) has no such restriction, which is why that's the reliable way to stop a backgrounded instance.
+
+**`-k`/`--kill`**: stops any other running `captainslog.sh` instance(s) — matching on the full command line the same way `pkill -f captainslog.sh` would, but always excluding itself. If `-k` is the only argument, it exits immediately afterward. If there are other arguments, it kills first and then continues on with those — an easy way to restart a background instance with new settings in one command. Uses SIGTERM, so killed instances get to run their own cleanup (including stopping any viewer they'd launched via `--with-viewer`). Note: it can only clean up what it can find and kill directly — if another instance had `--with-viewer` running and this can't signal that instance (already dead, wrong user, etc.), that viewer is left orphaned.
 
 ## The viewer
 
