@@ -1,6 +1,6 @@
 # Captain's Log
 
-Speak into (Superwhisper)[https://superwhisper.com/], get a timestamped text log. Optionally, watch it update live in a browser.
+Speak into (Superwhisper)[https://superwhisper.com/], get a timestamped text log. Use it for brief updates/statuses/thoughts. Optionally, watch it update live in a browser.
 
 Two independent scripts, no daemons, no installed services:
 
@@ -24,7 +24,7 @@ _N.B. This is necessarily based on precisely "Superwhisper running on MacOS", be
 
 ## Setup
 
-1. In Superwhisper, create a Mode (Settings → Modes → click the name to rename it — this isn't obvious, the name field looks unlabeled). Give it a keyboard shortcut if you want a dedicated hotkey for logging specifically.
+1. In Superwhisper, create a Mode (Settings → Modes → click the name to rename it — this isn't obvious, the name field looks unlabeled). Give it a keyboard shortcut if you want a dedicated hotkey for logging specifically. Disable "auto-paste", so the transcript exists only in the `meta.json` of the recording.
 2. Install `jq` if you don't have it: `brew install jq` (this is the only hard requirement beyond stock macOS).
 3. Optionally, `brew install fswatch` if you want instant, event-driven updates instead of polling (see `--watch` below). Not required — everything works without it, just falls back to polling.
 4. Run `captainslog.sh` by hand, or leave it running with `--watch`.
