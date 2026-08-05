@@ -53,6 +53,10 @@
 #     file, and stopped automatically when this script stops (same trap
 #     that handles Ctrl-C/kill for the watch loop itself also stops the
 #     viewer, so there's nothing left running behind).
+#     "Same folder as this script" means the real script file, even if
+#     you invoke captainslog.sh through a symlink (e.g. one on your PATH
+#     pointing back into this repo) — the symlink is resolved first, so
+#     the viewer is looked for next to the target, not next to the link.
 #   - -k, --kill: finds every OTHER running captainslog.sh process (matching
 #     on "captainslog.sh" in the full command line, the same way `pkill -f
 #     captainslog.sh` would) and sends it SIGTERM — the current process
@@ -127,6 +131,28 @@ WITH_VIEWER=0
 # $OUTPUT_FILE (that's file content, not console noise).
 log() {
   [ "$QUIET" -eq 1 ] || printf '%s\n' "$*"
+}
+
+# Resolves ${BASH_SOURCE[0]} all the way through any symlinks (including
+# chains of them) and prints the directory the REAL underlying file lives
+# in — not the directory the symlink itself sits in. This matters for
+# finding captainslog-viewer.py: if this script is invoked via a symlink
+# (e.g. something on PATH pointing back into this repo), plain
+# `dirname "${BASH_SOURCE[0]}"` gives the symlink's folder, not this
+# script's actual folder, and the viewer lookup would fail. Written by
+# hand with `readlink` + a loop rather than `readlink -f`, since macOS's
+# stock BSD `readlink` doesn't support -f (only GNU readlink does).
+resolve_script_dir() {
+  local source dir
+  source="${BASH_SOURCE[0]}"
+  while [ -h "$source" ]; do
+    dir="$(cd -P "$(dirname "$source")" && pwd)"
+    source="$(readlink "$source")"
+    # A relative symlink target is relative to the symlink's own
+    # directory, not to wherever we currently are — resolve it there.
+    [[ "$source" == /* ]] || source="$dir/$source"
+  done
+  cd -P "$(dirname "$source")" && pwd
 }
 
 # Kills every OTHER running captainslog.sh, excluding this process itself
@@ -357,7 +383,7 @@ maybe_launch_viewer() {
   [ "$WITH_VIEWER" -eq 1 ] || return 0
 
   local script_dir viewer_path
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  script_dir="$(resolve_script_dir)"
   viewer_path="$script_dir/captainslog-viewer.py"
 
   if [ ! -f "$viewer_path" ]; then
