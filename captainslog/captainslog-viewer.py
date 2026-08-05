@@ -27,6 +27,7 @@ Ctrl-C to stop. No daemon, no background service, no login item.
 """
 
 import argparse
+import errno
 import json
 import os
 import re
@@ -354,7 +355,28 @@ def main():
     signal.signal(signal.SIGINT, _handle_shutdown)
     signal.signal(signal.SIGTERM, _handle_shutdown)
 
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    # Just try to bind and see what happens, rather than checking with
+    # something like `lsof` first — a pre-check can't actually guarantee
+    # anything (another process could grab the port between the check and
+    # the real bind), so it's both unreliable and unnecessary complexity.
+    # The bind attempt itself is the only real answer.
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    except OSError as e:
+        if e.errno == errno.EADDRINUSE:
+            print(
+                "ERROR: port %d is already in use — is captainslog-viewer.py "
+                "already running? Pick a different port with --port, or set "
+                "CAPTAINSLOG_PORT." % args.port,
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "ERROR: couldn't start on port %d (%s)." % (args.port, e.strerror or e),
+                file=sys.stderr,
+            )
+        sys.exit(1)
+
     url = "http://127.0.0.1:%d/" % args.port
     _log("Watching: %s" % Handler.target_file)
     _log("Open in your browser: %s" % url)
