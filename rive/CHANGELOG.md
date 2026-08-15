@@ -30,6 +30,8 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
 - **Integration suite** (`test/integration_test.sh`) — 37 tests covering config
   validation, state management, port allocation, branch-name sanitisation,
   process handling, and CLI smoke tests; requires no dependencies beyond Bash
+- **Symlink invocation tests** — three BATS cases covering absolute symlinks,
+  chains of symlinks, and symlinks with relative targets
 - **GitHub Actions workflow** (`.github/workflows/rive-ci.yml`) running ShellCheck
   at `--severity=warning` plus the BATS suite on `ubuntu-latest` and `macos-latest`
 
@@ -58,6 +60,13 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
 
 ### Fixed
 
+- **Running rive through a symlink now works.** `bin/rive` located its `lib/`
+  directory relative to the symlink rather than the resolved script, so the
+  installation method documented in the README — symlinking `bin/rive` onto your
+  `PATH` — failed on every invocation with
+  `line 12: /path/to/lib/utils.sh: No such file or directory`. The script now
+  resolves `BASH_SOURCE` through symlink chains (including relative targets)
+  before deriving `LIB_DIR`. Covered by three new regression tests.
 - **Branch picker prompts now write to stderr**, so command substitution such as
   `cd $(rive cd)` is not polluted by menu output
 - **Local branches containing slashes** are no longer misidentified as remote

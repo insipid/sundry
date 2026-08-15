@@ -1,5 +1,23 @@
 # Troubleshooting
 
+## "No such file or directory: .../lib/utils.sh" on startup
+
+**Error:**
+```
+/Users/you/bin/rive: line 12: /Users/you/lib/utils.sh: No such file or directory
+```
+
+**Cause:** A bug in v1.0.0. Rive looked for its `lib/` directory next to the
+symlink you invoked rather than next to the real script, so the documented
+symlink installation broke on every run.
+
+**Solution:** Update to v1.1.0 or later:
+```bash
+cd ~/code/sundry
+git pull
+rive version    # should report 1.1.0 or higher
+```
+
 ## "Port already in use" or "No available ports found" error
 
 **Possible causes:**
