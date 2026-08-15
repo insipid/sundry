@@ -5,10 +5,14 @@ Lightweight CLI tool for managing ephemeral review applications. Creates isolate
 ## Quick Start
 
 ```bash
-# Create a review app
-rive create feature/new-ui
+# Create a review app - pick a branch interactively
+rive add
+# → Shows a branch picker (fzf if installed, numbered menu otherwise)
 # → Creates worktree, starts server on port 40000
 # → Automatically sets as current app
+
+# Or name the branch directly
+rive add feature/new-ui
 
 # Navigate to the worktree (add alias: alias rivecd='cd $(rive cd)')
 rivecd
@@ -41,10 +45,17 @@ ln -s ~/code/sundry/rive/bin/rive ~/bin/rive
 rive version
 ```
 
+Optionally install [fzf](https://github.com/junegunn/fzf) for fuzzy branch selection:
+
+```bash
+brew install fzf   # macOS
+```
+
 See [docs/installation.md](docs/installation.md) for alternative methods.
 
 ## Key Features
 
+- **Interactive branch selection** - Run `rive add` with no argument to pick from a list
 - **Auto worktree management** - One command creates isolated workspace
 - **Port allocation** - Never worry about port conflicts
 - **Current app context** - Commands work without specifying branch/port
@@ -67,7 +78,8 @@ See [docs/configuration.md](docs/configuration.md) for all options and framework
 ## Commands
 
 ```
-create <branch>      Create review app (aliases: add, new, start, up)
+add [branch]         Create review app; prompts for branch if omitted
+                     (aliases: start, create, new, up)
 remove [branch|port] Stop app (aliases: stop, delete, del, down, rm)
 list                 List all running apps (aliases: ls, l)
 restart [branch]     Restart app
@@ -83,11 +95,38 @@ version              Show version
 
 See [docs/commands.md](docs/commands.md) for detailed command reference.
 
+## Interactive Branch Selection
+
+Omit the branch name and rive shows a picker:
+
+```bash
+rive add
+```
+
+The list includes local branches and any remote branches without a local
+counterpart, annotated so you can see the state at a glance:
+
+```
+  1) main (current)
+  2) feature/checkout-flow [worktree: ~/.rive/worktrees/myrepo/checkout-flow]
+  3) origin/feature/user-profile (remote)
+```
+
+- `(current)` - the branch checked out in your main working directory
+- `(remote)` - exists only on a remote; rive creates the local branch for you
+- `[worktree: ...]` - already has a worktree
+
+If [fzf](https://github.com/junegunn/fzf) is installed you get a fuzzy-filterable
+list; otherwise rive falls back to a numbered menu. Any remote name works, not
+just `origin`.
+
+`rive use` with no argument offers the same picker when apps are running.
+
 ## Workflow Example
 
 ```bash
 # Start working on a feature
-rive create feature/checkout-flow
+rive add feature/checkout-flow
 # → Worktree created, server running, set as current
 
 # Make some changes, test them
@@ -101,7 +140,7 @@ rive pull
 rive logs
 
 # Work on another feature while keeping first one running
-rive create feature/user-profile
+rive add feature/user-profile
 # → New server on port 40001, now current
 
 # Switch back to first feature
@@ -116,7 +155,7 @@ rive remove feature/user-profile
 
 **Server won't start?**
 ```bash
-RIVE_ENABLE_LOGS=true rive create feature/branch
+RIVE_ENABLE_LOGS=true rive add feature/branch
 rive logs feature/branch
 ```
 
@@ -128,12 +167,29 @@ git push -u origin <branch>
 
 See [docs/troubleshooting.md](docs/troubleshooting.md) for more help.
 
+## Development
+
+```bash
+# Lint (matches CI)
+shellcheck --severity=warning bin/rive lib/*.sh
+
+# Unit tests (requires bats-core)
+bats test/rive.bats
+
+# Integration tests (no extra dependencies)
+./test/integration_test.sh
+```
+
+CI runs ShellCheck plus the BATS suite on Ubuntu and macOS for every push and
+pull request touching `rive/`.
+
 ## Documentation
 
 - [Installation Guide](docs/installation.md)
 - [Configuration](docs/configuration.md)
 - [Command Reference](docs/commands.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 

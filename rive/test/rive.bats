@@ -304,3 +304,32 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"No running review apps"* ]]
 }
+
+# The documented install puts a symlink on PATH pointing back into the repo,
+# so the script must locate lib/ relative to the resolved target rather than
+# relative to the symlink itself.
+@test "cli: runs via an absolute symlink" {
+    ln -s "$RIVE_DIR/bin/rive" "$TEST_TEMP/rive-link"
+    run "$TEST_TEMP/rive-link" version
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}
+
+@test "cli: runs via a chain of symlinks" {
+    ln -s "$RIVE_DIR/bin/rive" "$TEST_TEMP/rive-hop1"
+    ln -s "$TEST_TEMP/rive-hop1" "$TEST_TEMP/rive-hop2"
+    run "$TEST_TEMP/rive-hop2" version
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}
+
+@test "cli: runs via a symlink with a relative target" {
+    # The second link's target is a bare filename, so it only resolves if the
+    # relative target is joined to the symlink's own directory rather than cwd
+    ln -s "$RIVE_DIR/bin/rive" "$TEST_TEMP/rive-abs"
+    ln -s "rive-abs" "$TEST_TEMP/rive-rel"
+    cd /
+    run "$TEST_TEMP/rive-rel" version
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}

@@ -1,31 +1,67 @@
 # Command Reference
 
-## create
+## add
 
 Create a new review app from a git branch.
 
-**Aliases:** `add`, `start`, `new`, `up`
+**Aliases:** `start`, `create`, `new`, `up`
 
 ```bash
-rive create <branch>
+rive add [branch]
 
 # Examples
-rive create feature/user-auth
+rive add                         # Interactive branch selection
+rive add feature/user-auth
 rive start bugfix/login-error
-rive add feature/new-ui
+rive create feature/new-ui
 ```
 
 **What happens:**
-1. Validates branch exists (fetches if needed)
-2. Finds an available port
-3. Creates a git worktree in a repository-namespaced directory
-4. Optionally installs dependencies (if `RIVE_AUTO_INSTALL=true`)
-5. Starts the development server
-6. Saves state for management
-7. Sets as the current app
+1. Prompts for a branch if none was given (see [Interactive Branch Selection](#interactive-branch-selection))
+2. Validates branch exists (fetches if needed)
+3. Finds an available port
+4. Creates a git worktree in a repository-namespaced directory
+5. Optionally installs dependencies (if `RIVE_AUTO_INSTALL=true`)
+6. Starts the development server
+7. Saves state for management
+8. Sets as the current app
 
-**Prevents:**
-- Creating a worktree for a branch that's currently checked out in the main directory
+**Branch name validation:** Branch names containing shell metacharacters
+(`;`, `` ` ``, `|`, `..`, and similar) are rejected before reaching git.
+
+**Special case:** If you select the branch already checked out in your main
+working directory, rive skips worktree creation and starts the server in the
+repository root instead.
+
+## Interactive Branch Selection
+
+Running `rive add` without a branch name opens a picker. The list combines all
+local branches with any remote branches that have no local counterpart:
+
+```
+  1) main (current)
+  2) feature/checkout-flow [worktree: ~/.rive/worktrees/myrepo/checkout-flow]
+  3) origin/feature/user-profile (remote)
+```
+
+**Annotations:**
+
+| Marker | Meaning |
+|--------|---------|
+| `(current)` | Branch checked out in the main working directory |
+| `(remote)` | Exists only on a remote; the local branch is created on selection |
+| `[worktree: path]` | Branch already has a worktree at `path` |
+
+**Selection interface:**
+- If [fzf](https://github.com/junegunn/fzf) is on your `PATH`, you get a
+  fuzzy-filterable list (type to narrow, arrow keys to move, Enter to select)
+- Otherwise rive falls back to a numbered menu — enter the number and press Enter
+
+Any remote name is supported, not just `origin`. Selecting nothing (Esc in fzf,
+or an out-of-range number) cancels without creating an app.
+
+The picker writes its prompts to stderr, so `cd $(rive cd)` and similar command
+substitutions still work correctly.
 
 ## list
 
@@ -154,6 +190,9 @@ rive use feature/new-ui        # Set current app
 rive use                       # Show what's current
 ```
 
+**Interactive selection:** If no current app is set and apps are running,
+`rive use` offers to show the branch picker so you can choose one.
+
 **Current app context:**
 Once set, commands like `cd`, `pull`, `logs`, `stop`, and `restart` can be used without arguments - they'll operate on the current app.
 
@@ -192,4 +231,8 @@ Show version information.
 
 ```bash
 rive version
+rive --version
 ```
+
+**Note:** `-v` is *not* a shorthand for `version` — it is the short form of
+`--verbose`. Use `rive version` or `rive --version`.

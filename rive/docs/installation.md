@@ -2,9 +2,28 @@
 
 ## Requirements
 
-- Bash 4.0+
+**Required:**
+
+- Bash 4.0+ (macOS ships with Bash 3.2 — install a newer Bash with `brew install bash`)
 - Git
 - Basic Unix tools (lsof, ps, grep, etc.)
+
+**Optional:**
+
+- [fzf](https://github.com/junegunn/fzf) — enables fuzzy branch selection for
+  `rive add`. Without it, rive falls back to a numbered menu, so nothing breaks
+  if it is missing.
+
+  ```bash
+  brew install fzf          # macOS
+  sudo apt install fzf      # Debian/Ubuntu
+  ```
+
+**For development only:**
+
+- [bats-core](https://github.com/bats-core/bats-core) — unit test suite
+  (`brew install bats-core`)
+- [ShellCheck](https://www.shellcheck.net/) — linting (`brew install shellcheck`)
 
 ## Quick Install
 
@@ -73,4 +92,24 @@ cd ~/code/sundry
 git pull
 ```
 
-The symlink will automatically point to the updated version.
+The symlink will automatically point to the updated version. Check what you are
+running with:
+
+```bash
+rive version
+```
+
+## Running the Tests
+
+From the `rive/` directory:
+
+```bash
+# Lint (matches CI)
+shellcheck --severity=warning bin/rive lib/*.sh
+
+# Unit tests (requires bats-core)
+bats test/rive.bats
+
+# Integration tests (no extra dependencies; uses a temp directory)
+./test/integration_test.sh
+```

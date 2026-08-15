@@ -217,7 +217,7 @@ create_worktree() {
         log_error "Git cannot create a worktree for a branch that is already checked out"
         log_error "Please switch to a different branch first:"
         log_error "  git checkout main"
-        log_error "  rive create $branch"
+        log_error "  rive add $branch"
         return 1
     fi
 

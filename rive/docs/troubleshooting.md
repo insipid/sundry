@@ -1,5 +1,23 @@
 # Troubleshooting
 
+## "No such file or directory: .../lib/utils.sh" on startup
+
+**Error:**
+```
+/Users/you/bin/rive: line 12: /Users/you/lib/utils.sh: No such file or directory
+```
+
+**Cause:** A bug in v1.0.0. Rive looked for its `lib/` directory next to the
+symlink you invoked rather than next to the real script, so the documented
+symlink installation broke on every run.
+
+**Solution:** Update to v1.1.0 or later:
+```bash
+cd ~/code/sundry
+git pull
+rive version    # should report 1.1.0 or higher
+```
+
 ## "Port already in use" or "No available ports found" error
 
 **Possible causes:**
@@ -16,7 +34,7 @@ rive list
 rive clean
 
 # Use a different starting port
-rive --start-port 50000 create feature/branch
+rive --start-port 50000 add feature/branch
 
 # Or set permanently in .env
 echo "RIVE_START_PORT=50000" >> .env
@@ -27,7 +45,7 @@ echo "RIVE_START_PORT=50000" >> .env
 **Solution:** Fetch latest branches:
 ```bash
 git fetch --all
-rive create feature/branch
+rive add feature/branch
 ```
 
 ## Server won't start
@@ -35,7 +53,7 @@ rive create feature/branch
 **Solution 1:** Enable log files to capture server output:
 ```bash
 # Enable logs for all servers
-RIVE_ENABLE_LOGS=true rive create feature/branch
+RIVE_ENABLE_LOGS=true rive add feature/branch
 
 # Then check the log file
 rive logs feature/branch
@@ -46,7 +64,7 @@ tail -f ~/.rive/worktrees/<repo>/<branch>/.rive-server.log
 **Solution 2:** Use verbose mode for immediate debugging:
 ```bash
 # Run in verbose mode
-rive --verbose create feature/branch
+rive --verbose add feature/branch
 ```
 
 **Additional debugging:**
@@ -101,16 +119,52 @@ git fetch --prune
 git pull
 ```
 
-## Can't create worktree for currently checked-out branch
+## Selecting the branch you already have checked out
+
+Since v1.1.0 this is handled for you: if you pick the branch that is checked out
+in your main working directory, rive skips worktree creation and starts the
+server in the repository root instead. You will see:
+
+```
+Selected branch 'main' is the current branch
+Starting server in current directory...
+```
 
 **Error:** "Branch 'X' is currently checked out in the main working directory"
 
 **Cause:** Git cannot create a worktree for a branch that's already checked out
+somewhere. You can still hit this if the branch is checked out in *another*
+worktree.
 
-**Solution:** Switch to a different branch first:
+**Solution:** Find where it is checked out and switch that worktree to a
+different branch, or pick a different branch:
 ```bash
-git checkout main
-rive create feature/branch
+git worktree list
+```
+
+## Interactive branch picker isn't fuzzy-searchable
+
+**Cause:** [fzf](https://github.com/junegunn/fzf) is not installed, so rive falls
+back to a numbered menu.
+
+**Solution:** Install fzf:
+```bash
+brew install fzf          # macOS
+sudo apt install fzf      # Debian/Ubuntu
+```
+
+Both interfaces work — fzf just adds type-to-filter.
+
+## "Invalid branch name" error
+
+**Cause:** Rive rejects branch names containing shell metacharacters (`;`,
+`` ` ``, `|`, `..` and similar) before passing them to git. This is a
+deliberate safety check, not a git error.
+
+**Solution:** Use a branch name made up of letters, numbers, `/`, `-`, `_`, and
+`.` (single dots). Check the exact name with:
+```bash
+git branch --list
 ```
 
 ## Terminal hangs or becomes unresponsive
@@ -128,7 +182,7 @@ rive create feature/branch
 
 **Solution:** Enable verbose mode or logs to see the error:
 ```bash
-RIVE_ENABLE_LOGS=true rive create feature/branch
+RIVE_ENABLE_LOGS=true rive add feature/branch
 rive logs feature/branch
 ```
 
@@ -183,7 +237,7 @@ git worktree remove /path/to/worktree
 If you encounter an issue not listed here:
 
 1. Check the configuration: `rive config`
-2. Enable verbose mode: `rive --verbose create <branch>`
+2. Enable verbose mode: `rive --verbose add <branch>`
 3. Check logs: `rive logs <branch>` (if enabled)
 4. File an issue on GitHub with:
    - The command you ran

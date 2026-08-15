@@ -1,11 +1,31 @@
 #!/usr/bin/env bash
 # Rive CLI - Ephemeral review app manager
-# Version: 1.0.0
+# Version: 1.1.0
 
 set -euo pipefail
 
+# Resolves ${BASH_SOURCE[0]} all the way through any symlinks (including
+# chains of them) and prints the directory the REAL underlying file lives
+# in - not the directory the symlink itself sits in. The documented install
+# puts a symlink on PATH pointing back into this repo, and plain
+# `dirname "${BASH_SOURCE[0]}"` would give the symlink's folder, making the
+# lib/ lookup below fail. Written by hand with `readlink` + a loop rather
+# than `readlink -f`, since macOS's stock BSD `readlink` doesn't support -f.
+resolve_script_dir() {
+    local source dir
+    source="${BASH_SOURCE[0]}"
+    while [ -h "$source" ]; do
+        dir="$(cd -P "$(dirname "$source")" && pwd)"
+        source="$(readlink "$source")"
+        # A relative symlink target is relative to the symlink's own
+        # directory, not to wherever we currently are - resolve it there.
+        [[ "$source" == /* ]] || source="$dir/$source"
+    done
+    cd -P "$(dirname "$source")" && pwd
+}
+
 # Script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(resolve_script_dir)"
 LIB_DIR="$(dirname "$SCRIPT_DIR")/lib"
 
 # Source library modules
@@ -55,9 +75,13 @@ CONFIGURATION:
 
     Available variables:
     - RIVE_START_PORT        Starting port (default: 40000)
+    - RIVE_HOSTNAME          Hostname for server binding (default: localhost)
     - RIVE_WORKTREE_DIR      Worktree directory (default: ~/.rive/worktrees)
     - RIVE_SERVER_COMMAND    Server command with %PORT% placeholder
+    - RIVE_STATE_FILE        State file location (default: ~/.rive/state)
     - RIVE_AUTO_INSTALL      Auto-install dependencies (default: false)
+    - RIVE_INSTALL_COMMAND   Custom install command (default: auto-detected)
+    - RIVE_ENABLE_LOGS       Log server output to .rive-server.log (default: false)
     - RIVE_VERBOSE           Verbose output (default: false)
 
 EXAMPLES:
@@ -760,7 +784,7 @@ main() {
             cmd_clean
             ;;
         version|-v|--version)
-            echo "rive version 1.0.0"
+            echo "rive version 1.1.0"
             ;;
         help|-h|--help|"")
             show_help

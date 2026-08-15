@@ -1,5 +1,103 @@
 # Rive Changelog
 
+## v1.1.0 - 2026-08-15
+
+**Interactive branch selection, hardening, and a test suite in CI**
+
+### Overview
+
+The headline change is that `rive add` no longer requires a branch name — run it
+bare and pick from a list. Alongside that, this release adds input validation and
+error handling throughout, a BATS unit suite, an integration suite, and GitHub
+Actions CI running ShellCheck and tests on both Ubuntu and macOS.
+
+### Added
+
+#### Interactive branch selection
+- **`rive add` with no argument** opens a branch picker
+- **fzf support** — fuzzy type-to-filter selection when `fzf` is on `PATH`
+- **Numbered-menu fallback** when fzf is not installed, so the feature degrades
+  gracefully rather than failing
+- **Remote branches included** — remote branches with no local counterpart appear
+  in the list marked `(remote)`, and the local branch is created on selection
+- **Any remote supported**, not just `origin`
+- **Status annotations** — entries are marked `(current)` for the checked-out
+  branch and `[worktree: path]` where a worktree already exists
+- **`rive use` with no argument** offers the same picker when apps are running
+
+#### Testing and CI
+- **BATS unit suite** (`test/rive.bats`)
+- **Integration suite** (`test/integration_test.sh`) — 37 tests covering config
+  validation, state management, port allocation, branch-name sanitisation,
+  process handling, and CLI smoke tests; requires no dependencies beyond Bash
+- **Symlink invocation tests** — three BATS cases covering absolute symlinks,
+  chains of symlinks, and symlinks with relative targets
+- **GitHub Actions workflow** (`.github/workflows/rive-ci.yml`) running ShellCheck
+  at `--severity=warning` plus the BATS suite on `ubuntu-latest` and `macos-latest`
+
+#### Safety and error handling
+- **Branch name validation** rejecting shell metacharacters (`;`, `` ` ``, `|`,
+  `..`) before values reach git
+- **Path validation** for the worktree directory and state file, checking
+  writability up front
+- **Configuration validation** — numeric and in-range `RIVE_START_PORT`, absolute
+  `RIVE_WORKTREE_DIR`, and a required `%PORT%` placeholder in `RIVE_SERVER_COMMAND`
+
+### Changed
+
+- **`add` and `remove` are now the canonical command names**, replacing `create`
+  and `stop` in documentation and help output. All previous names remain as
+  aliases, so existing scripts and muscle memory keep working:
+  - `add` — aliases `start`, `create`, `new`, `up`
+  - `remove` — aliases `stop`, `delete`, `del`, `down`, `rm`
+- **New aliases** `l` (for `list`) and `rm` (for `remove`)
+- **Selecting the current branch no longer errors.** `rive add <current-branch>`
+  now starts the server in the repository root instead of refusing to create a
+  worktree
+- **`rive help` lists all configuration variables**, including the previously
+  omitted `RIVE_HOSTNAME`, `RIVE_STATE_FILE`, `RIVE_INSTALL_COMMAND`, and
+  `RIVE_ENABLE_LOGS`
+
+### Fixed
+
+- **Running rive through a symlink now works.** `bin/rive` located its `lib/`
+  directory relative to the symlink rather than the resolved script, so the
+  installation method documented in the README — symlinking `bin/rive` onto your
+  `PATH` — failed on every invocation with
+  `line 12: /path/to/lib/utils.sh: No such file or directory`. The script now
+  resolves `BASH_SOURCE` through symlink chains (including relative targets)
+  before deriving `LIB_DIR`. Covered by three new regression tests.
+- **The integration suite resolves symlinks too**, so `test/integration_test.sh`
+  can be run through a symlink or alias rather than only as a direct path. It
+  also pins its working directory to the repo, since the CLI tests invoke
+  `rive list`, which requires a git repository — the suite no longer depends on
+  where it was launched from.
+- **Branch picker prompts now write to stderr**, so command substitution such as
+  `cd $(rive cd)` is not polluted by menu output
+- **Local branches containing slashes** are no longer misidentified as remote
+  branches
+- **Remote entries without a slash** are filtered out of the branch list
+- **Subshell variable scoping** in branch filtering, which caused branches to be
+  dropped from the list
+- **Branch lookup performance** — `git worktree list` is now called once and
+  cached in a map rather than once per branch
+- **printf format string** handling in the numbered menu
+- **ShellCheck warnings** across `bin/rive` and all library modules, including
+  SC2120 in `load_env_file`
+
+### Dependencies
+
+- **`fzf` is now an optional dependency.** Installing it improves branch
+  selection; omitting it changes nothing else.
+
+### Upgrading from v1.0.0
+
+No breaking changes. Pull the latest and confirm with `rive version`. Existing
+state files, worktrees, and `.env` configuration are unaffected. If you have
+scripts calling `rive create` or `rive stop`, they continue to work unchanged.
+
+---
+
 ## v1.0.0 - 2025-11-24
 
 **Initial release of rive - ephemeral review app manager**
