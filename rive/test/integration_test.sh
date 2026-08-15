@@ -1,13 +1,39 @@
 #!/usr/bin/env bash
 # Integration tests for rive CLI
-# Run from the RIVE directory: ./test/integration_test.sh
+# Run from anywhere, directly or through a symlink: ./test/integration_test.sh
 
 set -euo pipefail
 
+# Resolves ${BASH_SOURCE[0]} all the way through any symlinks (including
+# chains of them) and prints the directory the REAL underlying file lives
+# in - not the directory the symlink itself sits in. Mirrors the same helper
+# in bin/rive: without it, running this suite through a symlink would look
+# for lib/ next to the link and fail. Written by hand with `readlink` + a
+# loop rather than `readlink -f`, since macOS's stock BSD `readlink` doesn't
+# support -f.
+resolve_script_dir() {
+    local source dir
+    source="${BASH_SOURCE[0]}"
+    while [ -h "$source" ]; do
+        dir="$(cd -P "$(dirname "$source")" && pwd)"
+        source="$(readlink "$source")"
+        # A relative symlink target is relative to the symlink's own
+        # directory, not to wherever we currently are - resolve it there.
+        [[ "$source" == /* ]] || source="$dir/$source"
+    done
+    cd -P "$(dirname "$source")" && pwd
+}
+
 # Test directory setup
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(resolve_script_dir)"
 RIVE_DIR="$(dirname "$SCRIPT_DIR")"
 LIB_DIR="$RIVE_DIR/lib"
+
+# The CLI tests invoke `rive list`, which requires a git repository, so the
+# suite fails if launched from somewhere that isn't one. Now that the script
+# resolves symlinks and can be launched from anywhere, pin the working
+# directory to the repo rather than depending on where the caller stood.
+cd "$RIVE_DIR"
 
 # Test counters
 TESTS_RUN=0

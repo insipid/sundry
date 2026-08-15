@@ -67,6 +67,11 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
   `line 12: /path/to/lib/utils.sh: No such file or directory`. The script now
   resolves `BASH_SOURCE` through symlink chains (including relative targets)
   before deriving `LIB_DIR`. Covered by three new regression tests.
+- **The integration suite resolves symlinks too**, so `test/integration_test.sh`
+  can be run through a symlink or alias rather than only as a direct path. It
+  also pins its working directory to the repo, since the CLI tests invoke
+  `rive list`, which requires a git repository — the suite no longer depends on
+  where it was launched from.
 - **Branch picker prompts now write to stderr**, so command substitution such as
   `cd $(rive cd)` is not polluted by menu output
 - **Local branches containing slashes** are no longer misidentified as remote
