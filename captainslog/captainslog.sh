@@ -166,7 +166,7 @@ resolve_script_dir() {
 kill_other_instances() {
   local self_pid=$$
   local pids
-  pids="$(pgrep -f 'captainslog\.sh' 2>/dev/null | grep -v -x "$self_pid")"
+  pids="$(pgrep -f 'captainslog' 2>/dev/null | grep -v -x "$self_pid")"
   if [ -n "$pids" ]; then
     echo "$pids" | xargs kill 2>/dev/null
     log "Killed other captainslog.sh instance(s): $(echo "$pids" | tr '\n' ' ' | sed 's/ *$//')"
