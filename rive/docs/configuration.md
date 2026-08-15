@@ -79,15 +79,37 @@ RIVE_SERVER_COMMAND="PORT=%PORT% HOST=%HOSTNAME% go run main.go"
 
 Override configuration on a per-command basis:
 
+Flags go **before** the command:
+
 ```bash
 # Use a different starting port
-rive --start-port 50000 create feature/branch
+rive --start-port 50000 add feature/branch
 
 # Use a different worktree directory
-rive --worktree-dir /tmp/rive create feature/branch
+rive --worktree-dir /tmp/rive add feature/branch
 
 # Enable verbose mode
-rive --verbose create feature/branch
+rive --verbose add feature/branch
 # or
-rive -v create feature/branch
+rive -v add feature/branch
 ```
+
+Available flags:
+
+| Flag | Sets |
+|------|------|
+| `--verbose`, `-v` | `RIVE_VERBOSE=true` |
+| `--start-port PORT` | `RIVE_START_PORT` |
+| `--worktree-dir DIR` | `RIVE_WORKTREE_DIR` |
+
+**Note:** `-v` means `--verbose`, not `--version`. Use `rive version` to print
+the version.
+
+## Validation
+
+Rive validates configuration at startup and fails fast with a clear message if:
+
+- `RIVE_START_PORT` is not numeric, or falls outside 1024–65535
+- `RIVE_WORKTREE_DIR` is not an absolute path, or is not writable
+- `RIVE_SERVER_COMMAND` does not contain the `%PORT%` placeholder
+- The directory holding `RIVE_STATE_FILE` is not writable

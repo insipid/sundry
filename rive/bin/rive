@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rive CLI - Ephemeral review app manager
-# Version: 1.0.0
+# Version: 1.1.0
 
 set -euo pipefail
 
@@ -55,9 +55,13 @@ CONFIGURATION:
 
     Available variables:
     - RIVE_START_PORT        Starting port (default: 40000)
+    - RIVE_HOSTNAME          Hostname for server binding (default: localhost)
     - RIVE_WORKTREE_DIR      Worktree directory (default: ~/.rive/worktrees)
     - RIVE_SERVER_COMMAND    Server command with %PORT% placeholder
+    - RIVE_STATE_FILE        State file location (default: ~/.rive/state)
     - RIVE_AUTO_INSTALL      Auto-install dependencies (default: false)
+    - RIVE_INSTALL_COMMAND   Custom install command (default: auto-detected)
+    - RIVE_ENABLE_LOGS       Log server output to .rive-server.log (default: false)
     - RIVE_VERBOSE           Verbose output (default: false)
 
 EXAMPLES:
@@ -760,7 +764,7 @@ main() {
             cmd_clean
             ;;
         version|-v|--version)
-            echo "rive version 1.0.0"
+            echo "rive version 1.1.0"
             ;;
         help|-h|--help|"")
             show_help
