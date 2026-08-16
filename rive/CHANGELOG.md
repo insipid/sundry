@@ -82,9 +82,10 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
 - **`-v` no longer collides with `version`.** `-v` was listed both as the short
   form of `--verbose` and as an alias for the `version` command. The global flag
   parser consumed it first, so `rive -v` silently printed help and the `version`
-  alias was unreachable. `-v` now unambiguously means `--verbose`, matching the
-  convention used by `curl`, `ssh`, `rsync`, and `python`. Version has no short
-  form: use `rive version` or `rive --version`.
+  alias was unreachable. The two are now split along the usual convention, as
+  used by `curl`, `ssh`, `rsync`, and `python`:
+  - `-v` / `--verbose` — verbose output
+  - `-V` / `--version` — print the version (`rive version` also still works)
 - **The branch picker explains itself on bash 3.2.** `select_branch_interactive`
   builds a branch-to-worktree map with an associative array, which needs bash
   4.0+. On the bash macOS ships, it failed with a bare

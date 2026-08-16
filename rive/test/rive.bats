@@ -321,6 +321,19 @@ teardown() {
     [[ "$output" == *"rive version"* ]]
 }
 
+@test "cli: -V prints the version" {
+    run "$RIVE_DIR/bin/rive" -V
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}
+
+# -V must survive the global flag parser running ahead of the dispatcher
+@test "cli: -V works alongside other flags" {
+    run "$RIVE_DIR/bin/rive" --verbose -V
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}
+
 # -v is the short form of --verbose. It must not also mean --version, or the
 # global flag parser and the command dispatcher disagree about what it does.
 @test "cli: -v means verbose, not version" {

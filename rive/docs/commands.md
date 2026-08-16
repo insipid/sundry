@@ -232,9 +232,13 @@ Show version information.
 ```bash
 rive version
 rive --version
+rive -V
 ```
 
-**Note:** `-v` is the short form of `--verbose`, not `--version`. This follows
-the usual convention for tools that have both concepts (`curl`, `ssh`, `rsync`,
-`python` all do the same). Version has no short form, so there is nothing to
-mistake it for.
+**Note the case:** `-V` is version, `-v` is verbose — the convention used by
+`curl`, `ssh`, `rsync`, and `python`. They are different flags:
+
+```bash
+rive -V          # prints the version
+rive -v add foo  # creates an app with verbose output
+```

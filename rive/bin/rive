@@ -61,11 +61,15 @@ COMMANDS:
     clean                Clean up stale state entries
     help                 Show this help message
     version              Show version information
+      (also: -V, --version)
 
 OPTIONS:
     --verbose, -v        Enable verbose output
+    --version, -V        Show version information
     --start-port PORT    Override starting port for allocation
     --worktree-dir DIR   Override worktree base directory
+
+    Note: -v is verbose, -V is version - as in curl, ssh and python.
 
 CONFIGURATION:
     Configuration is loaded from (in order of precedence):
@@ -784,7 +788,7 @@ main() {
         clean)
             cmd_clean
             ;;
-        version|--version)
+        version|-V|--version)
             echo "rive version 1.1.0"
             ;;
         help|-h|--help|"")
