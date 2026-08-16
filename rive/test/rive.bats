@@ -343,6 +343,12 @@ teardown() {
     ! [[ "$output" =~ rive\ version\ [0-9] ]]
 }
 
+@test "cli: --hostname flag overrides the configured hostname" {
+    run "$RIVE_DIR/bin/rive" --hostname 0.0.0.0 config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_HOSTNAME=0.0.0.0"* ]]
+}
+
 @test "cli: config command shows configuration" {
     run "$RIVE_DIR/bin/rive" config
     [ "$status" -eq 0 ]

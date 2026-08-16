@@ -80,7 +80,8 @@ See [docs/configuration.md](docs/configuration.md) for all options and framework
 ```
 add [branch]         Create review app; prompts for branch if omitted
                      (aliases: start, create, new, up)
-remove [branch|port] Stop app (aliases: stop, delete, del, down, rm)
+remove [branch|port] Stop app; --all stops every running app
+                     (aliases: stop, delete, del, down, rm)
 list                 List all running apps (aliases: ls, l)
 restart [branch]     Restart app
 cd [branch|port]     Print worktree path
@@ -149,6 +150,9 @@ rive use feature/checkout-flow
 # Stop both when done
 rive remove feature/checkout-flow
 rive remove feature/user-profile
+
+# Or stop everything at once
+rive remove --all
 ```
 
 ## Troubleshooting

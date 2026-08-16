@@ -86,6 +86,9 @@ Flags go **before** the command:
 # Use a different starting port
 rive --start-port 50000 add feature/branch
 
+# Bind the server to a different hostname
+rive --hostname 0.0.0.0 add feature/branch
+
 # Use a different worktree directory
 rive --worktree-dir /tmp/rive add feature/branch
 
@@ -101,6 +104,7 @@ Available flags:
 |------|------|
 | `--verbose`, `-v` | `RIVE_VERBOSE=true` |
 | `--start-port PORT` | `RIVE_START_PORT` |
+| `--hostname HOST` | `RIVE_HOSTNAME` |
 | `--worktree-dir DIR` | `RIVE_WORKTREE_DIR` |
 
 **Mind the case:** `-v` is verbose, `-V` is version — as in `curl`, `ssh`, and

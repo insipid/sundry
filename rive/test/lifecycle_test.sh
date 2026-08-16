@@ -429,6 +429,80 @@ test_clean_removes_stale_entry() {
 }
 
 # ---------------------------------------------------------------------------
+# remove --all
+# ---------------------------------------------------------------------------
+
+test_remove_all_stops_every_app() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    "$RIVE" add feature/beta >/dev/null 2>&1 || return 1
+
+    local pid_a pid_b
+    pid_a="$(state_field feature/alpha pid)" || return 1
+    pid_b="$(state_field feature/beta pid)" || return 1
+
+    "$RIVE" remove --all >/dev/null 2>&1 || return 1
+
+    assert_pid_dead "$pid_a" || return 1
+    assert_pid_dead "$pid_b" || return 1
+
+    if [[ -s "$RIVE_STATE_FILE" ]]; then
+        echo "        State file still has entries" >&2
+        return 1
+    fi
+    return 0
+}
+
+test_remove_all_removes_clean_worktrees() {
+    assert_dir_missing "$(expected_worktree feature/alpha)" || return 1
+    assert_dir_missing "$(expected_worktree feature/beta)"
+}
+
+# --all must apply the same per-app rules, not bulldoze everything
+test_remove_all_preserves_dirty_worktrees() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    "$RIVE" add feature/beta >/dev/null 2>&1 || return 1
+
+    local dirty
+    dirty="$(expected_worktree feature/beta)"
+    echo "work in progress" > "$dirty/uncommitted.txt"
+
+    "$RIVE" remove --all >/dev/null 2>&1 || return 1
+
+    assert_dir_missing "$(expected_worktree feature/alpha)" || return 1
+    assert_dir_exists "$dirty" || return 1
+    [[ -f "$dirty/uncommitted.txt" ]] || { echo "        Uncommitted work was lost" >&2; return 1; }
+    return 0
+}
+
+test_remove_all_with_no_apps_is_not_an_error() {
+    # Clear the dirty worktree the previous test deliberately left behind
+    git worktree remove --force "$(expected_worktree feature/beta)" >/dev/null 2>&1
+    git worktree prune >/dev/null 2>&1
+    reset_apps
+
+    local out result=0
+    out="$("$RIVE" remove --all 2>&1)" || result=$?
+    [[ $result -eq 0 ]] || { echo "        Expected exit 0, got $result" >&2; return 1; }
+    assert_contains "$out" "No running review apps"
+}
+
+test_remove_all_clears_current_app() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    "$RIVE" remove --all >/dev/null 2>&1 || return 1
+
+    local out
+    out="$("$RIVE" use 2>&1)"
+    if [[ "$out" == *"feature/alpha"* ]]; then
+        echo "        Current app survived remove --all" >&2
+        return 1
+    fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # Interactive branch selection
 # ---------------------------------------------------------------------------
 
@@ -687,6 +761,13 @@ main() {
     run_test "remove preserves a dirty worktree" test_remove_preserves_dirty_worktree
     run_test "server log alone does not block removal" test_server_log_alone_does_not_block_removal
     run_test "clean removes entries for dead processes" test_clean_removes_stale_entry
+
+    print_header "Remove All"
+    run_test "remove --all stops every app" test_remove_all_stops_every_app
+    run_test "remove --all removes clean worktrees" test_remove_all_removes_clean_worktrees
+    run_test "remove --all preserves dirty worktrees" test_remove_all_preserves_dirty_worktrees
+    run_test "remove --all with no apps is not an error" test_remove_all_with_no_apps_is_not_an_error
+    run_test "remove --all clears the current app" test_remove_all_clears_current_app
 
     print_header "Interactive Branch Selection"
     run_test "menu lists local branches" test_menu_lists_local_branches

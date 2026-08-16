@@ -51,6 +51,7 @@ COMMANDS:
     list                 List all running review apps
       (aliases: ls, l)
     remove [branch|port] Stop a review app (uses current if not specified)
+                         Pass --all to stop every running app
       (aliases: stop, delete, del, down, rm)
     restart [branch]     Restart a review app (uses current if not specified)
     cd [branch|port]     Print the path to a review app's worktree
@@ -67,6 +68,7 @@ OPTIONS:
     --verbose, -v        Enable verbose output
     --version, -V        Show version information
     --start-port PORT    Override starting port for allocation
+    --hostname HOST      Override hostname for server binding
     --worktree-dir DIR   Override worktree base directory
 
     Note: -v is verbose, -V is version - as in curl, ssh and python.
@@ -390,13 +392,26 @@ cmd_list() {
 cmd_stop() {
     local identifier="${1:-}"
 
+    if [[ "$identifier" == "--all" ]]; then
+        cmd_stop_all
+        return $?
+    fi
+
     # Fall back to current app if no identifier provided
     if [[ -z "$identifier" ]]; then
         if ! identifier=$(get_current_app); then
-            error_exit 1 "No app specified and no current app set. Usage: rive stop <branch|port>"
+            error_exit 1 "No app specified and no current app set. Usage: rive remove <branch|port|--all>"
         fi
         log_debug "Using current app: $identifier"
     fi
+
+    stop_one_app "$identifier" || error_exit 1 "Failed to stop review app: $identifier"
+}
+
+# Stops a single app and cleans up after it. Returns non-zero rather than
+# exiting, so `remove --all` can carry on past one bad entry.
+stop_one_app() {
+    local identifier="$1"
 
     # Try to find by branch first
     local app
@@ -408,7 +423,8 @@ cmd_stop() {
     fi
 
     if [[ -z "$app" ]]; then
-        error_exit 1 "Review app not found: $identifier"
+        log_error "Review app not found: $identifier"
+        return 1
     fi
 
     local branch pid worktree
@@ -449,6 +465,52 @@ cmd_stop() {
         echo "  git worktree remove $worktree"
     fi
     echo ""
+    return 0
+}
+
+# Command: remove --all
+cmd_stop_all() {
+    local apps
+    apps=$(state_list_apps)
+
+    if [[ -z "$apps" ]]; then
+        echo "No running review apps"
+        return 0
+    fi
+
+    # Snapshot the branch list before touching anything: stop_one_app rewrites
+    # the state file as it goes, so iterating it live would skip entries.
+    local branches=()
+    local line branch
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        branch=$(parse_state_line "$line" "branch")
+        [[ -n "$branch" ]] && branches+=("$branch")
+    done <<< "$apps"
+
+    local total=${#branches[@]}
+    log_info "Stopping $total review app(s)..."
+
+    local stopped=0 failed=0
+    for branch in "${branches[@]}"; do
+        if stop_one_app "$branch"; then
+            stopped=$((stopped + 1))
+        else
+            failed=$((failed + 1))
+            log_warning "Continuing with remaining apps..."
+        fi
+    done
+
+    echo ""
+    if (( failed > 0 )); then
+        log_warning "Stopped $stopped of $total review app(s), $failed failed"
+        echo ""
+        return 1
+    fi
+
+    log_success "Stopped all $stopped review app(s)"
+    echo ""
+    return 0
 }
 
 # Command: restart
@@ -725,6 +787,10 @@ main() {
                 ;;
             --start-port)
                 export RIVE_START_PORT="$2"
+                shift 2
+                ;;
+            --hostname)
+                export RIVE_HOSTNAME="$2"
                 shift 2
                 ;;
             --worktree-dir)

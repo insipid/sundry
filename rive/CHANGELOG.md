@@ -25,6 +25,18 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
   branch and `[worktree: path]` where a worktree already exists
 - **`rive use` with no argument** offers the same picker when apps are running
 
+#### Commands and flags
+- **`rive remove --all`** stops every running review app in one command. It
+  applies the same per-app rules as a single removal rather than bulldozing:
+  clean worktrees are removed, dirty ones are preserved with a warning, and the
+  current-app pointer is cleared. A failure on one app does not abort the rest —
+  the command reports how many succeeded and exits non-zero. With nothing
+  running it prints `No running review apps` and exits 0. This was in the
+  original PRD as an option of the stop command but had never been built.
+- **`--hostname HOST`** joins `--start-port` and `--worktree-dir` as a CLI
+  override. `RIVE_HOSTNAME` was previously settable only via the environment or
+  `.env`, making it the one major setting with no flag.
+
 #### Testing and CI
 - **BATS unit suite** (`test/rive.bats`)
 - **Lifecycle suite** (`test/lifecycle_test.sh`) — 28 end-to-end tests that drive
