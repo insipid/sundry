@@ -30,6 +30,21 @@ get_worktree_for_branch() {
 
 # Interactive branch selection with FZF or numbered menu
 select_branch_interactive() {
+    # This function builds a branch-to-worktree map with an associative array,
+    # which needs bash 4+. macOS still ships bash 3.2, where that syntax fails
+    # at runtime with a bare "local: -A: invalid option". Every other rive
+    # command works fine on 3.2, so fail only here, and say what to do about it.
+    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+        log_error "Interactive branch selection requires bash 4.0 or newer"
+        log_error "You are running bash ${BASH_VERSION}"
+        echo "" >&2
+        log_info "Either pass the branch name explicitly:"
+        log_info "  rive add <branch>"
+        log_info "Or install a newer bash (macOS ships 3.2):"
+        log_info "  brew install bash"
+        return 1
+    fi
+
     local current_branch
     current_branch=$(git branch --show-current 2>/dev/null)
 

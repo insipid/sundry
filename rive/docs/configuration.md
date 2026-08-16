@@ -103,8 +103,9 @@ Available flags:
 | `--start-port PORT` | `RIVE_START_PORT` |
 | `--worktree-dir DIR` | `RIVE_WORKTREE_DIR` |
 
-**Note:** `-v` means `--verbose`, not `--version`. Use `rive version` to print
-the version.
+**Note:** `-v` means `--verbose`, not `--version` — the usual convention for
+tools that have both. Version has no short form: use `rive version` or
+`rive --version`.
 
 ### A note on `RIVE_CURRENT_FILE`
 

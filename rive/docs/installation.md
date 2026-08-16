@@ -4,9 +4,22 @@
 
 **Required:**
 
-- Bash 4.0+ (macOS ships with Bash 3.2 — install a newer Bash with `brew install bash`)
+- Bash 3.2+ for everyday use — every command works on the bash macOS ships
 - Git
 - Basic Unix tools (lsof, ps, grep, etc.)
+
+**Bash 4.0+ for interactive branch selection:**
+
+Running `rive add` with no branch opens the branch picker, which needs bash 4.0
+or newer. On bash 3.2 it declines with an explanatory message rather than
+failing obscurely, and everything else keeps working — including `rive add
+<branch>` with the name given explicitly.
+
+macOS still ships bash 3.2, so install a newer one if you want the picker:
+
+```bash
+brew install bash
+```
 
 **Optional:**
 

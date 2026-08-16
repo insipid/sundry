@@ -516,6 +516,55 @@ test_menu_can_select_remote_only_branch() {
     return 0
 }
 
+# Locates a bash 3.x binary if the machine has one (macOS ships /bin/bash 3.2)
+find_bash3() {
+    local candidate
+    for candidate in /bin/bash /usr/bin/bash; do
+        if [[ -x "$candidate" ]]; then
+            case "$("$candidate" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null)" in
+                3) echo "$candidate"; return 0 ;;
+            esac
+        fi
+    done
+    return 1
+}
+
+# The picker needs bash 4+ for its associative array. On bash 3.2 that used to
+# fail with a bare "local: -A: invalid option"; it must now explain itself.
+test_picker_explains_itself_on_bash3() {
+    local bash3
+    if ! bash3="$(find_bash3)"; then
+        skip "picker reports a clear error on bash 3.x" "no bash 3.x on this machine"
+        return 99
+    fi
+
+    local out result=0
+    out="$(printf '1\n' | "$bash3" "$RIVE" add 2>&1)" || result=$?
+    [[ $result -ne 0 ]] || { echo "        Expected non-zero exit on bash 3.x" >&2; return 1; }
+    assert_contains "$out" "requires bash 4.0 or newer" || return 1
+    # The old cryptic failure must not resurface
+    if [[ "$out" == *"invalid option"* ]]; then
+        echo "        Still failing with the raw bash error" >&2
+        return 1
+    fi
+    return 0
+}
+
+# Everything except the picker works on bash 3.2, so the guard must not
+# turn into a blanket refusal to run
+test_explicit_branch_still_works_on_bash3() {
+    local bash3
+    if ! bash3="$(find_bash3)"; then
+        skip "explicit branch works on bash 3.x" "no bash 3.x on this machine"
+        return 99
+    fi
+
+    reset_apps
+    "$bash3" "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    assert_dir_exists "$(expected_worktree feature/alpha)" || return 1
+    state_field feature/alpha pid >/dev/null
+}
+
 # ---------------------------------------------------------------------------
 # Current-branch and port-collision behaviour
 # ---------------------------------------------------------------------------
@@ -646,6 +695,8 @@ main() {
     run_test "menu rejects an invalid selection" test_menu_rejects_invalid_selection
     run_test "selecting from the menu creates an app" test_menu_selection_creates_app
     run_test "a remote-only branch can be selected" test_menu_can_select_remote_only_branch
+    run_test "picker reports a clear error on bash 3.x" test_picker_explains_itself_on_bash3
+    run_test "explicit branch still works on bash 3.x" test_explicit_branch_still_works_on_bash3
 
     print_header "Current Branch and Port Collisions"
     run_test "add on the current branch uses the repo root" test_add_current_branch_runs_in_repo_root

@@ -79,6 +79,20 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
 
 ### Fixed
 
+- **`-v` no longer collides with `version`.** `-v` was listed both as the short
+  form of `--verbose` and as an alias for the `version` command. The global flag
+  parser consumed it first, so `rive -v` silently printed help and the `version`
+  alias was unreachable. `-v` now unambiguously means `--verbose`, matching the
+  convention used by `curl`, `ssh`, `rsync`, and `python`. Version has no short
+  form: use `rive version` or `rive --version`.
+- **The branch picker explains itself on bash 3.2.** `select_branch_interactive`
+  builds a branch-to-worktree map with an associative array, which needs bash
+  4.0+. On the bash macOS ships, it failed with a bare
+  `local: -A: invalid option` and an unbound-variable error. It now checks the
+  version up front and tells you to either pass the branch explicitly or install
+  a newer bash. The check is deliberately scoped to this one function — every
+  other rive command works fine on bash 3.2, so there is no blanket refusal to
+  run.
 - **`rive remove` could delete your entire repository.** `rive add` on the
   branch already checked out records the repository root itself as the app's
   "worktree". On removal, `git worktree remove` correctly refused to delete a

@@ -234,5 +234,7 @@ rive version
 rive --version
 ```
 
-**Note:** `-v` is *not* a shorthand for `version` — it is the short form of
-`--verbose`. Use `rive version` or `rive --version`.
+**Note:** `-v` is the short form of `--verbose`, not `--version`. This follows
+the usual convention for tools that have both concepts (`curl`, `ssh`, `rsync`,
+`python` all do the same). Version has no short form, so there is nothing to
+mistake it for.

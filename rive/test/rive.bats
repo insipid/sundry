@@ -315,6 +315,21 @@ teardown() {
     [[ "$output" == *"rive version"* ]]
 }
 
+@test "cli: --version prints the version" {
+    run "$RIVE_DIR/bin/rive" --version
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}
+
+# -v is the short form of --verbose. It must not also mean --version, or the
+# global flag parser and the command dispatcher disagree about what it does.
+@test "cli: -v means verbose, not version" {
+    run "$RIVE_DIR/bin/rive" -v
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"USAGE:"* ]]
+    ! [[ "$output" =~ rive\ version\ [0-9] ]]
+}
+
 @test "cli: config command shows configuration" {
     run "$RIVE_DIR/bin/rive" config
     [ "$status" -eq 0 ]
