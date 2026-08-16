@@ -201,6 +201,29 @@ teardown() {
     [ "$output" -ge "$RIVE_START_PORT" ]
 }
 
+@test "port: allocation skips a port held by a running app" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    # $$ is this test process, so the entry counts as a live allocation
+    state_add_app "feature/taken" "$RIVE_START_PORT" "$TEST_TEMP/wt" "$$"
+    run find_available_port
+    [ "$status" -eq 0 ]
+    [ "$output" -gt "$RIVE_START_PORT" ]
+}
+
+@test "port: allocation reuses a port whose process is gone" {
+    if is_port_in_use "$RIVE_START_PORT"; then
+        skip "port $RIVE_START_PORT is in use on this machine"
+    fi
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    # A stale entry left by a crashed server must not reserve the port forever
+    state_add_app "feature/stale" "$RIVE_START_PORT" "$TEST_TEMP/wt" 999999
+    run find_available_port
+    [ "$status" -eq 0 ]
+    [ "$output" -eq "$RIVE_START_PORT" ]
+}
+
 #############################################
 # Utility Function Tests
 #############################################

@@ -299,14 +299,14 @@ cmd_create() {
     local pid
     if ! pid=$(start_server "$port" "$worktree"); then
         log_error "Failed to start server, cleaning up..."
-        remove_worktree "$worktree"
+        remove_worktree "$worktree" || true
         return 1
     fi
 
     # Verify we got a PID
     if [[ -z "$pid" ]]; then
         log_error "Server start returned empty PID, cleaning up..."
-        remove_worktree "$worktree"
+        remove_worktree "$worktree" || true
         return 1
     fi
 
@@ -314,7 +314,7 @@ cmd_create() {
     if ! state_add_app "$branch" "$port" "$worktree" "$pid"; then
         log_error "Failed to save state, cleaning up..."
         stop_server "$pid"
-        remove_worktree "$worktree"
+        remove_worktree "$worktree" || true
         return 1
     fi
 
@@ -433,8 +433,9 @@ cmd_stop() {
     # Check if worktree is clean and remove it
     if is_worktree_clean "$worktree"; then
         log_info "Worktree is clean, removing it..."
-        remove_worktree "$worktree"
-        log_success "Worktree removed"
+        if remove_worktree "$worktree"; then
+            log_success "Worktree removed"
+        fi
     else
         log_warning "Worktree has uncommitted changes, keeping it"
         echo "Worktree location: $worktree"

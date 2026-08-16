@@ -27,11 +27,30 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
 
 #### Testing and CI
 - **BATS unit suite** (`test/rive.bats`)
-- **Integration suite** (`test/integration_test.sh`) — 37 tests covering config
-  validation, state management, port allocation, branch-name sanitisation,
-  process handling, and CLI smoke tests; requires no dependencies beyond Bash
+- **Lifecycle suite** (`test/lifecycle_test.sh`) — 28 end-to-end tests that drive
+  the real CLI against a throwaway git repository: worktrees are genuinely
+  created and removed, server processes are genuinely spawned and killed, and
+  assertions run against the filesystem, the process table, and the state file.
+  This covers the parts of rive that unit tests cannot reach — worktree
+  lifecycle, process management, dirty-worktree preservation, stale-entry
+  cleanup, interactive branch selection, and port collisions. Requires nothing
+  beyond bash and git; tests needing more tooling skip themselves.
 - **Symlink invocation tests** — three BATS cases covering absolute symlinks,
   chains of symlinks, and symlinks with relative targets
+- **Port allocation tests** — BATS cases asserting that a port held by a running
+  app is skipped, and that a port left behind by a crashed server is reused
+
+### Changed
+
+- **Test suites no longer duplicate each other.** `test/integration_test.sh`
+  re-tested the same six areas as `test/rive.bats` with near-identical
+  assertions, and only the BATS suite ran in CI — so half the maintenance cost
+  bought no extra coverage. The duplicate has been removed and replaced by the
+  lifecycle suite above, which tests what the unit suite structurally cannot.
+  The one assertion unique to the old suite has been rewritten properly and
+  moved to BATS.
+- **CI runs the lifecycle suite** on Ubuntu and macOS, and now lints the test
+  sources as well as `bin/` and `lib/`.
 - **GitHub Actions workflow** (`.github/workflows/rive-ci.yml`) running ShellCheck
   at `--severity=warning` plus the BATS suite on `ubuntu-latest` and `macos-latest`
 
@@ -60,6 +79,15 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
 
 ### Fixed
 
+- **`rive remove` could delete your entire repository.** `rive add` on the
+  branch already checked out records the repository root itself as the app's
+  "worktree". On removal, `git worktree remove` correctly refused to delete a
+  main working directory, but the fallback path then ran `rm -rf` on it —
+  destroying the working tree, uncommitted work, and `.git` along with it.
+  `remove_worktree` now refuses any path that is a repository's main working
+  directory (`.git` as a directory rather than a file) and reports the refusal
+  instead of claiming success. Covered by a regression test that commits a
+  canary file and asserts the repository survives.
 - **Running rive through a symlink now works.** `bin/rive` located its `lib/`
   directory relative to the symlink rather than the resolved script, so the
   installation method documented in the README — symlinking `bin/rive` onto your

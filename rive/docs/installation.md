@@ -105,11 +105,19 @@ From the `rive/` directory:
 
 ```bash
 # Lint (matches CI)
-shellcheck --severity=warning bin/rive lib/*.sh
+shellcheck --severity=warning bin/rive lib/*.sh test/lifecycle_test.sh
 
-# Unit tests (requires bats-core)
+# Unit tests - library functions in isolation (requires bats-core)
 bats test/rive.bats
 
-# Integration tests (no extra dependencies; uses a temp directory)
-./test/integration_test.sh
+# Lifecycle tests - drives the real CLI end to end (bash + git only)
+./test/lifecycle_test.sh
 ```
+
+The lifecycle suite creates real worktrees and spawns real processes inside a
+temporary directory, then removes them — including if a test fails or you
+interrupt it. It never touches your own `~/.rive` state or repositories, and
+refuses to run if its state file would fall outside the temp tree.
+
+On macOS the branch-picker tests need bash 4+ (`brew install bash`); they skip
+themselves on the system bash 3.2 rather than failing.

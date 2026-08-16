@@ -293,6 +293,19 @@ remove_worktree() {
         return 0
     fi
 
+    # A linked worktree has .git as a FILE pointing into the parent repo; a
+    # repository's main working directory has .git as a DIRECTORY. `rive add`
+    # on the currently checked-out branch records the repo root itself as the
+    # "worktree", so without this guard removal would fall through to the
+    # rm -rf below and delete the user's entire repository, .git and all.
+    # Returns 2 (rather than 0) so callers can tell "refused" from "removed"
+    # and avoid reporting a removal that did not happen.
+    if [[ -d "$worktree_path/.git" ]]; then
+        log_warning "Not removing $worktree_path"
+        log_info "This is the repository's main working directory, not a rive worktree"
+        return 2
+    fi
+
     log_info "Removing worktree at $worktree_path"
     if git worktree remove "$worktree_path" --force >/dev/null 2>&1; then
         log_info "Worktree removed successfully"
