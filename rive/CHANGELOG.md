@@ -26,6 +26,13 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
 - **`rive use` with no argument** offers the same picker when apps are running
 
 #### Commands and flags
+- **`rive status [branch|port]`** shows detailed information for a single app:
+  repository, process status, PID, uptime, port, URL, worktree path, whether the
+  worktree is clean, the log file, and whether it is the current app. Exits
+  non-zero when the process is not running, so it is usable in scripts. This was
+  on the v1.0 deferred list ("status command for detailed single-app info").
+  It is currently the only place rive surfaces which repository an app belongs
+  to.
 - **`rive remove --all`** stops every running review app in one command. It
   applies the same per-app rules as a single removal rather than bulldozing:
   clean worktrees are removed, dirty ones are preserved with a warning, and the
@@ -91,6 +98,14 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
 
 ### Fixed
 
+- **Every lookup by port was silently broken.** `state_get_app` returned
+  non-zero when the branch lookup found nothing. Callers assign it with
+  `app=$(state_get_app "$x")` and `bin/rive` runs under `set -e`, so the script
+  died before the port lookup could run - taking `rive remove 40000`,
+  `rive cd 40000`, `rive logs 40000`, `rive pull 40000` and `rive use 40000`
+  with it. They produced no output, changed nothing, and masked their own exit
+  code. The lookups now signal "not found" with empty output, which is what
+  every caller already tested for. Covered by regression tests.
 - **`-v` no longer collides with `version`.** `-v` was listed both as the short
   form of `--verbose` and as an alias for the `version` command. The global flag
   parser consumed it first, so `rive -v` silently printed help and the `version`

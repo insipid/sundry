@@ -252,12 +252,38 @@ state_field() {
 
 # Removes every app so each test starts from a known state
 reset_apps() {
-    local branch
+    local branch line wt
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         branch="$(cut -d'|' -f1 <<< "$line")"
         "$RIVE" remove "$branch" >/dev/null 2>&1
     done < <(cat "$RIVE_STATE_FILE" 2>/dev/null)
+
+    # `remove` deliberately preserves dirty worktrees, so tests that leave
+    # uncommitted files behind would otherwise leak them into later tests.
+    # Clear anything still registered under the suite's worktree directory.
+    #
+    # git reports PHYSICAL paths, while RIVE_WORKTREE_DIR is whatever mktemp
+    # handed us - on macOS that is /var/... which is a symlink to /private/var.
+    # Comparing the two directly never matches, which left dirty worktrees
+    # registered, their directories deleted by the rm below, and the next
+    # `add` resolving to a path that no longer existed.
+    local wt_root
+    wt_root="$(cd -P "$RIVE_WORKTREE_DIR" 2>/dev/null && pwd)" || wt_root="$RIVE_WORKTREE_DIR"
+    while IFS= read -r wt; do
+        case "$wt" in
+            "$wt_root"/*|"$RIVE_WORKTREE_DIR"/*) ;;
+            *) continue ;;
+        esac
+        git -C "$REPO" worktree remove --force "$wt" >/dev/null 2>&1
+    done < <(git -C "$REPO" worktree list --porcelain 2>/dev/null \
+        | awk '/^worktree /{print substr($0, 10)}')
+
+    # Prune AFTER deleting the directories, so registrations whose directories
+    # are gone are cleaned up rather than left dangling
+    rm -rf "${RIVE_WORKTREE_DIR:?}"/*
+    git -C "$REPO" worktree prune >/dev/null 2>&1
+
     : > "$RIVE_STATE_FILE"
     rm -f "$RIVE_CURRENT_FILE"
 }
@@ -426,6 +452,96 @@ test_clean_removes_stale_entry() {
         return 1
     fi
     return 0
+}
+
+# ---------------------------------------------------------------------------
+# Lookup by port
+#
+# Regression: state_get_app returned non-zero when the branch lookup missed.
+# Under `set -e` that killed the command before the port lookup ran, so every
+# documented "by port" form silently did nothing.
+# ---------------------------------------------------------------------------
+
+test_cd_by_port() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    local port out
+    port="$(state_field feature/alpha port)" || return 1
+    out="$("$RIVE" cd "$port" 2>/dev/null)"
+    assert_eq "$(expected_worktree feature/alpha)" "$out"
+}
+
+test_remove_by_port() {
+    local port
+    port="$(state_field feature/alpha port)" || return 1
+    "$RIVE" remove "$port" >/dev/null 2>&1 || return 1
+
+    if grep -q "^feature/alpha|" "$RIVE_STATE_FILE" 2>/dev/null; then
+        echo "        App survived remove by port" >&2
+        return 1
+    fi
+    return 0
+}
+
+test_lookup_of_unknown_app_reports_clearly() {
+    local out result=0
+    out="$("$RIVE" status no-such-branch 2>&1)" || result=$?
+    [[ $result -ne 0 ]] || { echo "        Expected non-zero exit" >&2; return 1; }
+    assert_contains "$out" "not found"
+}
+
+# ---------------------------------------------------------------------------
+# status
+# ---------------------------------------------------------------------------
+
+test_status_reports_running_app() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+
+    local out
+    out="$("$RIVE" status feature/alpha 2>&1)" || return 1
+    assert_contains "$out" "feature/alpha" || return 1
+    assert_contains "$out" "running" || return 1
+    assert_contains "$out" "$(state_field feature/alpha port)" || return 1
+    assert_contains "$out" "clean"
+}
+
+test_status_names_the_repository() {
+    local out
+    out="$("$RIVE" status feature/alpha 2>&1)" || return 1
+    assert_contains "$out" "$(basename "$REPO")"
+}
+
+test_status_defaults_to_current_app() {
+    local out
+    out="$("$RIVE" status 2>&1)" || return 1
+    assert_contains "$out" "feature/alpha"
+}
+
+test_status_by_port() {
+    local port out
+    port="$(state_field feature/alpha port)" || return 1
+    out="$("$RIVE" status "$port" 2>&1)" || return 1
+    assert_contains "$out" "feature/alpha"
+}
+
+test_status_reports_uncommitted_changes() {
+    echo "wip" > "$(expected_worktree feature/alpha)/wip.txt"
+    local out
+    out="$("$RIVE" status feature/alpha 2>&1)" || return 1
+    assert_contains "$out" "uncommitted changes"
+}
+
+test_status_flags_a_dead_process() {
+    local pid out result=0
+    pid="$(state_field feature/alpha pid)" || return 1
+    kill -KILL "$pid" 2>/dev/null
+    sleep 1
+
+    out="$("$RIVE" status feature/alpha 2>&1)" || result=$?
+    [[ $result -ne 0 ]] || { echo "        Expected non-zero exit for dead process" >&2; return 1; }
+    assert_contains "$out" "stopped" || return 1
+    assert_contains "$out" "not running"
 }
 
 # ---------------------------------------------------------------------------
@@ -761,6 +877,19 @@ main() {
     run_test "remove preserves a dirty worktree" test_remove_preserves_dirty_worktree
     run_test "server log alone does not block removal" test_server_log_alone_does_not_block_removal
     run_test "clean removes entries for dead processes" test_clean_removes_stale_entry
+
+    print_header "Lookup by Port"
+    run_test "cd resolves an app by port" test_cd_by_port
+    run_test "remove resolves an app by port" test_remove_by_port
+    run_test "an unknown app is reported clearly" test_lookup_of_unknown_app_reports_clearly
+
+    print_header "Status"
+    run_test "status reports a running app" test_status_reports_running_app
+    run_test "status names the repository" test_status_names_the_repository
+    run_test "status defaults to the current app" test_status_defaults_to_current_app
+    run_test "status resolves an app by port" test_status_by_port
+    run_test "status reports uncommitted changes" test_status_reports_uncommitted_changes
+    run_test "status flags a dead process" test_status_flags_a_dead_process
 
     print_header "Remove All"
     run_test "remove --all stops every app" test_remove_all_stops_every_app

@@ -50,6 +50,7 @@ COMMANDS:
       (aliases: start, create, new, up)
     list                 List all running review apps
       (aliases: ls, l)
+    status [branch|port] Show detailed info for one app (uses current if not specified)
     remove [branch|port] Stop a review app (uses current if not specified)
                          Pass --all to stop every running app
       (aliases: stop, delete, del, down, rm)
@@ -468,6 +469,109 @@ stop_one_app() {
     return 0
 }
 
+# Resolves the repository an app belongs to. The first entry of `git worktree
+# list` is always the main working directory, which works whether the path is a
+# linked worktree or the repo root itself (the current-branch case).
+get_repo_for_worktree() {
+    local worktree="$1"
+    local main_worktree
+
+    if [[ -d "$worktree" ]]; then
+        main_worktree=$(git -C "$worktree" worktree list --porcelain 2>/dev/null \
+            | head -1 | sed 's/^worktree //')
+        if [[ -n "$main_worktree" ]]; then
+            basename "$main_worktree"
+            return 0
+        fi
+    fi
+
+    # Worktree is gone (stale entry): fall back to the namespace directory rive
+    # created it under, which is the repo name by construction
+    basename "$(dirname "$worktree")"
+}
+
+# Command: status
+cmd_status() {
+    local identifier="${1:-}"
+
+    # Fall back to current app if no identifier provided
+    if [[ -z "$identifier" ]]; then
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive status <branch|port>"
+        fi
+        log_debug "Using current app: $identifier"
+    fi
+
+    local app
+    app=$(state_get_app "$identifier")
+    if [[ -z "$app" ]]; then
+        app=$(state_get_app_by_port "$identifier")
+    fi
+
+    if [[ -z "$app" ]]; then
+        error_exit 1 "Review app not found: $identifier"
+    fi
+
+    local branch port worktree pid started
+    branch=$(parse_state_line "$app" "branch")
+    port=$(parse_state_line "$app" "port")
+    worktree=$(parse_state_line "$app" "worktree")
+    pid=$(parse_state_line "$app" "pid")
+    started=$(parse_state_line "$app" "timestamp")
+
+    local status uptime
+    status=$(get_process_status "$pid") || true
+    if [[ "$status" == "running" ]]; then
+        uptime=$(calculate_uptime "$started")
+    else
+        uptime="-"
+    fi
+
+    local changes
+    if [[ ! -d "$worktree" ]]; then
+        changes="worktree missing"
+    elif is_worktree_clean "$worktree"; then
+        changes="clean"
+    else
+        changes="uncommitted changes"
+    fi
+
+    local log_file="$worktree/.rive-server.log"
+    if [[ ! -f "$log_file" ]]; then
+        log_file="none (set RIVE_ENABLE_LOGS=true)"
+    fi
+
+    local is_current="no"
+    local current
+    if current=$(get_current_app 2>/dev/null); then
+        [[ "$current" == "$branch" ]] && is_current="yes"
+    fi
+
+    echo ""
+    echo "Review app: $branch"
+    echo ""
+    printf "  %-13s %s\n" "Repository:"  "$(get_repo_for_worktree "$worktree")"
+    printf "  %-13s %s\n" "Status:"      "$status"
+    printf "  %-13s %s\n" "PID:"         "$pid"
+    printf "  %-13s %s\n" "Uptime:"      "$uptime"
+    printf "  %-13s %s\n" "Port:"        "$port"
+    printf "  %-13s %s\n" "URL:"         "http://$RIVE_HOSTNAME:$port"
+    printf "  %-13s %s\n" "Worktree:"    "$worktree"
+    printf "  %-13s %s\n" "Changes:"     "$changes"
+    printf "  %-13s %s\n" "Logs:"        "$log_file"
+    printf "  %-13s %s\n" "Current app:" "$is_current"
+    echo ""
+
+    if [[ "$status" != "running" ]]; then
+        log_warning "The server process is not running"
+        log_info "Use 'rive restart $branch' to start it again, or 'rive clean' to drop the entry"
+        echo ""
+        return 1
+    fi
+
+    return 0
+}
+
 # Command: remove --all
 cmd_stop_all() {
     local apps
@@ -823,6 +927,10 @@ main() {
             ;;
         list|ls|l)
             cmd_list
+            ;;
+        status)
+            shift
+            cmd_status "$@"
             ;;
         remove|stop|delete|del|down|rm)
             shift

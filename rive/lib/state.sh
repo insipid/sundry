@@ -64,27 +64,33 @@ state_remove_app() {
 }
 
 # Get review app by branch
+#
+# "Not found" is signalled by empty output, never by a non-zero exit. Callers
+# assign the result with `app=$(state_get_app "$x")`, and bin/rive runs under
+# `set -e`, so returning non-zero here aborted the whole command silently -
+# which is what broke every lookup by port: the branch lookup is tried first,
+# finds nothing, and the script died before the port lookup could run.
 state_get_app() {
     local branch="$1"
     local state_file="$RIVE_STATE_FILE"
 
     if [[ ! -f "$state_file" ]]; then
-        return 1
+        return 0
     fi
 
-    grep "^${branch}|" "$state_file" | head -1
+    grep "^${branch}|" "$state_file" | head -1 || true
 }
 
-# Get review app by port
+# Get review app by port. Empty output means not found; see state_get_app.
 state_get_app_by_port() {
     local port="$1"
     local state_file="$RIVE_STATE_FILE"
 
     if [[ ! -f "$state_file" ]]; then
-        return 1
+        return 0
     fi
 
-    grep "|${port}|" "$state_file" | head -1
+    grep "|${port}|" "$state_file" | head -1 || true
 }
 
 # List all review apps

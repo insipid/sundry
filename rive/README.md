@@ -83,6 +83,7 @@ add [branch]         Create review app; prompts for branch if omitted
 remove [branch|port] Stop app; --all stops every running app
                      (aliases: stop, delete, del, down, rm)
 list                 List all running apps (aliases: ls, l)
+status [branch|port] Show detailed info for one app
 restart [branch]     Restart app
 cd [branch|port]     Print worktree path
 pull [branch|port]   Pull latest changes

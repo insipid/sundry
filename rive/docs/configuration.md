@@ -129,6 +129,60 @@ export RIVE_STATE_FILE=/tmp/rive/state
 export RIVE_CURRENT_FILE=/tmp/rive/current
 ```
 
+## Multiple repositories
+
+rive works across as many repositories as you like, but it is worth knowing
+exactly what is shared and what is not.
+
+**Namespaced per repository:**
+
+- **Worktrees.** Each repo gets its own directory under `RIVE_WORKTREE_DIR`,
+  named after the repository:
+  ```
+  ~/.rive/worktrees/my-api/feature-login
+  ~/.rive/worktrees/my-web/feature-login
+  ```
+  The name is the repository's directory name, so two checkouts that happen to
+  share a directory name (`~/work/api` and `~/oss/api`) share a namespace.
+
+**Shared globally, across every repository:**
+
+- **The state file** (`~/.rive/state`) — one flat list of every running app
+- **The current-app pointer** (`~/.rive/current`) — one current app in total,
+  not one per repository
+- **Port allocation** — ports are handed out from a single pool, which is what
+  stops apps in different repos colliding on a port
+- **Every command** — `list` shows apps from all repositories, and `cd`, `pull`,
+  `logs`, `remove`, `restart`, and `status` resolve an app from anywhere. You do
+  not have to be standing in the right repository, and `rive list` will show you
+  apps you started elsewhere.
+
+### The branch-name collision
+
+Because state is keyed by **branch name alone**, you cannot run the same branch
+name in two repositories at the same time:
+
+```bash
+cd ~/code/my-api  && rive add feature/login   # works
+cd ~/code/my-web  && rive add feature/login   # Error: already running
+```
+
+This bites hardest with common names — `main`, `develop`, `staging`. Until state
+is keyed by repository as well as branch, the workarounds are:
+
+- Use distinct branch names across repos, or
+- Give each repository its own state with a per-project `.env`:
+  ```bash
+  # ~/code/my-web/.env
+  RIVE_STATE_FILE=/Users/you/.rive/my-web/state
+  RIVE_CURRENT_FILE=/Users/you/.rive/my-web/current
+  ```
+  Note both variables are needed — see the note above. Ports still come from the
+  same range, so raise `RIVE_START_PORT` in one of them if you want the two sets
+  kept apart.
+
+`rive status` is the quickest way to see which repository an app belongs to.
+
 ## Validation
 
 Rive validates configuration at startup and fails fast with a clear message if:
