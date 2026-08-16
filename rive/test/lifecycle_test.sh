@@ -174,6 +174,11 @@ setup_fixture() {
     # in this suite can never touch the caller's real ~/.rive or repositories.
     export RIVE_WORKTREE_DIR="$TEST_ROOT/worktrees"
     export RIVE_STATE_FILE="$TEST_ROOT/state"
+    # RIVE_CURRENT_FILE is NOT derived from RIVE_STATE_FILE - it defaults to
+    # $HOME/.rive/current independently, so overriding only the state file
+    # would leave the current-app pointer writing into the caller's real
+    # ~/.rive. It must be overridden explicitly.
+    export RIVE_CURRENT_FILE="$TEST_ROOT/current"
     export RIVE_START_PORT=41500
     export RIVE_HOSTNAME=localhost
     export RIVE_AUTO_INSTALL=false
@@ -181,10 +186,15 @@ setup_fixture() {
     export RIVE_VERBOSE=false
     export RIVE_SERVER_COMMAND="sleep 600 # $SERVER_MARKER %PORT%"
 
-    case "$RIVE_STATE_FILE" in
-        "$TEST_ROOT"/*) ;;
-        *) echo "REFUSING TO RUN: state file outside temp tree" >&2; exit 1 ;;
-    esac
+    # Every path rive writes to must be inside the temp tree. Checking only the
+    # state file was not enough: the current-app pointer has its own default.
+    local guarded
+    for guarded in "$RIVE_STATE_FILE" "$RIVE_CURRENT_FILE" "$RIVE_WORKTREE_DIR"; do
+        case "$guarded" in
+            "$TEST_ROOT"/*) ;;
+            *) echo "REFUSING TO RUN: $guarded is outside the temp tree" >&2; exit 1 ;;
+        esac
+    done
 
     # A bare repo to act as "origin", so remote-branch behaviour is real
     git init -q --bare "$TEST_ROOT/origin.git"
@@ -249,7 +259,7 @@ reset_apps() {
         "$RIVE" remove "$branch" >/dev/null 2>&1
     done < <(cat "$RIVE_STATE_FILE" 2>/dev/null)
     : > "$RIVE_STATE_FILE"
-    rm -f "$(dirname "$RIVE_STATE_FILE")/current"
+    rm -f "$RIVE_CURRENT_FILE"
 }
 
 # ---------------------------------------------------------------------------
