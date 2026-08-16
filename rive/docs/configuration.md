@@ -15,6 +15,7 @@ Rive loads configuration from multiple sources with the following precedence:
 | `RIVE_WORKTREE_DIR` | `~/.rive/worktrees` | Base directory for worktrees |
 | `RIVE_SERVER_COMMAND` | `npm run dev -- --port %PORT%` | Server command (`%PORT%` and `%HOSTNAME%` are replaced) |
 | `RIVE_STATE_FILE` | `~/.rive/state` | State file location |
+| `RIVE_CURRENT_FILE` | `~/.rive/current` | Current-app pointer location |
 | `RIVE_AUTO_INSTALL` | `false` | Auto-install dependencies |
 | `RIVE_INSTALL_COMMAND` | _(auto-detected)_ | Custom install command |
 | `RIVE_ENABLE_LOGS` | `false` | Log server output to `.rive-server.log` in worktree (auto-cleaned on stop) |
@@ -85,6 +86,9 @@ Flags go **before** the command:
 # Use a different starting port
 rive --start-port 50000 add feature/branch
 
+# Bind the server to a different hostname
+rive --hostname 0.0.0.0 add feature/branch
+
 # Use a different worktree directory
 rive --worktree-dir /tmp/rive add feature/branch
 
@@ -100,10 +104,30 @@ Available flags:
 |------|------|
 | `--verbose`, `-v` | `RIVE_VERBOSE=true` |
 | `--start-port PORT` | `RIVE_START_PORT` |
+| `--hostname HOST` | `RIVE_HOSTNAME` |
 | `--worktree-dir DIR` | `RIVE_WORKTREE_DIR` |
 
-**Note:** `-v` means `--verbose`, not `--version`. Use `rive version` to print
-the version.
+**Mind the case:** `-v` is verbose, `-V` is version — as in `curl`, `ssh`, and
+`python`.
+
+### A note on `RIVE_CURRENT_FILE`
+
+`RIVE_CURRENT_FILE` is **not** derived from `RIVE_STATE_FILE`. Each has its own
+independent default, so pointing rive at a different state file does not move
+the current-app pointer with it:
+
+```bash
+# The state file moves, but the current app is still tracked in ~/.rive/current
+RIVE_STATE_FILE=/tmp/my-state rive list
+```
+
+If you are relocating rive's state — for a test harness, a sandbox, or a
+per-project setup — set both:
+
+```bash
+export RIVE_STATE_FILE=/tmp/rive/state
+export RIVE_CURRENT_FILE=/tmp/rive/current
+```
 
 ## Validation
 

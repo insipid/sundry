@@ -30,6 +30,21 @@ get_worktree_for_branch() {
 
 # Interactive branch selection with FZF or numbered menu
 select_branch_interactive() {
+    # This function builds a branch-to-worktree map with an associative array,
+    # which needs bash 4+. macOS still ships bash 3.2, where that syntax fails
+    # at runtime with a bare "local: -A: invalid option". Every other rive
+    # command works fine on 3.2, so fail only here, and say what to do about it.
+    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+        log_error "Interactive branch selection requires bash 4.0 or newer"
+        log_error "You are running bash ${BASH_VERSION}"
+        echo "" >&2
+        log_info "Either pass the branch name explicitly:"
+        log_info "  rive add <branch>"
+        log_info "Or install a newer bash (macOS ships 3.2):"
+        log_info "  brew install bash"
+        return 1
+    fi
+
     local current_branch
     current_branch=$(git branch --show-current 2>/dev/null)
 
@@ -291,6 +306,19 @@ remove_worktree() {
     if [[ ! -d "$worktree_path" ]]; then
         log_debug "Worktree does not exist: $worktree_path"
         return 0
+    fi
+
+    # A linked worktree has .git as a FILE pointing into the parent repo; a
+    # repository's main working directory has .git as a DIRECTORY. `rive add`
+    # on the currently checked-out branch records the repo root itself as the
+    # "worktree", so without this guard removal would fall through to the
+    # rm -rf below and delete the user's entire repository, .git and all.
+    # Returns 2 (rather than 0) so callers can tell "refused" from "removed"
+    # and avoid reporting a removal that did not happen.
+    if [[ -d "$worktree_path/.git" ]]; then
+        log_warning "Not removing $worktree_path"
+        log_info "This is the repository's main working directory, not a rive worktree"
+        return 2
     fi
 
     log_info "Removing worktree at $worktree_path"

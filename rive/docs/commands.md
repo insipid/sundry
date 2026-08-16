@@ -88,13 +88,23 @@ Stop a running review app.
 **Aliases:** `stop`, `delete`, `del`, `down`, `rm`
 
 ```bash
-rive remove [branch|port]
+rive remove [branch|port|--all]
 
 # Examples
 rive remove feature/user-auth    # Remove by branch name
 rive remove 40000                # Remove by port number
 rive remove                      # Remove current app (if set)
+rive remove --all                # Remove every running app
 ```
+
+**`--all`** stops every running review app in one go. It applies exactly the
+same per-app rules as a single removal — clean worktrees are removed, dirty ones
+are preserved with a warning, and the current-app pointer is cleared. There is
+no confirmation prompt; the flag is the confirmation.
+
+If one app fails to stop, the rest are still processed and the command reports
+how many succeeded before exiting non-zero. With no apps running it prints
+`No running review apps` and exits 0.
 
 **Auto-Cleanup Behavior:**
 - If the worktree is **clean** (no uncommitted/untracked changes): Automatically removed
@@ -232,7 +242,13 @@ Show version information.
 ```bash
 rive version
 rive --version
+rive -V
 ```
 
-**Note:** `-v` is *not* a shorthand for `version` — it is the short form of
-`--verbose`. Use `rive version` or `rive --version`.
+**Note the case:** `-V` is version, `-v` is verbose — the convention used by
+`curl`, `ssh`, `rsync`, and `python`. They are different flags:
+
+```bash
+rive -V          # prints the version
+rive -v add foo  # creates an app with verbose output
+```

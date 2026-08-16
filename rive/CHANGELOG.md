@@ -25,13 +25,44 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
   branch and `[worktree: path]` where a worktree already exists
 - **`rive use` with no argument** offers the same picker when apps are running
 
+#### Commands and flags
+- **`rive remove --all`** stops every running review app in one command. It
+  applies the same per-app rules as a single removal rather than bulldozing:
+  clean worktrees are removed, dirty ones are preserved with a warning, and the
+  current-app pointer is cleared. A failure on one app does not abort the rest —
+  the command reports how many succeeded and exits non-zero. With nothing
+  running it prints `No running review apps` and exits 0. This was in the
+  original PRD as an option of the stop command but had never been built.
+- **`--hostname HOST`** joins `--start-port` and `--worktree-dir` as a CLI
+  override. `RIVE_HOSTNAME` was previously settable only via the environment or
+  `.env`, making it the one major setting with no flag.
+
 #### Testing and CI
 - **BATS unit suite** (`test/rive.bats`)
-- **Integration suite** (`test/integration_test.sh`) — 37 tests covering config
-  validation, state management, port allocation, branch-name sanitisation,
-  process handling, and CLI smoke tests; requires no dependencies beyond Bash
+- **Lifecycle suite** (`test/lifecycle_test.sh`) — 28 end-to-end tests that drive
+  the real CLI against a throwaway git repository: worktrees are genuinely
+  created and removed, server processes are genuinely spawned and killed, and
+  assertions run against the filesystem, the process table, and the state file.
+  This covers the parts of rive that unit tests cannot reach — worktree
+  lifecycle, process management, dirty-worktree preservation, stale-entry
+  cleanup, interactive branch selection, and port collisions. Requires nothing
+  beyond bash and git; tests needing more tooling skip themselves.
 - **Symlink invocation tests** — three BATS cases covering absolute symlinks,
   chains of symlinks, and symlinks with relative targets
+- **Port allocation tests** — BATS cases asserting that a port held by a running
+  app is skipped, and that a port left behind by a crashed server is reused
+
+### Changed
+
+- **Test suites no longer duplicate each other.** `test/integration_test.sh`
+  re-tested the same six areas as `test/rive.bats` with near-identical
+  assertions, and only the BATS suite ran in CI — so half the maintenance cost
+  bought no extra coverage. The duplicate has been removed and replaced by the
+  lifecycle suite above, which tests what the unit suite structurally cannot.
+  The one assertion unique to the old suite has been rewritten properly and
+  moved to BATS.
+- **CI runs the lifecycle suite** on Ubuntu and macOS, and now lints the test
+  sources as well as `bin/` and `lib/`.
 - **GitHub Actions workflow** (`.github/workflows/rive-ci.yml`) running ShellCheck
   at `--severity=warning` plus the BATS suite on `ubuntu-latest` and `macos-latest`
 
@@ -60,6 +91,30 @@ Actions CI running ShellCheck and tests on both Ubuntu and macOS.
 
 ### Fixed
 
+- **`-v` no longer collides with `version`.** `-v` was listed both as the short
+  form of `--verbose` and as an alias for the `version` command. The global flag
+  parser consumed it first, so `rive -v` silently printed help and the `version`
+  alias was unreachable. The two are now split along the usual convention, as
+  used by `curl`, `ssh`, `rsync`, and `python`:
+  - `-v` / `--verbose` — verbose output
+  - `-V` / `--version` — print the version (`rive version` also still works)
+- **The branch picker explains itself on bash 3.2.** `select_branch_interactive`
+  builds a branch-to-worktree map with an associative array, which needs bash
+  4.0+. On the bash macOS ships, it failed with a bare
+  `local: -A: invalid option` and an unbound-variable error. It now checks the
+  version up front and tells you to either pass the branch explicitly or install
+  a newer bash. The check is deliberately scoped to this one function — every
+  other rive command works fine on bash 3.2, so there is no blanket refusal to
+  run.
+- **`rive remove` could delete your entire repository.** `rive add` on the
+  branch already checked out records the repository root itself as the app's
+  "worktree". On removal, `git worktree remove` correctly refused to delete a
+  main working directory, but the fallback path then ran `rm -rf` on it —
+  destroying the working tree, uncommitted work, and `.git` along with it.
+  `remove_worktree` now refuses any path that is a repository's main working
+  directory (`.git` as a directory rather than a file) and reports the refusal
+  instead of claiming success. Covered by a regression test that commits a
+  canary file and asserts the repository survives.
 - **Running rive through a symlink now works.** `bin/rive` located its `lib/`
   directory relative to the symlink rather than the resolved script, so the
   installation method documented in the README — symlinking `bin/rive` onto your

@@ -80,7 +80,8 @@ See [docs/configuration.md](docs/configuration.md) for all options and framework
 ```
 add [branch]         Create review app; prompts for branch if omitted
                      (aliases: start, create, new, up)
-remove [branch|port] Stop app (aliases: stop, delete, del, down, rm)
+remove [branch|port] Stop app; --all stops every running app
+                     (aliases: stop, delete, del, down, rm)
 list                 List all running apps (aliases: ls, l)
 restart [branch]     Restart app
 cd [branch|port]     Print worktree path
@@ -149,6 +150,9 @@ rive use feature/checkout-flow
 # Stop both when done
 rive remove feature/checkout-flow
 rive remove feature/user-profile
+
+# Or stop everything at once
+rive remove --all
 ```
 
 ## Troubleshooting
@@ -171,17 +175,23 @@ See [docs/troubleshooting.md](docs/troubleshooting.md) for more help.
 
 ```bash
 # Lint (matches CI)
-shellcheck --severity=warning bin/rive lib/*.sh
+shellcheck --severity=warning bin/rive lib/*.sh test/lifecycle_test.sh
 
-# Unit tests (requires bats-core)
+# Unit tests - library functions in isolation (requires bats-core)
 bats test/rive.bats
 
-# Integration tests (no extra dependencies)
-./test/integration_test.sh
+# Lifecycle tests - drives the real CLI end to end (bash + git only)
+./test/lifecycle_test.sh
 ```
 
-CI runs ShellCheck plus the BATS suite on Ubuntu and macOS for every push and
-pull request touching `rive/`.
+The two suites do different jobs. `rive.bats` unit-tests the library functions.
+`lifecycle_test.sh` runs the actual CLI against a throwaway git repository —
+creating real worktrees, spawning and killing real server processes, and
+asserting against the filesystem, process table, and state file. It takes about
+a minute and cleans up after itself, including on failure.
+
+CI runs ShellCheck plus both suites on Ubuntu and macOS for every push and pull
+request touching `rive/`.
 
 ## Documentation
 

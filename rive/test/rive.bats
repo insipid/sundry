@@ -201,6 +201,29 @@ teardown() {
     [ "$output" -ge "$RIVE_START_PORT" ]
 }
 
+@test "port: allocation skips a port held by a running app" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    # $$ is this test process, so the entry counts as a live allocation
+    state_add_app "feature/taken" "$RIVE_START_PORT" "$TEST_TEMP/wt" "$$"
+    run find_available_port
+    [ "$status" -eq 0 ]
+    [ "$output" -gt "$RIVE_START_PORT" ]
+}
+
+@test "port: allocation reuses a port whose process is gone" {
+    if is_port_in_use "$RIVE_START_PORT"; then
+        skip "port $RIVE_START_PORT is in use on this machine"
+    fi
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    # A stale entry left by a crashed server must not reserve the port forever
+    state_add_app "feature/stale" "$RIVE_START_PORT" "$TEST_TEMP/wt" 999999
+    run find_available_port
+    [ "$status" -eq 0 ]
+    [ "$output" -eq "$RIVE_START_PORT" ]
+}
+
 #############################################
 # Utility Function Tests
 #############################################
@@ -290,6 +313,40 @@ teardown() {
     run "$RIVE_DIR/bin/rive" version
     [ "$status" -eq 0 ]
     [[ "$output" == *"rive version"* ]]
+}
+
+@test "cli: --version prints the version" {
+    run "$RIVE_DIR/bin/rive" --version
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}
+
+@test "cli: -V prints the version" {
+    run "$RIVE_DIR/bin/rive" -V
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}
+
+# -V must survive the global flag parser running ahead of the dispatcher
+@test "cli: -V works alongside other flags" {
+    run "$RIVE_DIR/bin/rive" --verbose -V
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rive version"* ]]
+}
+
+# -v is the short form of --verbose. It must not also mean --version, or the
+# global flag parser and the command dispatcher disagree about what it does.
+@test "cli: -v means verbose, not version" {
+    run "$RIVE_DIR/bin/rive" -v
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"USAGE:"* ]]
+    ! [[ "$output" =~ rive\ version\ [0-9] ]]
+}
+
+@test "cli: --hostname flag overrides the configured hostname" {
+    run "$RIVE_DIR/bin/rive" --hostname 0.0.0.0 config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_HOSTNAME=0.0.0.0"* ]]
 }
 
 @test "cli: config command shows configuration" {
