@@ -266,6 +266,45 @@ rive config
 rive config > .env
 ```
 
+## demo-server
+
+Run a throwaway server. Useful for trying rive out before you have a real server
+command, or for checking that an app really did start and answer on its port.
+
+```bash
+rive demo-server <port>
+```
+
+Normally you do not run it directly — you set it as your server command:
+
+```bash
+RIVE_SERVER_COMMAND="rive demo-server %PORT%"
+```
+
+Then `rive add <branch>` gives you a working review app immediately:
+
+```bash
+rive add feature/blue
+curl http://localhost:40000/index.html   # serves feature/blue's files
+```
+
+**What it runs:**
+
+- **python3** if available — `python3 -m http.server`, serving the current
+  directory. Since rive starts servers inside the worktree, you get that
+  branch's files, which is the quickest way to confirm worktree isolation is
+  doing what you expect.
+- **nc** otherwise — answers a fixed plain-text response naming the port and
+  directory. Enough to prove the port is live. It rebinds after each request,
+  so a rapid burst can occasionally hit the gap between listeners; fine for a
+  check, not something to lean on.
+
+If neither is available it exits with an error rather than pretending to start.
+
+**This is not a real server.** It has no build step, no hot reload, and serves
+static files at best. Point `RIVE_SERVER_COMMAND` at your own dev server for
+real work.
+
 ## clean
 
 Clean up stale state entries (processes that are no longer running).

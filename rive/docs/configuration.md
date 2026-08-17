@@ -52,6 +52,18 @@ cp my-config.env .env
 
 ## Framework-Specific Commands
 
+### Trying it out
+
+rive ships a throwaway server, so you can see a review app working before
+wiring up your own:
+
+```bash
+RIVE_SERVER_COMMAND="rive demo-server %PORT%"
+```
+
+It serves the worktree with `python3 -m http.server`, falling back to `nc`.
+See [demo-server](commands.md#demo-server).
+
 ### Node.js (npm/yarn/pnpm)
 ```bash
 RIVE_SERVER_COMMAND="npm run dev -- --port %PORT%"

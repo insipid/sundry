@@ -63,6 +63,18 @@ See [docs/installation.md](docs/installation.md) for alternative methods.
 - **Repository namespacing** - Works across multiple repos
 - **Log tracking** - Optional server output logging
 
+## Trying It Out
+
+No server command configured yet? rive ships one:
+
+```bash
+RIVE_SERVER_COMMAND="rive demo-server %PORT%" rive add feature/blue
+curl http://localhost:40000/index.html   # feature/blue's files, not main's
+```
+
+It uses `python3 -m http.server` when available and falls back to `nc`. It is a
+demo, not a dev server — see [docs/commands.md](docs/commands.md#demo-server).
+
 ## Configuration
 
 Create a `.env` file in your project:

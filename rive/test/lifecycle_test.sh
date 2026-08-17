@@ -637,6 +637,80 @@ test_remove_all_clears_current_app() {
 }
 
 # ---------------------------------------------------------------------------
+# demo-server
+# ---------------------------------------------------------------------------
+
+# Needs a real HTTP client to be meaningful
+have_curl() { command -v curl >/dev/null 2>&1; }
+
+test_demo_server_requires_a_port() {
+    local out result=0
+    out="$("$RIVE" demo-server 2>&1)" || result=$?
+    [[ $result -ne 0 ]] || { echo "        Expected non-zero exit" >&2; return 1; }
+    assert_contains "$out" "No port specified"
+}
+
+test_demo_server_rejects_a_non_numeric_port() {
+    local out result=0
+    out="$("$RIVE" demo-server not-a-port 2>&1)" || result=$?
+    [[ $result -ne 0 ]] || { echo "        Expected non-zero exit" >&2; return 1; }
+    assert_contains "$out" "Invalid port"
+}
+
+# The point of the demo server: an app started with it actually answers on its
+# allocated port, serving that branch's worktree rather than the main checkout.
+test_demo_server_answers_on_the_allocated_port() {
+    if ! have_curl; then
+        skip "demo server answers on its port" "curl not available"
+        return 99
+    fi
+
+    reset_apps
+
+    # Give the branch a file that main does not have, so the response proves
+    # which worktree is being served
+    (
+        cd "$REPO" || exit 1
+        git checkout -q feature/alpha
+        printf 'served-from-alpha\n' > marker.txt
+        git add marker.txt
+        git commit -qm "alpha marker"
+        git checkout -q main
+    ) || return 1
+
+    local saved_command="$RIVE_SERVER_COMMAND"
+    RIVE_SERVER_COMMAND="$RIVE demo-server %PORT%"
+    export RIVE_SERVER_COMMAND
+
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || {
+        RIVE_SERVER_COMMAND="$saved_command"; export RIVE_SERVER_COMMAND
+        return 1
+    }
+
+    local port body result=0
+    port="$(state_field feature/alpha port)"
+
+    # The server needs a moment to bind
+    local waited=0
+    while (( waited < 10 )); do
+        body="$(curl -s --max-time 2 "http://localhost:$port/marker.txt" 2>/dev/null)" || true
+        [[ -n "$body" ]] && break
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    [[ "$body" == *"served-from-alpha"* ]] || {
+        echo "        Expected the branch's file, got: '$body'" >&2
+        result=1
+    }
+
+    "$RIVE" remove feature/alpha >/dev/null 2>&1
+    RIVE_SERVER_COMMAND="$saved_command"
+    export RIVE_SERVER_COMMAND
+    return $result
+}
+
+# ---------------------------------------------------------------------------
 # Repository scoping
 #
 # The bug that motivated all of this: state was keyed by branch name alone, so
@@ -1060,6 +1134,11 @@ main() {
     run_test "remove all preserves dirty worktrees" test_remove_all_preserves_dirty_worktrees
     run_test "remove all with no apps is not an error" test_remove_all_with_no_apps_is_not_an_error
     run_test "remove all clears the current app" test_remove_all_clears_current_app
+
+    print_header "Demo Server"
+    run_test "demo-server requires a port" test_demo_server_requires_a_port
+    run_test "demo-server rejects a non-numeric port" test_demo_server_rejects_a_non_numeric_port
+    run_test "demo-server answers on the allocated port" test_demo_server_answers_on_the_allocated_port
 
     print_header "Repository Scoping"
     run_test "same branch runs in two repositories" test_same_branch_runs_in_two_repos

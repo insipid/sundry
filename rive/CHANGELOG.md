@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- **`rive demo-server <port>`** - a throwaway server for trying rive out, or for
+  confirming that an app really started and answers on its port. Set it as your
+  server command with `RIVE_SERVER_COMMAND="rive demo-server %PORT%"`. It runs
+  `python3 -m http.server` in the current directory when python3 is available -
+  which, since rive starts servers inside the worktree, serves that branch's own
+  files - and falls back to a `netcat` loop returning a fixed response when it is
+  not. With neither available it exits with an error rather than pretending to
+  start. It is not a replacement for a real dev server.
+
 **Repository scoping**
 
 Apps are now identified by **(repository, branch)** rather than branch name

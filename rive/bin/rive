@@ -61,6 +61,7 @@ COMMANDS:
     logs [branch|port]   Tail the log file for a review app (uses current if not specified)
     use [branch|port]    Set current app context (show current if not specified)
     config               Show current configuration
+    demo-server <port>   Run a throwaway server, for trying rive out
     clean                Clean up stale state entries
     help                 Show this help message
     version              Show version information
@@ -801,6 +802,86 @@ cmd_logs() {
     tail -f "$log_file"
 }
 
+# Command: demo-server
+#
+# A throwaway server for trying rive out, or for checking that a review app
+# really did start and answer on its port. Set it as your server command:
+#
+#     RIVE_SERVER_COMMAND="rive demo-server %PORT%"
+#
+# Python's http.server is preferred: it serves the worktree directory, so you
+# can see the branch's own files, and it keeps the port bound between requests.
+# Without python3 we fall back to a netcat loop, which answers a fixed response
+# and is fine for a quick check - but it rebinds the port after every request,
+# so an occasional rapid request can arrive during the gap and be refused.
+cmd_demo_server() {
+    local port="${1:-}"
+    local host="${RIVE_HOSTNAME:-localhost}"
+
+    if [[ -z "$port" ]]; then
+        log_error "No port specified"
+        echo ""
+        echo "Usage: rive demo-server <port>"
+        echo ""
+        echo "Typically used as the server command:"
+        echo "  RIVE_SERVER_COMMAND=\"rive demo-server %PORT%\""
+        return 1
+    fi
+
+    if ! [[ "$port" =~ ^[0-9]+$ ]]; then
+        log_error "Invalid port: $port"
+        return 1
+    fi
+
+    if command_exists python3; then
+        log_info "Demo server on http://$host:$port (python3, serving $(pwd))"
+        # exec so the process rive recorded is the server itself, not a wrapper
+        exec python3 -m http.server "$port" --bind "$host"
+    fi
+
+    if ! command_exists nc; then
+        log_error "Neither python3 nor nc is available"
+        log_info "Install python3, or set RIVE_SERVER_COMMAND to your own server"
+        return 1
+    fi
+
+    log_warning "python3 not found, falling back to nc"
+    log_info "Demo server on http://$host:$port (nc)"
+    demo_server_nc "$port"
+}
+
+# netcat fallback. `nc -l PORT` is the BSD/OpenBSD spelling; netcat-traditional
+# rejects it and wants `-l -p PORT`. Work out which this one is by starting a
+# listener and seeing whether it survives a moment.
+demo_server_nc() {
+    local port="$1"
+    local body
+    body="rive demo server
+port: $port
+directory: $(pwd)
+"
+
+    local listen_flags=(-l "$port")
+    local probe
+    nc -l "$port" </dev/null >/dev/null 2>&1 &
+    probe=$!
+    sleep 1
+    if kill -0 "$probe" 2>/dev/null; then
+        kill "$probe" 2>/dev/null
+    else
+        log_debug "netcat rejected -l <port>, using -l -p <port>"
+        listen_flags=(-l -p "$port")
+    fi
+    wait "$probe" 2>/dev/null || true
+
+    # One listener per request: nc exits when the client disconnects, so the
+    # loop rebinds for the next one.
+    while :; do
+        printf 'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s' \
+            "${#body}" "$body" | nc "${listen_flags[@]}" >/dev/null 2>&1
+    done
+}
+
 # Command: config
 cmd_config() {
     show_config
@@ -1013,6 +1094,10 @@ main() {
             ;;
         config)
             cmd_config
+            ;;
+        demo-server)
+            shift
+            cmd_demo_server "$@"
             ;;
         clean)
             cmd_clean
