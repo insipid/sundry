@@ -301,6 +301,12 @@ curl http://localhost:40000/index.html   # serves feature/blue's files
 
 If neither is available it exits with an error rather than pretending to start.
 
+**Note:** some sandboxed environments cannot serve HTTP on the loopback at all —
+GitHub's macOS runners are one, where even a bare `python3 -m http.server` starts
+but never binds. The demo server is unaffected on an ordinary machine; the test
+suite detects the limitation and skips its end-to-end check rather than
+reporting a false failure.
+
 **This is not a real server.** It has no build step, no hot reload, and serves
 static files at best. Point `RIVE_SERVER_COMMAND` at your own dev server for
 real work.

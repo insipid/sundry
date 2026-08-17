@@ -643,6 +643,35 @@ test_remove_all_clears_current_app() {
 # Needs a real HTTP client to be meaningful
 have_curl() { command -v curl >/dev/null 2>&1; }
 
+# Can anything on this machine serve HTTP on the loopback at all?
+#
+# GitHub's macOS runners cannot: a bare `python3 -m http.server`, with rive
+# nowhere in the picture, starts but never binds and is unreachable. Testing
+# rive's demo server there would report a rive failure for an environment
+# limitation, so gate on the capability itself rather than on the platform.
+can_serve_http() {
+    command -v python3 >/dev/null 2>&1 || return 1
+    have_curl || return 1
+
+    local probe_port=$(( RIVE_START_PORT + 900 ))
+    python3 -m http.server "$probe_port" --bind 127.0.0.1 >/dev/null 2>&1 &
+    local probe_pid=$!
+
+    local waited=0 ok=1
+    while (( waited < 5 )); do
+        if curl -s --max-time 1 "http://127.0.0.1:$probe_port/" >/dev/null 2>&1; then
+            ok=0
+            break
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    kill "$probe_pid" 2>/dev/null
+    wait "$probe_pid" 2>/dev/null || true
+    return $ok
+}
+
 test_demo_server_requires_a_port() {
     local out result=0
     out="$("$RIVE" demo-server 2>&1)" || result=$?
@@ -660,8 +689,9 @@ test_demo_server_rejects_a_non_numeric_port() {
 # The point of the demo server: an app started with it actually answers on its
 # allocated port, serving that branch's worktree rather than the main checkout.
 test_demo_server_answers_on_the_allocated_port() {
-    if ! have_curl; then
-        skip "demo server answers on its port" "curl not available"
+    if ! can_serve_http; then
+        skip "demo-server answers on the allocated port" \
+             "this environment cannot serve HTTP on the loopback"
         return 99
     fi
 
@@ -711,16 +741,6 @@ test_demo_server_answers_on_the_allocated_port() {
         echo "        process: $(ps -p "$pid" -o command= 2>/dev/null || echo 'NOT RUNNING')" >&2
         echo "        listening: $(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | tail -1 || echo none)" >&2
         echo "        worktree has marker: $([[ -f "$wt/marker.txt" ]] && echo yes || echo NO)" >&2
-        # Decisive probe: can python bind a socket here at all, with rive
-        # entirely out of the picture?
-        local probe_port=$(( port + 500 ))
-        python3 -m http.server "$probe_port" --bind 127.0.0.1 > "$TEST_ROOT/probe.log" 2>&1 &
-        local probe_pid=$!
-        sleep 3
-        echo "        bare python3 probe on $probe_port: $(curl -s --max-time 2 "http://127.0.0.1:$probe_port/" >/dev/null 2>&1 && echo REACHABLE || echo UNREACHABLE)" >&2
-        echo "        probe listening: $(lsof -nP -iTCP:"$probe_port" -sTCP:LISTEN 2>/dev/null | tail -1 || echo none)" >&2
-        echo "        probe output: $(tr '\n' ' ' < "$TEST_ROOT/probe.log" 2>/dev/null | head -c 200)" >&2
-        kill "$probe_pid" 2>/dev/null
         echo "        server log:" >&2
         sed 's/^/          /' "$wt/.rive-server.log" 2>/dev/null | head -10 >&2 || echo "          (no log)" >&2
         result=1
