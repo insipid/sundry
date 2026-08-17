@@ -81,6 +81,47 @@ feature/user-auth          40000   running    2h 15m      ~/.rive/worktrees/myre
 bugfix/login-error         40001   running    45m         ~/.rive/worktrees/myrepo/login-error
 ```
 
+## status
+
+Show detailed information about a single review app. Where `list` gives you a
+table across every app, `status` gives depth on one.
+
+```bash
+rive status [branch|port]
+
+# Examples
+rive status feature/user-auth
+rive status 40000
+rive status                      # Status of current app (if set)
+```
+
+**Output:**
+```
+Review app: feature/user-auth
+
+  Repository:   my-api
+  Status:       running
+  PID:          51234
+  Uptime:       2h 15m
+  Port:         40000
+  URL:          http://localhost:40000
+  Worktree:     ~/.rive/worktrees/my-api/feature-user-auth
+  Changes:      clean
+  Logs:         ~/.rive/worktrees/my-api/feature-user-auth/.rive-server.log
+  Current app:  yes
+```
+
+**Repository** is the repo the app belongs to. It is the only place rive shows
+this — see [Multiple repositories](configuration.md#multiple-repositories).
+
+**Changes** reflects the worktree's git state: `clean`, `uncommitted changes`,
+or `worktree missing` if the directory has been deleted behind rive's back.
+`.rive-server.log` is ignored, the same as it is when deciding whether removal
+is safe.
+
+If the server process is not running, `status` reports `stopped`, suggests
+`restart` or `clean`, and exits non-zero — so it is usable in scripts.
+
 ## remove
 
 Stop a running review app.
