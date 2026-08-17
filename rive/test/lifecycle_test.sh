@@ -711,6 +711,16 @@ test_demo_server_answers_on_the_allocated_port() {
         echo "        process: $(ps -p "$pid" -o command= 2>/dev/null || echo 'NOT RUNNING')" >&2
         echo "        listening: $(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | tail -1 || echo none)" >&2
         echo "        worktree has marker: $([[ -f "$wt/marker.txt" ]] && echo yes || echo NO)" >&2
+        # Decisive probe: can python bind a socket here at all, with rive
+        # entirely out of the picture?
+        local probe_port=$(( port + 500 ))
+        python3 -m http.server "$probe_port" --bind 127.0.0.1 > "$TEST_ROOT/probe.log" 2>&1 &
+        local probe_pid=$!
+        sleep 3
+        echo "        bare python3 probe on $probe_port: $(curl -s --max-time 2 "http://127.0.0.1:$probe_port/" >/dev/null 2>&1 && echo REACHABLE || echo UNREACHABLE)" >&2
+        echo "        probe listening: $(lsof -nP -iTCP:"$probe_port" -sTCP:LISTEN 2>/dev/null | tail -1 || echo none)" >&2
+        echo "        probe output: $(tr '\n' ' ' < "$TEST_ROOT/probe.log" 2>/dev/null | head -c 200)" >&2
+        kill "$probe_pid" 2>/dev/null
         echo "        server log:" >&2
         sed 's/^/          /' "$wt/.rive-server.log" 2>/dev/null | head -10 >&2 || echo "          (no log)" >&2
         result=1
