@@ -129,19 +129,25 @@ Stop a running review app.
 **Aliases:** `stop`, `delete`, `del`, `down`, `rm`
 
 ```bash
-rive remove [branch|port|--all]
+rive remove [branch|port|all]
 
 # Examples
 rive remove feature/user-auth    # Remove by branch name
 rive remove 40000                # Remove by port number
 rive remove                      # Remove current app (if set)
-rive remove --all                # Remove every running app
+rive remove my-web:main          # Remove an app in another repository
+rive remove all                  # Remove every app in this repository
+rive remove all --global         # Remove every app, everywhere
 ```
 
-**`--all`** stops every running review app in one go. It applies exactly the
-same per-app rules as a single removal — clean worktrees are removed, dirty ones
-are preserved with a warning, and the current-app pointer is cleared. There is
-no confirmation prompt; the flag is the confirmation.
+**`all`** stops every running review app in scope. It applies exactly the same
+per-app rules as a single removal — clean worktrees are removed, dirty ones are
+preserved with a warning, and the current-app pointer is cleared. There is no
+confirmation prompt; naming `all` is the confirmation.
+
+`all` is a keyword, not a flag: `--all` is now one of the spellings of global
+scope. So `rive remove all` clears this repository and `rive remove all --all`
+(or `-a`) clears every repository.
 
 If one app fails to stop, the rest are still processed and the command reports
 how many succeeded before exiting non-zero. With no apps running it prints

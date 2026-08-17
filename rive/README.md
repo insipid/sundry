@@ -80,7 +80,7 @@ See [docs/configuration.md](docs/configuration.md) for all options and framework
 ```
 add [branch]         Create review app; prompts for branch if omitted
                      (aliases: start, create, new, up)
-remove [branch|port] Stop app; --all stops every running app
+remove [branch|port] Stop app; 'remove all' stops every app in scope
                      (aliases: stop, delete, del, down, rm)
 list                 List all running apps (aliases: ls, l)
 status [branch|port] Show detailed info for one app
@@ -96,6 +96,38 @@ version              Show version
 ```
 
 See [docs/commands.md](docs/commands.md) for detailed command reference.
+
+## Multiple Repositories
+
+rive is repo-aware. Apps are identified by **(repository, branch)**, so the same
+branch name can run in several repositories at once:
+
+```bash
+cd ~/code/my-api && rive add feature/login   # port 40000
+cd ~/code/my-web && rive add feature/login   # port 40001, no conflict
+```
+
+Commands act on the repository you are standing in. Widen with `--global`
+(`-G`, or the aliases `--all` / `-a`):
+
+```bash
+rive list              # this repository
+rive list --global     # everywhere, with a REPO column
+```
+
+Reach into another repository by name — git forbids colons in branch names, so
+the prefix is unambiguous:
+
+```bash
+rive status my-web:feature/login
+```
+
+Set your own default with `RIVE_DEFAULT_SCOPE=global`. Ports stay globally
+allocated, which is what keeps repositories from colliding. Upgrading needs no
+migration: existing state is backfilled automatically.
+
+See [docs/configuration.md](docs/configuration.md#multiple-repositories) for the
+full picture.
 
 ## Interactive Branch Selection
 

@@ -48,6 +48,7 @@ NC='\033[0m'
 
 TEST_ROOT=""
 REPO=""
+REPO2=""
 # Tags the fake server processes so strays can be swept up in cleanup
 SERVER_MARKER="rive-lifecycle-test-$$"
 
@@ -222,6 +223,23 @@ setup_fixture() {
     git push -q origin feature/remote-only
     git branch -qD feature/remote-only
     git fetch -q origin
+
+    # A second repository sharing a branch name with the first, so repository
+    # scoping and the collision it used to cause can be tested for real
+    REPO2="$TEST_ROOT/other-project"
+    git init -q "$REPO2"
+    (
+        cd "$REPO2" || exit 1
+        git config user.email "test@example.com"
+        git config user.name "Rive Test"
+        git config commit.gpgsign false
+        git symbolic-ref HEAD refs/heads/main
+        echo "# other" > README.md
+        git add README.md
+        git commit -qm "Initial commit"
+        git branch feature/alpha
+    )
+    cd "$REPO" || exit 1
 
     # Reuse the real implementations for path/state assertions rather than
     # reimplementing them (and drifting from) the code under test
@@ -545,7 +563,7 @@ test_status_flags_a_dead_process() {
 }
 
 # ---------------------------------------------------------------------------
-# remove --all
+# remove all
 # ---------------------------------------------------------------------------
 
 test_remove_all_stops_every_app() {
@@ -557,7 +575,7 @@ test_remove_all_stops_every_app() {
     pid_a="$(state_field feature/alpha pid)" || return 1
     pid_b="$(state_field feature/beta pid)" || return 1
 
-    "$RIVE" remove --all >/dev/null 2>&1 || return 1
+    "$RIVE" remove all >/dev/null 2>&1 || return 1
 
     assert_pid_dead "$pid_a" || return 1
     assert_pid_dead "$pid_b" || return 1
@@ -574,7 +592,7 @@ test_remove_all_removes_clean_worktrees() {
     assert_dir_missing "$(expected_worktree feature/beta)"
 }
 
-# --all must apply the same per-app rules, not bulldoze everything
+# `remove all` must apply the same per-app rules, not bulldoze everything
 test_remove_all_preserves_dirty_worktrees() {
     reset_apps
     "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
@@ -584,7 +602,7 @@ test_remove_all_preserves_dirty_worktrees() {
     dirty="$(expected_worktree feature/beta)"
     echo "work in progress" > "$dirty/uncommitted.txt"
 
-    "$RIVE" remove --all >/dev/null 2>&1 || return 1
+    "$RIVE" remove all >/dev/null 2>&1 || return 1
 
     assert_dir_missing "$(expected_worktree feature/alpha)" || return 1
     assert_dir_exists "$dirty" || return 1
@@ -599,7 +617,7 @@ test_remove_all_with_no_apps_is_not_an_error() {
     reset_apps
 
     local out result=0
-    out="$("$RIVE" remove --all 2>&1)" || result=$?
+    out="$("$RIVE" remove all 2>&1)" || result=$?
     [[ $result -eq 0 ]] || { echo "        Expected exit 0, got $result" >&2; return 1; }
     assert_contains "$out" "No running review apps"
 }
@@ -607,15 +625,160 @@ test_remove_all_with_no_apps_is_not_an_error() {
 test_remove_all_clears_current_app() {
     reset_apps
     "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
-    "$RIVE" remove --all >/dev/null 2>&1 || return 1
+    "$RIVE" remove all >/dev/null 2>&1 || return 1
 
     local out
     out="$("$RIVE" use 2>&1)"
     if [[ "$out" == *"feature/alpha"* ]]; then
-        echo "        Current app survived remove --all" >&2
+        echo "        Current app survived remove all" >&2
         return 1
     fi
     return 0
+}
+
+# ---------------------------------------------------------------------------
+# Repository scoping
+#
+# The bug that motivated all of this: state was keyed by branch name alone, so
+# the same branch could not run in two repositories at once.
+# ---------------------------------------------------------------------------
+
+# Runs rive from the second repository
+rive_in_repo2() {
+    (cd "$REPO2" && "$RIVE" "$@")
+}
+
+test_same_branch_runs_in_two_repos() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    rive_in_repo2 add feature/alpha >/dev/null 2>&1 || {
+        echo "        Second repository was refused the same branch name" >&2
+        return 1
+    }
+
+    local count
+    count=$(grep -c "^feature/alpha|" "$RIVE_STATE_FILE")
+    assert_eq "2" "$count"
+}
+
+test_the_two_apps_get_different_ports() {
+    local ports
+    ports=$(grep "^feature/alpha|" "$RIVE_STATE_FILE" | cut -d'|' -f2 | sort -u | grep -c .)
+    assert_eq "2" "$ports"
+}
+
+test_state_records_distinct_repositories() {
+    local repos
+    repos=$(grep "^feature/alpha|" "$RIVE_STATE_FILE" | cut -d'|' -f6 | sort -u | grep -c .)
+    assert_eq "2" "$repos"
+}
+
+test_list_is_local_by_default() {
+    local out
+    out="$("$RIVE" list 2>&1)"
+    # One row for this repo, plus the hint that more exist elsewhere
+    assert_eq "1" "$(grep -c "^feature/alpha " <<< "$out")" || return 1
+    assert_contains "$out" "other repositories"
+}
+
+test_list_global_shows_both_with_repo_column() {
+    local out
+    out="$("$RIVE" list --global 2>&1)"
+    assert_contains "$out" "REPO" || return 1
+    assert_eq "2" "$(grep -c "feature/alpha" <<< "$out")" || return 1
+    assert_contains "$out" "$(basename "$REPO2")"
+}
+
+test_scope_flag_aliases_are_equivalent() {
+    local a b
+    a="$("$RIVE" list --global 2>&1 | grep -c feature/alpha)"
+    b="$("$RIVE" list -a 2>&1 | grep -c feature/alpha)"
+    assert_eq "$a" "$b" || return 1
+    b="$("$RIVE" list -G 2>&1 | grep -c feature/alpha)"
+    assert_eq "$a" "$b"
+}
+
+test_bare_name_resolves_to_local_repo() {
+    local out
+    out="$("$RIVE" status feature/alpha 2>&1)" || return 1
+    assert_contains "$out" "$(basename "$REPO")"
+}
+
+test_qualified_name_reaches_other_repo() {
+    local out
+    out="$("$RIVE" status "$(basename "$REPO2"):feature/alpha" 2>&1)" || return 1
+    assert_contains "$out" "$(basename "$REPO2")"
+}
+
+test_ambiguous_name_lists_candidates() {
+    local out result=0
+    out="$("$RIVE" status feature/alpha --global 2>&1)" || result=$?
+    [[ $result -ne 0 ]] || { echo "        Expected non-zero exit on ambiguity" >&2; return 1; }
+    assert_contains "$out" "2 repositories" || return 1
+    assert_contains "$out" "$(basename "$REPO"):feature/alpha" || return 1
+    assert_contains "$out" "$(basename "$REPO2"):feature/alpha"
+}
+
+test_default_scope_env_var_widens_scope() {
+    local out
+    out="$(RIVE_DEFAULT_SCOPE=global "$RIVE" list 2>&1)"
+    assert_eq "2" "$(grep -c "feature/alpha" <<< "$out")"
+}
+
+test_invalid_default_scope_is_rejected() {
+    local out result=0
+    out="$(RIVE_DEFAULT_SCOPE=nonsense "$RIVE" list 2>&1)" || result=$?
+    [[ $result -ne 0 ]] || { echo "        Expected non-zero exit" >&2; return 1; }
+    assert_contains "$out" "must be 'local' or 'global'"
+}
+
+test_current_app_is_per_repository() {
+    # Both repos have an app; each should report its own as current
+    local here there
+    here="$("$RIVE" use 2>&1)"
+    there="$(cd "$REPO2" && "$RIVE" use 2>&1)"
+    assert_contains "$here" "feature/alpha" || return 1
+    assert_contains "$there" "feature/alpha" || return 1
+
+    # Clearing one must not clear the other
+    "$RIVE" use --clear >/dev/null 2>&1
+    there="$(cd "$REPO2" && "$RIVE" use 2>&1)"
+    assert_contains "$there" "feature/alpha"
+}
+
+test_remove_all_is_scoped_to_this_repo() {
+    "$RIVE" remove all >/dev/null 2>&1 || return 1
+    # This repo is cleared; the other repo's app survives
+    local count
+    count=$(grep -c "^feature/alpha|" "$RIVE_STATE_FILE" || true)
+    assert_eq "1" "$count"
+}
+
+test_remove_all_global_clears_everything() {
+    "$RIVE" remove all --global >/dev/null 2>&1 || return 1
+    if grep -q . "$RIVE_STATE_FILE" 2>/dev/null; then
+        echo "        State file still has entries" >&2
+        return 1
+    fi
+    return 0
+}
+
+test_legacy_state_entries_are_backfilled() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+
+    # Rewrite as a pre-scoping entry: five fields, no repository
+    cut -d'|' -f1-5 "$RIVE_STATE_FILE" > "$RIVE_STATE_FILE.legacy"
+    mv "$RIVE_STATE_FILE.legacy" "$RIVE_STATE_FILE"
+    [[ "$(cut -d'|' -f6 "$RIVE_STATE_FILE")" == "" ]] || return 1
+
+    # Any command triggers the backfill; no user action required
+    "$RIVE" list >/dev/null 2>&1
+
+    local repo
+    repo=$(cut -d'|' -f6 "$RIVE_STATE_FILE")
+    [[ -n "$repo" ]] || { echo "        Repository was not backfilled" >&2; return 1; }
+    assert_eq "$(basename "$REPO")" "$(basename "$repo")"
 }
 
 # ---------------------------------------------------------------------------
@@ -892,11 +1055,28 @@ main() {
     run_test "status flags a dead process" test_status_flags_a_dead_process
 
     print_header "Remove All"
-    run_test "remove --all stops every app" test_remove_all_stops_every_app
-    run_test "remove --all removes clean worktrees" test_remove_all_removes_clean_worktrees
-    run_test "remove --all preserves dirty worktrees" test_remove_all_preserves_dirty_worktrees
-    run_test "remove --all with no apps is not an error" test_remove_all_with_no_apps_is_not_an_error
-    run_test "remove --all clears the current app" test_remove_all_clears_current_app
+    run_test "remove all stops every app" test_remove_all_stops_every_app
+    run_test "remove all removes clean worktrees" test_remove_all_removes_clean_worktrees
+    run_test "remove all preserves dirty worktrees" test_remove_all_preserves_dirty_worktrees
+    run_test "remove all with no apps is not an error" test_remove_all_with_no_apps_is_not_an_error
+    run_test "remove all clears the current app" test_remove_all_clears_current_app
+
+    print_header "Repository Scoping"
+    run_test "same branch runs in two repositories" test_same_branch_runs_in_two_repos
+    run_test "the two apps get different ports" test_the_two_apps_get_different_ports
+    run_test "state records distinct repositories" test_state_records_distinct_repositories
+    run_test "list is local by default" test_list_is_local_by_default
+    run_test "list --global shows both with a REPO column" test_list_global_shows_both_with_repo_column
+    run_test "--global, -G, -a and --all are equivalent" test_scope_flag_aliases_are_equivalent
+    run_test "a bare name resolves to the local repository" test_bare_name_resolves_to_local_repo
+    run_test "a qualified name reaches another repository" test_qualified_name_reaches_other_repo
+    run_test "an ambiguous name lists the candidates" test_ambiguous_name_lists_candidates
+    run_test "RIVE_DEFAULT_SCOPE widens the default" test_default_scope_env_var_widens_scope
+    run_test "an invalid RIVE_DEFAULT_SCOPE is rejected" test_invalid_default_scope_is_rejected
+    run_test "the current app is per repository" test_current_app_is_per_repository
+    run_test "remove all is scoped to this repository" test_remove_all_is_scoped_to_this_repo
+    run_test "remove all --global clears everything" test_remove_all_global_clears_everything
+    run_test "legacy state entries are backfilled" test_legacy_state_entries_are_backfilled
 
     print_header "Interactive Branch Selection"
     run_test "menu lists local branches" test_menu_lists_local_branches

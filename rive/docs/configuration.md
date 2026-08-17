@@ -131,57 +131,87 @@ export RIVE_CURRENT_FILE=/tmp/rive/current
 
 ## Multiple repositories
 
-rive works across as many repositories as you like, but it is worth knowing
-exactly what is shared and what is not.
-
-**Namespaced per repository:**
-
-- **Worktrees.** Each repo gets its own directory under `RIVE_WORKTREE_DIR`,
-  named after the repository:
-  ```
-  ~/.rive/worktrees/my-api/feature-login
-  ~/.rive/worktrees/my-web/feature-login
-  ```
-  The name is the repository's directory name, so two checkouts that happen to
-  share a directory name (`~/work/api` and `~/oss/api`) share a namespace.
-
-**Shared globally, across every repository:**
-
-- **The state file** (`~/.rive/state`) — one flat list of every running app
-- **The current-app pointer** (`~/.rive/current`) — one current app in total,
-  not one per repository
-- **Port allocation** — ports are handed out from a single pool, which is what
-  stops apps in different repos colliding on a port
-- **Every command** — `list` shows apps from all repositories, and `cd`, `pull`,
-  `logs`, `remove`, `restart`, and `status` resolve an app from anywhere. You do
-  not have to be standing in the right repository, and `rive list` will show you
-  apps you started elsewhere.
-
-### The branch-name collision
-
-Because state is keyed by **branch name alone**, you cannot run the same branch
-name in two repositories at the same time:
+rive is repo-aware. Apps are identified by **(repository, branch)**, so the same
+branch name can run in as many repositories as you like:
 
 ```bash
-cd ~/code/my-api  && rive add feature/login   # works
-cd ~/code/my-web  && rive add feature/login   # Error: already running
+cd ~/code/my-api && rive add feature/login   # port 40000
+cd ~/code/my-web && rive add feature/login   # port 40001, no conflict
 ```
 
-This bites hardest with common names — `main`, `develop`, `staging`. Until state
-is keyed by repository as well as branch, the workarounds are:
+Repositories are identified by the absolute path of their main working
+directory, so `~/work/api` and `~/oss/api` are correctly treated as different
+repositories despite sharing a name.
 
-- Use distinct branch names across repos, or
-- Give each repository its own state with a per-project `.env`:
-  ```bash
-  # ~/code/my-web/.env
-  RIVE_STATE_FILE=/Users/you/.rive/my-web/state
-  RIVE_CURRENT_FILE=/Users/you/.rive/my-web/current
-  ```
-  Note both variables are needed — see the note above. Ports still come from the
-  same range, so raise `RIVE_START_PORT` in one of them if you want the two sets
-  kept apart.
+### Scope
 
-`rive status` is the quickest way to see which repository an app belongs to.
+By default every command acts on **the repository you are standing in**:
+
+```bash
+rive list              # apps in this repository
+rive list --global     # apps everywhere, with a REPO column
+```
+
+Widen a single command with `--global` (`-G`), or its aliases `--all` (`-a`).
+The flag can go anywhere on the line — `rive list --global` and
+`rive --global list` are the same.
+
+Outside a git repository, "local" has nothing to mean, so rive uses global
+scope automatically. `rive add` and `rive pull` still require a repository,
+since they need one to work with.
+
+Set the default yourself with `RIVE_DEFAULT_SCOPE`:
+
+```bash
+# ~/.rive.env, your shell profile, or a project .env
+RIVE_DEFAULT_SCOPE=global
+```
+
+It follows the usual precedence — a `--global` flag beats `.env`, which beats
+the environment — so a project that wants global by default can say so in its
+own `.env` while everything else stays local.
+
+### Naming an app in another repository
+
+Prefix with the repository name:
+
+```bash
+rive status my-web:feature/login
+rive remove my-api:feature/login
+```
+
+Git forbids colons in branch names, so the separator is never ambiguous. This
+works from anywhere, including outside a repository, and needs no flag.
+
+If a bare name matches apps in several repositories, rive lists them rather than
+guessing:
+
+```
+Error: 'feature/login' matches review apps in 2 repositories:
+  my-api:feature/login (port 40000)
+  my-web:feature/login (port 40001)
+Name one of them, or use its port.
+```
+
+Ports are unique across every repository, so `rive status 40001` always resolves
+without a flag or a prefix.
+
+### What is shared and what is not
+
+| | Scope |
+|---|---|
+| Worktree directories | per repository (`~/.rive/worktrees/<repo>/<branch>`) |
+| App identity | per repository — `(repo, branch)` |
+| Current app | **per repository** — each repo remembers its own |
+| Port allocation | **global**, deliberately: it is what stops two repositories colliding on a port |
+| State file | one file, with each entry recording its repository |
+
+### Upgrading
+
+Nothing to do. Entries written by an earlier rive have no repository recorded;
+the first command you run derives it from the app's worktree and rewrites the
+entry. A current-app pointer in the old format is honoured as-is and migrated
+the next time it changes.
 
 ## Validation
 
