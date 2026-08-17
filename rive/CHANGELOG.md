@@ -1,5 +1,57 @@
 # Rive Changelog
 
+## Unreleased
+
+**Repository scoping**
+
+Apps are now identified by **(repository, branch)** rather than branch name
+alone, which is what prevented the same branch running in two repositories at
+once.
+
+### Added
+
+- **Repository-aware identity.** Repositories are keyed on the absolute path of
+  their main working directory, so two checkouts sharing a directory name
+  (`~/work/api` and `~/oss/api`) are correctly distinct - the old basename-only
+  identity could not express that.
+- **Local-by-default scope.** Commands act on the repository you are standing
+  in. `rive list` shows this repository and says how many apps are running
+  elsewhere.
+- **`--global` / `-G`** (aliases `--all` / `-a`) widens any command to every
+  repository. Accepted anywhere on the command line, not only before the
+  command.
+- **`RIVE_DEFAULT_SCOPE`** (`local` | `global`) sets the default, following the
+  usual precedence: CLI flag > `.env` > environment. Validated at startup and
+  shown in `rive config` and `rive help`.
+- **Qualified names** - `rive status my-web:feature/login` reaches an app in
+  another repository from anywhere, no flag needed. Git forbids colons in
+  branch names, so the separator is never ambiguous.
+- **Ambiguity is reported, not guessed.** A bare name matching several
+  repositories lists each candidate as `repo:branch` with its port.
+- **A REPO column** in `rive list --global`.
+- **Per-repository current app.** Each repository remembers its own; clearing
+  one leaves the others alone. A single global pointer stopped making sense once
+  commands were repo-scoped.
+
+### Changed
+
+- **`rive remove --all` is now `rive remove all`.** `--all` became a spelling of
+  global scope, so the bulk stop is a positional keyword. `rive remove all`
+  clears the current repository; `rive remove all --all` clears everything.
+- **Outside a git repository, scope falls back to global** rather than being
+  refused. Only `add` and `pull` still require a repository, since they need one
+  to work with.
+- **Port allocation stays global**, deliberately - it is what stops two
+  repositories being handed the same port.
+
+### Upgrading
+
+No migration required. State entries written before this change have no
+repository recorded; the first command run derives it from the app's worktree
+and rewrites the entry. A current-app pointer in the old format is honoured and
+migrated on its next change.
+
+
 ## v1.1.0 - 2026-08-15
 
 **Interactive branch selection, hardening, and a test suite in CI**

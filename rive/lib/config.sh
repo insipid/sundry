@@ -11,6 +11,7 @@ RIVE_AUTO_INSTALL="${RIVE_AUTO_INSTALL:-false}"
 RIVE_INSTALL_COMMAND="${RIVE_INSTALL_COMMAND:-}"
 RIVE_ENABLE_LOGS="${RIVE_ENABLE_LOGS:-false}"
 RIVE_VERBOSE="${RIVE_VERBOSE:-false}"
+RIVE_DEFAULT_SCOPE="${RIVE_DEFAULT_SCOPE:-local}"
 
 # Load .env file if it exists
 load_env_file() {
@@ -69,6 +70,11 @@ validate_config() {
     fi
 
     # Validate server command contains %PORT%
+    if [[ "$RIVE_DEFAULT_SCOPE" != "local" && "$RIVE_DEFAULT_SCOPE" != "global" ]]; then
+        log_error "RIVE_DEFAULT_SCOPE must be 'local' or 'global', got: $RIVE_DEFAULT_SCOPE"
+        errors=$((errors + 1))
+    fi
+
     if [[ ! "$RIVE_SERVER_COMMAND" =~ %PORT% ]]; then
         log_error "RIVE_SERVER_COMMAND must contain %PORT% placeholder"
         ((errors++))
@@ -186,4 +192,11 @@ show_config() {
     echo ""
     echo "# Enable verbose logging"
     echo "RIVE_VERBOSE=$RIVE_VERBOSE"
+    echo ""
+    echo "# Default scope: 'local' sees only this repository, 'global' sees all"
+    echo "# Override per command with --global/-G (aliases: --all/-a)"
+    echo "RIVE_DEFAULT_SCOPE=$RIVE_DEFAULT_SCOPE"
+    echo ""
+    echo "# Current-app pointer (one per repository)"
+    echo "RIVE_CURRENT_FILE=$RIVE_CURRENT_FILE"
 }

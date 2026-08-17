@@ -32,6 +32,7 @@ LIB_DIR="$(dirname "$SCRIPT_DIR")/lib"
 source "$LIB_DIR/utils.sh"
 source "$LIB_DIR/config.sh"
 source "$LIB_DIR/state.sh"
+source "$LIB_DIR/scope.sh"
 source "$LIB_DIR/port.sh"
 source "$LIB_DIR/worktree.sh"
 source "$LIB_DIR/process.sh"
@@ -52,7 +53,7 @@ COMMANDS:
       (aliases: ls, l)
     status [branch|port] Show detailed info for one app (uses current if not specified)
     remove [branch|port] Stop a review app (uses current if not specified)
-                         Pass --all to stop every running app
+                         Use 'rive remove all' to stop every app in scope
       (aliases: stop, delete, del, down, rm)
     restart [branch]     Restart a review app (uses current if not specified)
     cd [branch|port]     Print the path to a review app's worktree
@@ -68,11 +69,21 @@ COMMANDS:
 OPTIONS:
     --verbose, -v        Enable verbose output
     --version, -V        Show version information
+    --global, -G         Act across every repository (aliases: --all, -a)
     --start-port PORT    Override starting port for allocation
     --hostname HOST      Override hostname for server binding
     --worktree-dir DIR   Override worktree base directory
 
     Note: -v is verbose, -V is version - as in curl, ssh and python.
+
+SCOPE:
+    By default rive acts on the repository you are standing in. Outside a git
+    repository it acts on everything. Widen a single command with --global
+    (-G), or change the default with RIVE_DEFAULT_SCOPE=global.
+
+    Name an app in another repository directly with repo:branch, e.g.
+        rive status my-web:main
+        rive remove my-api:main
 
 CONFIGURATION:
     Configuration is loaded from (in order of precedence):
@@ -90,6 +101,8 @@ CONFIGURATION:
     - RIVE_INSTALL_COMMAND   Custom install command (default: auto-detected)
     - RIVE_ENABLE_LOGS       Log server output to .rive-server.log (default: false)
     - RIVE_VERBOSE           Verbose output (default: false)
+    - RIVE_DEFAULT_SCOPE     'local' or 'global' (default: local)
+    - RIVE_CURRENT_FILE      Current-app pointer (default: ~/.rive/current)
 
 EXAMPLES:
     # Create a review app (interactive branch selection)
@@ -149,7 +162,7 @@ cmd_create() {
         worktree=$(git rev-parse --show-toplevel)
 
         # Check if we already have an app for this branch
-        if state_has_app "$branch"; then
+        if state_has_app "$branch" "$(get_repo_key 2>/dev/null || echo "")"; then
             local existing_port
             existing_port=$(get_port_for_branch "$branch")
             log_error "Review app already exists for branch: $branch"
@@ -183,7 +196,7 @@ cmd_create() {
         fi
 
         # Save state
-        if ! state_add_app "$branch" "$port" "$worktree" "$pid"; then
+        if ! state_add_app "$branch" "$port" "$worktree" "$pid" "$(get_repo_key 2>/dev/null || echo "")"; then
             log_error "Failed to save state, cleaning up..."
             stop_server "$pid"
             return 1
@@ -214,7 +227,7 @@ cmd_create() {
         log_info "Branch '$branch' already has a worktree at: $existing_worktree"
 
         # Check if review app already exists for this branch
-        if state_has_app "$branch"; then
+        if state_has_app "$branch" "$(get_repo_key 2>/dev/null || echo "")"; then
             local existing_port
             existing_port=$(get_port_for_branch "$branch")
             log_error "Review app already running for branch: $branch"
@@ -250,7 +263,7 @@ cmd_create() {
         fi
 
         # Save state
-        if ! state_add_app "$branch" "$port" "$existing_worktree" "$pid"; then
+        if ! state_add_app "$branch" "$port" "$existing_worktree" "$pid" "$(get_repo_key 2>/dev/null || echo "")"; then
             log_error "Failed to save state, cleaning up..."
             stop_server "$pid"
             return 1
@@ -275,7 +288,7 @@ cmd_create() {
 
     # No existing worktree, create a new one
     # Check if review app already exists (shouldn't happen but double-check)
-    if state_has_app "$branch"; then
+    if state_has_app "$branch" "$(get_repo_key 2>/dev/null || echo "")"; then
         local existing_port
         existing_port=$(get_port_for_branch "$branch")
         log_error "Review app already exists for branch: $branch"
@@ -318,7 +331,7 @@ cmd_create() {
     fi
 
     # Save state
-    if ! state_add_app "$branch" "$port" "$worktree" "$pid"; then
+    if ! state_add_app "$branch" "$port" "$worktree" "$pid" "$(get_repo_key 2>/dev/null || echo "")"; then
         log_error "Failed to save state, cleaning up..."
         stop_server "$pid"
         remove_worktree "$worktree" || true
@@ -343,18 +356,36 @@ cmd_create() {
 
 # Command: list
 cmd_list() {
+    local scope="${RIVE_SCOPE:-local}"
     # Clean stale entries first
     state_clean_stale
 
     local apps
-    apps=$(state_list_apps)
+    apps=$(state_list_apps_in_scope "$scope")
 
     if [[ -z "$apps" ]]; then
         echo "No running review apps"
         return 0
     fi
 
+    # Show a REPO column only when it carries information: either the user
+    # asked for every repository, or the listing happens to span several.
+    local show_repo=false
+    if [[ "$scope" == "global" ]]; then
+        show_repo=true
+    fi
+
     # Print header
+    if [[ "$show_repo" == "true" ]]; then
+        printf "%-20s %-30s %-8s %-10s %-12s\n" \
+            "REPO" "BRANCH" "PORT" "STATUS" "UPTIME"
+        printf "%-20s %-30s %-8s %-10s %-12s\n" \
+            "$(printf '%.0s─' {1..20})" \
+            "$(printf '%.0s─' {1..30})" \
+            "$(printf '%.0s─' {1..8})" \
+            "$(printf '%.0s─' {1..10})" \
+            "$(printf '%.0s─' {1..12})"
+    else
     printf "%-30s %-8s %-10s %-12s %-40s\n" \
         "BRANCH" "PORT" "STATUS" "UPTIME" "WORKTREE"
     printf "%-30s %-8s %-10s %-12s %-40s\n" \
@@ -363,6 +394,7 @@ cmd_list() {
         "$(printf '%.0s─' {1..10})" \
         "$(printf '%.0s─' {1..12})" \
         "$(printf '%.0s─' {1..40})"
+    fi
 
     # List all apps
     while IFS= read -r line; do
@@ -384,16 +416,38 @@ cmd_list() {
             worktree_display="...${worktree: -35}"
         fi
 
-        printf "%-30s %-8s %-10s %-12s %-40s\n" \
-            "$branch" "$port" "$status" "$uptime" "$worktree_display"
+        if [[ "$show_repo" == "true" ]]; then
+            local repo
+            repo=$(parse_state_line "$line" "repo")
+            printf "%-20s %-30s %-8s %-10s %-12s\n" \
+                "$(repo_display_name "$repo")" "$branch" "$port" "$status" "$uptime"
+        else
+            printf "%-30s %-8s %-10s %-12s %-40s\n" \
+                "$branch" "$port" "$status" "$uptime" "$worktree_display"
+        fi
     done <<< "$apps"
+
+    # Local scope hides apps from other repositories. Say so rather than
+    # leaving the user to wonder where their app went.
+    if [[ "$scope" == "local" ]]; then
+        local total hidden
+        total=$(state_list_apps | grep -c . || true)
+        hidden=$(( total - $(echo "$apps" | grep -c . || true) ))
+        if (( hidden > 0 )); then
+            echo ""
+            echo "$hidden more in other repositories (rive list --global)"
+        fi
+    fi
 }
 
 # Command: stop
 cmd_stop() {
     local identifier="${1:-}"
 
-    if [[ "$identifier" == "--all" ]]; then
+    # `all` is a positional keyword rather than a flag: --all is now one of the
+    # spellings of global scope, so `rive remove all` stops everything in scope
+    # and `rive remove all -a` stops everything everywhere.
+    if [[ "$identifier" == "all" ]]; then
         cmd_stop_all
         return $?
     fi
@@ -416,17 +470,7 @@ stop_one_app() {
 
     # Try to find by branch first
     local app
-    app=$(state_get_app "$identifier")
-
-    # If not found, try by port
-    if [[ -z "$app" ]]; then
-        app=$(state_get_app_by_port "$identifier")
-    fi
-
-    if [[ -z "$app" ]]; then
-        log_error "Review app not found: $identifier"
-        return 1
-    fi
+    app=$(resolve_app "$identifier" "${RIVE_SCOPE:-local}") || return 1
 
     local branch pid worktree
     branch=$(parse_state_line "$app" "branch")
@@ -436,8 +480,9 @@ stop_one_app() {
     # Stop server
     stop_server "$pid"
 
-    # Remove from state
-    state_remove_app "$branch"
+    # Remove from state. Keyed on the app's own repo so an identically named
+    # branch in another repository is left alone.
+    state_remove_app "$branch" "$(parse_state_line "$app" "repo")"
 
     # Clear current app if it was this branch
     if current=$(get_current_app 2>/dev/null); then
@@ -503,14 +548,7 @@ cmd_status() {
     fi
 
     local app
-    app=$(state_get_app "$identifier")
-    if [[ -z "$app" ]]; then
-        app=$(state_get_app_by_port "$identifier")
-    fi
-
-    if [[ -z "$app" ]]; then
-        error_exit 1 "Review app not found: $identifier"
-    fi
+    app=$(resolve_app "$identifier" "${RIVE_SCOPE:-local}") || exit 1
 
     local branch port worktree pid started
     branch=$(parse_state_line "$app" "branch")
@@ -574,21 +612,31 @@ cmd_status() {
 
 # Command: remove --all
 cmd_stop_all() {
+    local scope="${RIVE_SCOPE:-local}"
     local apps
-    apps=$(state_list_apps)
+    apps=$(state_list_apps_in_scope "$scope")
 
     if [[ -z "$apps" ]]; then
-        echo "No running review apps"
+        if [[ "$scope" == "local" ]]; then
+            echo "No running review apps in this repository"
+        else
+            echo "No running review apps"
+        fi
         return 0
     fi
 
     # Snapshot the branch list before touching anything: stop_one_app rewrites
     # the state file as it goes, so iterating it live would skip entries.
     local branches=()
-    local line branch
+    local line branch repo
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         branch=$(parse_state_line "$line" "branch")
+        repo=$(parse_state_line "$line" "repo")
+        # Qualify so a same-named branch in another repository is not hit
+        if [[ -n "$repo" ]]; then
+            branch="$(repo_display_name "$repo"):$branch"
+        fi
         [[ -n "$branch" ]] && branches+=("$branch")
     done <<< "$apps"
 
@@ -646,16 +694,7 @@ cmd_cd() {
 
     # Try to find by branch first
     local app
-    app=$(state_get_app "$identifier")
-
-    # If not found, try by port
-    if [[ -z "$app" ]]; then
-        app=$(state_get_app_by_port "$identifier")
-    fi
-
-    if [[ -z "$app" ]]; then
-        error_exit 1 "Review app not found: $identifier"
-    fi
+    app=$(resolve_app "$identifier" "${RIVE_SCOPE:-local}") || exit 1
 
     local worktree
     worktree=$(parse_state_line "$app" "worktree")
@@ -676,16 +715,7 @@ cmd_pull() {
 
     # Try to find by branch first
     local app
-    app=$(state_get_app "$identifier")
-
-    # If not found, try by port
-    if [[ -z "$app" ]]; then
-        app=$(state_get_app_by_port "$identifier")
-    fi
-
-    if [[ -z "$app" ]]; then
-        error_exit 1 "Review app not found: $identifier"
-    fi
+    app=$(resolve_app "$identifier" "${RIVE_SCOPE:-local}") || exit 1
 
     local branch worktree
     branch=$(parse_state_line "$app" "branch")
@@ -743,16 +773,7 @@ cmd_logs() {
 
     # Try to find by branch first
     local app
-    app=$(state_get_app "$identifier")
-
-    # If not found, try by port
-    if [[ -z "$app" ]]; then
-        app=$(state_get_app_by_port "$identifier")
-    fi
-
-    if [[ -z "$app" ]]; then
-        error_exit 1 "Review app not found: $identifier"
-    fi
+    app=$(resolve_app "$identifier" "${RIVE_SCOPE:-local}") || exit 1
 
     local branch worktree
     branch=$(parse_state_line "$app" "branch")
@@ -787,6 +808,7 @@ cmd_config() {
 
 # Command: clean
 cmd_clean() {
+    local scope="${RIVE_SCOPE:-local}"
     log_info "Cleaning stale entries..."
     state_clean_stale
     log_success "Stale entries cleaned"
@@ -858,13 +880,14 @@ cmd_use() {
         fi
     fi
 
-    # Set current app
+    # Set current app. Resolve first so `rive use my-web:main` works and an
+    # ambiguous bare name is reported rather than silently picking one.
+    local resolved
+    resolved=$(resolve_app "$identifier" "${RIVE_SCOPE:-local}") || exit 1
+    identifier=$(parse_state_line "$resolved" "branch")
+
     if set_current_app "$identifier"; then
-        local app
-        app=$(state_get_app "$identifier")
-        if [[ -z "$app" ]]; then
-            app=$(state_get_app_by_port "$identifier")
-        fi
+        local app="$resolved"
 
         local branch port
         branch=$(parse_state_line "$app" "branch")
@@ -881,6 +904,23 @@ cmd_use() {
 main() {
     # Check dependencies first
     check_dependencies || exit 1
+
+    # Scope flags are accepted anywhere on the line, not just before the
+    # command: `rive list --global` is the form people reach for first, and
+    # the positional parser below stops at the command name.
+    local -a filtered=()
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            --global|-G|--all|-a)
+                export RIVE_SCOPE_FLAG=global
+                ;;
+            *)
+                filtered+=("$arg")
+                ;;
+        esac
+    done
+    set -- ${filtered[@]+"${filtered[@]}"}
 
     # Parse global flags
     while [[ $# -gt 0 ]]; do
@@ -910,14 +950,29 @@ main() {
     # Initialize configuration
     init_config
 
-    # Check if in git repository (except for help/version commands)
+    # Only commands that genuinely need repository context require one. The
+    # rest work from the state file, so `rive list` or `rive remove` outside a
+    # repo now succeed under the global scope they fall back to, rather than
+    # being refused.
     local command="${1:-help}"
-    if [[ "$command" != "help" && "$command" != "version" && "$command" != "config" ]]; then
-        check_git_repo
-    fi
+    case "$command" in
+        add|start|create|new|up|pull)
+            check_git_repo
+            ;;
+    esac
 
     # Initialize state
     init_state_file
+
+    # Entries written before repositories were tracked get theirs derived, so
+    # upgrading requires nothing of the user
+    state_backfill_repos
+
+    # Effective scope for this invocation: flag > RIVE_DEFAULT_SCOPE > local,
+    # falling back to global outside a repository
+    RIVE_SCOPE=$(resolve_scope)
+    export RIVE_SCOPE
+    log_debug "Scope: $RIVE_SCOPE"
 
     # Parse command
     case "$command" in

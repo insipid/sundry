@@ -25,6 +25,7 @@ setup() {
     source "$LIB_DIR/utils.sh"
     source "$LIB_DIR/config.sh"
     source "$LIB_DIR/state.sh"
+    source "$LIB_DIR/scope.sh"
     source "$LIB_DIR/port.sh"
     source "$LIB_DIR/worktree.sh"
     source "$LIB_DIR/process.sh"
@@ -170,10 +171,42 @@ teardown() {
 @test "state: set and get current app" {
     init_state_file
     : > "$RIVE_STATE_FILE"
-    state_add_app "current-test" "50006" "$TEST_TEMP/worktree6" "12350"
+    # The pointer is per repository, so the entry must belong to the repo we
+    # are standing in for set/get to round-trip
+    state_add_app "current-test" "50006" "$TEST_TEMP/worktree6" "12350" "$(get_repo_key)"
     set_current_app "current-test"
     run get_current_app
     [ "$output" = "current-test" ]
+}
+
+@test "state: another repository's current app is not returned" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    rm -f "$RIVE_CURRENT_FILE"
+    state_add_app "elsewhere" "50007" "$TEST_TEMP/worktree7" "12351" "/some/other/repo"
+    set_current_app "elsewhere"
+
+    # The pointer was stored against /some/other/repo, not this one
+    run get_current_app
+    [ "$status" -ne 0 ]
+}
+
+@test "state: pointers for different repositories coexist" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    rm -f "$RIVE_CURRENT_FILE"
+    state_add_app "mine" "50008" "$TEST_TEMP/w8" "12352" "$(get_repo_key)"
+    state_add_app "theirs" "50009" "$TEST_TEMP/w9" "12353" "/some/other/repo"
+
+    set_current_app "theirs"
+    set_current_app "mine"
+
+    # Setting ours must not have dropped the other repository's line
+    run grep -c . "$RIVE_CURRENT_FILE"
+    [ "$output" = "2" ]
+
+    run get_current_app
+    [ "$output" = "mine" ]
 }
 
 @test "state: clear current app removes file" {
@@ -222,6 +255,97 @@ teardown() {
     run find_available_port
     [ "$status" -eq 0 ]
     [ "$output" -eq "$RIVE_START_PORT" ]
+}
+
+#############################################
+# Scope Tests
+#############################################
+
+@test "scope: unqualified identifier has no repo part" {
+    run parse_identifier "feature/login" "repo"
+    [ "$output" = "" ]
+    run parse_identifier "feature/login" "branch"
+    [ "$output" = "feature/login" ]
+}
+
+@test "scope: qualified identifier splits on the first colon" {
+    run parse_identifier "my-web:feature/login" "repo"
+    [ "$output" = "my-web" ]
+    run parse_identifier "my-web:feature/login" "branch"
+    [ "$output" = "feature/login" ]
+}
+
+@test "scope: only the first colon separates" {
+    # Git forbids colons in branch names, so this cannot arise from a real
+    # branch - but the split must still be well defined
+    run parse_identifier "repo:a:b" "repo"
+    [ "$output" = "repo" ]
+    run parse_identifier "repo:a:b" "branch"
+    [ "$output" = "a:b" ]
+}
+
+@test "scope: display name is the repository directory name" {
+    run repo_display_name "/Users/someone/code/my-api"
+    [ "$output" = "my-api" ]
+}
+
+@test "scope: default is local inside a repository" {
+    RIVE_DEFAULT_SCOPE=local
+    unset RIVE_SCOPE_FLAG
+    cd "$TEST_TEMP"
+    git init -q repo && cd repo
+    run resolve_scope
+    [ "$output" = "local" ]
+}
+
+@test "scope: local falls back to global outside a repository" {
+    RIVE_DEFAULT_SCOPE=local
+    unset RIVE_SCOPE_FLAG
+    # A temp dir that is not inside any repository
+    cd "$TEST_TEMP"
+    run resolve_scope
+    [ "$output" = "global" ]
+}
+
+@test "scope: the flag overrides RIVE_DEFAULT_SCOPE" {
+    RIVE_DEFAULT_SCOPE=local
+    RIVE_SCOPE_FLAG=global
+    run resolve_scope
+    [ "$output" = "global" ]
+}
+
+@test "state: entries record their repository" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "feature/x" "50010" "$TEST_TEMP/wt" "111" "/path/to/my-api"
+    run parse_state_line "$(state_get_app "feature/x")" "repo"
+    [ "$output" = "/path/to/my-api" ]
+}
+
+@test "state: has_app is scoped to a repository" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "shared" "50011" "$TEST_TEMP/wt" "111" "/path/to/my-api"
+
+    run state_has_app "shared" "/path/to/my-api"
+    [ "$status" -eq 0 ]
+
+    run state_has_app "shared" "/path/to/my-web"
+    [ "$status" -ne 0 ]
+}
+
+@test "state: removing one repo's app leaves the other" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "shared" "50012" "$TEST_TEMP/a" "111" "/path/to/my-api"
+    state_add_app "shared" "50013" "$TEST_TEMP/b" "222" "/path/to/my-web"
+
+    state_remove_app "shared" "/path/to/my-api"
+
+    run grep -c "^shared|" "$RIVE_STATE_FILE"
+    [ "$output" = "1" ]
+    run grep -c "my-web" "$RIVE_STATE_FILE"
+    [ "$output" = "1" ]
 }
 
 #############################################
