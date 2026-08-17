@@ -171,10 +171,42 @@ teardown() {
 @test "state: set and get current app" {
     init_state_file
     : > "$RIVE_STATE_FILE"
-    state_add_app "current-test" "50006" "$TEST_TEMP/worktree6" "12350"
+    # The pointer is per repository, so the entry must belong to the repo we
+    # are standing in for set/get to round-trip
+    state_add_app "current-test" "50006" "$TEST_TEMP/worktree6" "12350" "$(get_repo_key)"
     set_current_app "current-test"
     run get_current_app
     [ "$output" = "current-test" ]
+}
+
+@test "state: another repository's current app is not returned" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    rm -f "$RIVE_CURRENT_FILE"
+    state_add_app "elsewhere" "50007" "$TEST_TEMP/worktree7" "12351" "/some/other/repo"
+    set_current_app "elsewhere"
+
+    # The pointer was stored against /some/other/repo, not this one
+    run get_current_app
+    [ "$status" -ne 0 ]
+}
+
+@test "state: pointers for different repositories coexist" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    rm -f "$RIVE_CURRENT_FILE"
+    state_add_app "mine" "50008" "$TEST_TEMP/w8" "12352" "$(get_repo_key)"
+    state_add_app "theirs" "50009" "$TEST_TEMP/w9" "12353" "/some/other/repo"
+
+    set_current_app "theirs"
+    set_current_app "mine"
+
+    # Setting ours must not have dropped the other repository's line
+    run grep -c . "$RIVE_CURRENT_FILE"
+    [ "$output" = "2" ]
+
+    run get_current_app
+    [ "$output" = "mine" ]
 }
 
 @test "state: clear current app removes file" {
