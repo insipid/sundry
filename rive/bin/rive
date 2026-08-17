@@ -833,10 +833,20 @@ cmd_demo_server() {
         return 1
     fi
 
+    # "localhost" resolves to both ::1 and 127.0.0.1, and which one a server
+    # binds is not the one a client necessarily reaches - on macOS http.server
+    # binds ::1 while curl goes to 127.0.0.1, and the connection is refused.
+    # Bind the IPv4 loopback explicitly; clients asking for localhost still
+    # reach it, since they try each resolved address in turn.
+    local bind_host="$host"
+    if [[ "$bind_host" == "localhost" ]]; then
+        bind_host="127.0.0.1"
+    fi
+
     if command_exists python3; then
-        log_info "Demo server on http://$host:$port (python3, serving $(pwd))"
+        log_info "Demo server on http://$host:$port (python3, serving $(pwd), bound to $bind_host)"
         # exec so the process rive recorded is the server itself, not a wrapper
-        exec python3 -m http.server "$port" --bind "$host"
+        exec python3 -m http.server "$port" --bind "$bind_host"
     fi
 
     if ! command_exists nc; then

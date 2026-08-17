@@ -693,7 +693,7 @@ test_demo_server_answers_on_the_allocated_port() {
     # The server needs a moment to bind
     local waited=0
     while (( waited < 10 )); do
-        body="$(curl -s --max-time 2 "http://localhost:$port/marker.txt" 2>/dev/null)" || true
+        body="$(curl -s --max-time 2 "http://127.0.0.1:$port/marker.txt" 2>/dev/null)" || true
         [[ -n "$body" ]] && break
         sleep 1
         waited=$((waited + 1))
