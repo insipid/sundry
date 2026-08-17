@@ -1042,18 +1042,30 @@ main() {
             ;;
     esac
 
-    # Initialize state
-    init_state_file
+    # Commands that never consult the state file skip touching it. This matters
+    # for demo-server in particular: it runs as a nested rive invocation from
+    # inside `rive add`, and state_backfill_repos rewrites the state file, so
+    # initialising here raced the parent's own write and could drop the entry
+    # it had just added.
+    case "$command" in
+        demo-server)
+            log_debug "Skipping state setup for $command"
+            ;;
+        *)
+            # Initialize state
+            init_state_file
 
-    # Entries written before repositories were tracked get theirs derived, so
-    # upgrading requires nothing of the user
-    state_backfill_repos
+            # Entries written before repositories were tracked get theirs
+            # derived, so upgrading requires nothing of the user
+            state_backfill_repos
 
-    # Effective scope for this invocation: flag > RIVE_DEFAULT_SCOPE > local,
-    # falling back to global outside a repository
-    RIVE_SCOPE=$(resolve_scope)
-    export RIVE_SCOPE
-    log_debug "Scope: $RIVE_SCOPE"
+            # Effective scope for this invocation: flag > RIVE_DEFAULT_SCOPE >
+            # local, falling back to global outside a repository
+            RIVE_SCOPE=$(resolve_scope)
+            export RIVE_SCOPE
+            log_debug "Scope: $RIVE_SCOPE"
+            ;;
+    esac
 
     # Parse command
     case "$command" in

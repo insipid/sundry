@@ -701,6 +701,8 @@ test_demo_server_answers_on_the_allocated_port() {
 
     [[ "$body" == *"served-from-alpha"* ]] || {
         echo "        Expected the branch's file, got: '$body'" >&2
+        echo "        port='$port' python3=$(command -v python3 || echo none)" >&2
+        echo "        state: $(grep "^feature/alpha|" "$RIVE_STATE_FILE" || echo MISSING)" >&2
         result=1
     }
 
