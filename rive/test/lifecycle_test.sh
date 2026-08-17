@@ -679,8 +679,11 @@ test_demo_server_answers_on_the_allocated_port() {
     ) || return 1
 
     local saved_command="$RIVE_SERVER_COMMAND"
+    local saved_logs="${RIVE_ENABLE_LOGS:-false}"
     RIVE_SERVER_COMMAND="$RIVE demo-server %PORT%"
-    export RIVE_SERVER_COMMAND
+    # Capture the server's own output so a failure here explains itself
+    RIVE_ENABLE_LOGS=true
+    export RIVE_SERVER_COMMAND RIVE_ENABLE_LOGS
 
     "$RIVE" add feature/alpha >/dev/null 2>&1 || {
         RIVE_SERVER_COMMAND="$saved_command"; export RIVE_SERVER_COMMAND
@@ -700,15 +703,23 @@ test_demo_server_answers_on_the_allocated_port() {
     done
 
     [[ "$body" == *"served-from-alpha"* ]] || {
+        local pid wt
+        pid="$(state_field feature/alpha pid)"
+        wt="$(expected_worktree feature/alpha)"
         echo "        Expected the branch's file, got: '$body'" >&2
-        echo "        port='$port' python3=$(command -v python3 || echo none)" >&2
-        echo "        state: $(grep "^feature/alpha|" "$RIVE_STATE_FILE" || echo MISSING)" >&2
+        echo "        port='$port' pid='$pid' python3=$(command -v python3 || echo none)" >&2
+        echo "        process: $(ps -p "$pid" -o command= 2>/dev/null || echo 'NOT RUNNING')" >&2
+        echo "        listening: $(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | tail -1 || echo none)" >&2
+        echo "        worktree has marker: $([[ -f "$wt/marker.txt" ]] && echo yes || echo NO)" >&2
+        echo "        server log:" >&2
+        sed 's/^/          /' "$wt/.rive-server.log" 2>/dev/null | head -10 >&2 || echo "          (no log)" >&2
         result=1
     }
 
     "$RIVE" remove feature/alpha >/dev/null 2>&1
     RIVE_SERVER_COMMAND="$saved_command"
-    export RIVE_SERVER_COMMAND
+    RIVE_ENABLE_LOGS="$saved_logs"
+    export RIVE_SERVER_COMMAND RIVE_ENABLE_LOGS
     return $result
 }
 
