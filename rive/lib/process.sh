@@ -234,16 +234,28 @@ calculate_uptime() {
 }
 
 # Restart server process
+#
+# Takes a branch or a port, the same as the other lookup commands. The branch
+# is then read back off the state line, so everything below works from the
+# resolved app rather than from whichever identifier the caller happened to use.
 restart_server() {
-    local branch="$1"
-    local app
-    app=$(state_get_app "$branch")
+    local identifier="$1"
 
+    # Try to find by branch first
+    local app
+    app=$(state_get_app "$identifier")
+
+    # If not found, try by port
     if [[ -z "$app" ]]; then
-        error_exit 1 "Review app not found: $branch"
+        app=$(state_get_app_by_port "$identifier")
     fi
 
-    local port worktree pid
+    if [[ -z "$app" ]]; then
+        error_exit 1 "Review app not found: $identifier"
+    fi
+
+    local branch port worktree pid
+    branch=$(parse_state_line "$app" "branch")
     port=$(parse_state_line "$app" "port")
     worktree=$(parse_state_line "$app" "worktree")
     pid=$(parse_state_line "$app" "pid")

@@ -207,10 +207,11 @@ how many succeeded before exiting non-zero. With no apps running it prints
 Restart an existing review app (keeps same port and worktree).
 
 ```bash
-rive restart [branch]
+rive restart [branch|port]
 
 # Examples
 rive restart feature/user-auth
+rive restart 40000             # Restart by port number
 rive restart                   # Restart current app (if set)
 ```
 

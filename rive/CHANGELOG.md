@@ -41,6 +41,8 @@ down, which affected `remove` and `restart` too.
 - **`rive restart`** resumes a stopped app too
 - **`rive status`** tells a parked app apart from one whose process died, and
   points at the right command for each
+- **`rive restart` accepts a port**, not just a branch name — it was the only
+  lookup command that did not
 
 ### Fixed
 
@@ -55,6 +57,8 @@ down, which affected `remove` and `restart` too.
   not ship it. After the group exits, rive verifies the port really came free.
   This affected `remove` and `restart`, not just the new command.
 - **`rive list` no longer aborts under `set -e`** when an app is not running.
+- **`rive help` no longer claims `rive cd` navigates anywhere.** It prints a
+  worktree path; the examples now show substituting it, and the `rivecd` alias.
 
 ### Notes
 

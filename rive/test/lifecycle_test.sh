@@ -483,6 +483,28 @@ test_remove_by_port() {
     return 0
 }
 
+test_restart_resolves_an_app_by_port() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+
+    local old_pid
+    old_pid="$(state_field feature/alpha pid)" || return 1
+
+    "$RIVE" restart 41500 >/dev/null 2>&1 || return 1
+
+    local new_pid port
+    new_pid="$(state_field feature/alpha pid)" || return 1
+    port="$(state_field feature/alpha port)" || return 1
+
+    assert_pid_alive "$new_pid" || return 1
+    assert_eq "41500" "$port" || return 1
+    if [[ "$old_pid" == "$new_pid" ]]; then
+        echo "        PID did not change; the server was not restarted" >&2
+        return 1
+    fi
+    return 0
+}
+
 test_lookup_of_unknown_app_reports_clearly() {
     local out result=0
     out="$("$RIVE" status no-such-branch 2>&1)" || result=$?
@@ -1115,6 +1137,7 @@ main() {
     print_header "Lookup by Port"
     run_test "cd resolves an app by port" test_cd_by_port
     run_test "remove resolves an app by port" test_remove_by_port
+    run_test "restart resolves an app by port" test_restart_resolves_an_app_by_port
     run_test "an unknown app is reported clearly" test_lookup_of_unknown_app_reports_clearly
 
     print_header "Status"

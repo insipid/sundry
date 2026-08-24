@@ -94,7 +94,7 @@ remove [branch|port] Stop app and delete its worktree; --all removes every app
                      (aliases: delete, del, down, rm)
 list                 List all apps (aliases: ls, l)
 status [branch|port] Show detailed info for one app
-restart [branch]     Restart app (also resumes a stopped one)
+restart [branch|port] Restart app (also resumes a stopped one)
 cd [branch|port]     Print worktree path
 pull [branch|port]   Pull latest changes
 logs [branch|port]   Tail server logs

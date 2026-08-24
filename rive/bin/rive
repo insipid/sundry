@@ -59,7 +59,8 @@ COMMANDS:
                          (uses current if not specified)
                          Pass --all to remove every review app
       (aliases: delete, del, down, rm)
-    restart [branch]     Restart a review app (uses current if not specified)
+    restart [branch|port] Restart a review app, or resume a stopped one
+                         (uses current if not specified)
     cd [branch|port]     Print the path to a review app's worktree
     pull [branch|port]   Pull latest changes in a review app's worktree
     logs [branch|port]   Tail the log file for a review app (uses current if not specified)
@@ -110,7 +111,7 @@ EXAMPLES:
     rive use feature/new-ui
 
     # Now you can use commands without specifying the app
-    rive cd              # Navigate to current app
+    rive cd              # Print path to current app's worktree
     rive pull            # Pull latest changes for current app
     rive stop            # Stop current app, keeping its worktree
     rive remove          # Remove current app
@@ -125,8 +126,12 @@ EXAMPLES:
     # Remove a review app by port
     rive remove 40000
 
-    # Navigate to review app directory
+    # rive cd PRINTS a worktree path, it does not change directory.
+    # Substitute it to navigate:
     cd \$(rive cd feature/new-ui)
+
+    # Or define this alias once in your shell profile, then just run 'rivecd'
+    alias rivecd='cd \$(rive cd)'
 
     # Show configuration
     rive config
@@ -821,17 +826,17 @@ cmd_remove_all() {
 
 # Command: restart
 cmd_restart() {
-    local branch="${1:-}"
+    local identifier="${1:-}"
 
-    # Fall back to current app if no branch provided
-    if [[ -z "$branch" ]]; then
-        if ! branch=$(get_current_app); then
-            error_exit 1 "No branch specified and no current app set. Usage: rive restart <branch>"
+    # Fall back to current app if no identifier provided
+    if [[ -z "$identifier" ]]; then
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive restart <branch|port>"
         fi
-        log_debug "Using current app: $branch"
+        log_debug "Using current app: $identifier"
     fi
 
-    restart_server "$branch"
+    restart_server "$identifier"
 }
 
 # Command: cd
