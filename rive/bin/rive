@@ -1052,7 +1052,16 @@ cmd_use() {
                 return 1
             fi
 
-            # Offer to select from running apps
+            # Offer to select from running apps - but only to somebody who can
+            # answer. Without this guard the prompt below sat on `read` in any
+            # pipeline, script or CI job until the writer went away, which in
+            # practice means hanging forever.
+            if [[ ! -t 0 ]]; then
+                echo ""
+                echo "Usage: rive use <branch|port>"
+                return 1
+            fi
+
             log_info "Would you like to select from running apps? (y/n)"
             read -r response
             if [[ "$response" =~ ^[Yy] ]]; then

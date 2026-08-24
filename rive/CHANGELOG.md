@@ -69,6 +69,10 @@ servers are shut down, and CLI flags losing to `.env`.
 - **`rive list` no longer aborts under `set -e`** when an app is not running.
 - **`rive help` no longer claims `rive cd` navigates anywhere.** It prints a
   worktree path; the examples now show substituting it, and the `rivecd` alias.
+- **`rive use` no longer hangs when stdin is not a terminal.** With no current
+  app set it offers a y/n prompt, which was unguarded, so any pipeline or CI
+  job that ran it waited on `read` indefinitely. It now prints usage and exits
+  non-zero instead.
 - **CLI flags now actually outrank `.env`**, as the documented precedence has
   always claimed. Config files were loaded *after* the flags were applied and
   exported over them, so `rive --start-port 51234` was silently ignored in any

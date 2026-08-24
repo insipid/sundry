@@ -338,6 +338,39 @@ teardown() {
     [[ "$output" == *"RIVE_HOSTNAME=from-rive-env"* ]]
 }
 
+# `rive use` with no current app offers a y/n prompt. Nothing guarded that
+# prompt against a non-interactive stdin, so any pipeline or CI job that ran it
+# sat on `read` until the writer went away - forever, in practice. Uses a
+# background process and a bounded wait rather than `timeout`, which is not on
+# a stock macOS.
+@test "cli: use does not block on a prompt when stdin is not a terminal" {
+    cd "$TEST_TEMP" || return 1
+    git init -q . && git config user.email t@example.com && git config user.name T
+    git commit -q --allow-empty -m "init"
+
+    init_state_file
+    printf 'feature/alpha|50100|%s/wt|99999|1700000000\n' "$TEST_TEMP" > "$RIVE_STATE_FILE"
+    rm -f "$RIVE_CURRENT_FILE"
+
+    # An open pipe that never delivers a line
+    "$RIVE_DIR/bin/rive" use < <(sleep 30) > "$TEST_TEMP/use.out" 2>&1 &
+    local rive_pid=$!
+
+    local waited=0
+    while kill -0 "$rive_pid" 2>/dev/null && (( waited < 50 )); do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+
+    if kill -0 "$rive_pid" 2>/dev/null; then
+        kill -9 "$rive_pid" 2>/dev/null
+        echo "rive use blocked waiting for input" >&2
+        false
+    fi
+
+    grep -q "Usage: rive use" "$TEST_TEMP/use.out"
+}
+
 #############################################
 # Port Management Tests
 #############################################
