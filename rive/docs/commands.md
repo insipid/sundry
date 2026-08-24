@@ -315,11 +315,15 @@ rive config > .env
 
 ## clean
 
-Clean up stale state entries (processes that are no longer running).
+Clean up stale state entries (processes that died without being stopped).
 
 ```bash
 rive clean
 ```
+
+Apps parked with [`rive stop`](#stop) are **not** stale and are left alone —
+being stopped is a state rive is holding for you. Only entries whose process
+went away unexpectedly are dropped, releasing their ports.
 
 ## help
 

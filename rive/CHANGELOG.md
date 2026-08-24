@@ -1,5 +1,66 @@
 # Rive Changelog
 
+## v1.2.0 - 2026-08-24
+
+**A `stop` command that keeps your workspace**
+
+### Overview
+
+Stopping a review app used to mean `rive remove`, which also deleted the
+worktree. There was no way to free a port or bounce a misbehaving server
+without paying to rebuild the workspace afterwards. `rive stop` fills that gap,
+and `rive add` now resumes a stopped app instead of refusing it.
+
+Along the way this release fixes a long-standing bug in how servers are shut
+down, which affected `remove` and `restart` too.
+
+### Breaking
+
+- **`stop` is no longer an alias for `remove`.** `rive stop` now halts the
+  server and *keeps* the worktree; it used to delete it. Use `rive remove` for
+  teardown — its other aliases (`delete`, `del`, `down`, `rm`) are unchanged.
+
+### Added
+
+#### `rive stop [branch|port|--all]`
+- **Halts the server, keeps everything else** — the worktree with any
+  uncommitted work in it, the state entry, and the current-app pointer, so
+  `rive start` and `rive restart` with no arguments still work
+- **Holds the port**, so the app comes back on the same URL and the next
+  `rive add` cannot take it
+- **`--all`** stops every app in one go
+- **Repeatable** — stopping an already stopped app is a no-op, not an error
+- Stopped apps show as `stopped` in `rive list` and are left alone by
+  `rive clean`, which only reaps entries whose process died unexpectedly
+
+#### Resuming
+- **`rive add`** (and its aliases `start`, `up`, `create`, `new`) resumes a
+  stopped app in place, on its original port and worktree, rather than
+  reporting that the app already exists. An app that is still *running* is
+  still refused.
+- **`rive restart`** resumes a stopped app too
+- **`rive status`** tells a parked app apart from one whose process died, and
+  points at the right command for each
+
+### Fixed
+
+- **Servers are now stopped by process group rather than by the single PID
+  rive recorded.** That PID is only the `bash -c` wrapper: for a command like
+  `npm run dev -- --port 40000`, the process actually bound to the port is a
+  grandchild, so the old shutdown left it orphaned and still holding the port,
+  breaking the next start with a port collision. Servers are launched under
+  bash job control so each becomes a process group leader — a group's ID is by
+  definition its leader's PID, so the recorded PID doubles as the group ID and
+  no state format change was needed. `setsid` is not used because macOS does
+  not ship it. After the group exits, rive verifies the port really came free.
+  This affected `remove` and `restart`, not just the new command.
+- **`rive list` no longer aborts under `set -e`** when an app is not running.
+
+### Notes
+
+State entries written by earlier versions still work: their PID leads no
+process group, and shutdown falls back to signalling the PID directly.
+
 ## v1.1.0 - 2026-08-15
 
 **Interactive branch selection, hardening, and a test suite in CI**
