@@ -45,15 +45,20 @@ USAGE:
     rive <command> [options] [arguments]
 
 COMMANDS:
-    add [branch]         Create a new review app from a git branch
+    add [branch]         Create a new review app from a git branch, or resume a
+                         stopped one in place on its reserved port
                          If no branch is specified, shows interactive selection
       (aliases: start, create, new, up)
-    list                 List all running review apps
+    list                 List all review apps
       (aliases: ls, l)
     status [branch|port] Show detailed info for one app (uses current if not specified)
-    remove [branch|port] Stop a review app (uses current if not specified)
-                         Pass --all to stop every running app
-      (aliases: stop, delete, del, down, rm)
+    stop [branch|port]   Stop a review app's server, keeping its worktree and
+                         port so it can be resumed (uses current if not specified)
+                         Pass --all to stop every app
+    remove [branch|port] Stop a review app AND delete its worktree if clean
+                         (uses current if not specified)
+                         Pass --all to remove every review app
+      (aliases: delete, del, down, rm)
     restart [branch]     Restart a review app (uses current if not specified)
     cd [branch|port]     Print the path to a review app's worktree
     pull [branch|port]   Pull latest changes in a review app's worktree
@@ -107,7 +112,12 @@ EXAMPLES:
     # Now you can use commands without specifying the app
     rive cd              # Navigate to current app
     rive pull            # Pull latest changes for current app
+    rive stop            # Stop current app, keeping its worktree
     rive remove          # Remove current app
+
+    # Stop a server without losing the worktree, then bring it back
+    rive stop feature/new-ui
+    rive start feature/new-ui
 
     # Remove a review app by branch name
     rive remove feature/new-ui
@@ -124,6 +134,63 @@ EXAMPLES:
 EOF
 }
 
+# Restarts an app that `rive stop` parked, reusing its existing worktree and
+# its reserved port so the URL people already have keeps working.
+#
+# Exit codes are three-way on purpose: 0 resumed, 1 nothing parked to resume
+# (the caller should go on and create the app normally), 2 there was something
+# to resume but it failed.
+resume_stopped_app() {
+    local branch="$1"
+
+    local app
+    app=$(state_get_app "$branch")
+    [[ -z "$app" ]] && return 1
+
+    local pid
+    pid=$(parse_state_line "$app" "pid")
+    is_stopped_pid "$pid" || return 1
+
+    local port worktree
+    port=$(parse_state_line "$app" "port")
+    worktree=$(parse_state_line "$app" "worktree")
+
+    if [[ ! -d "$worktree" ]]; then
+        log_error "Worktree for stopped app is missing: $worktree"
+        log_info "Use 'rive remove $branch' to drop the entry, then add it again"
+        return 2
+    fi
+
+    log_info "Resuming stopped app '$branch' on its reserved port $port"
+
+    local new_pid
+    if ! new_pid=$(start_server "$port" "$worktree"); then
+        log_error "Failed to resume server"
+        log_error "The app is still registered; its worktree is at: $worktree"
+        return 2
+    fi
+
+    if [[ -z "$new_pid" ]] || ! [[ "$new_pid" =~ ^[0-9]+$ ]]; then
+        log_error "Server start returned invalid PID: '$new_pid'"
+        return 2
+    fi
+
+    state_remove_app "$branch"
+    state_add_app "$branch" "$port" "$worktree" "$new_pid"
+    set_current_app "$branch"
+
+    echo ""
+    log_success "Review app resumed: $branch"
+    echo ""
+    echo "  Branch:   $branch"
+    echo "  Worktree: $worktree"
+    echo "  PID:      $new_pid"
+    echo ""
+    echo "  URL:      http://$RIVE_HOSTNAME:$port"
+    echo ""
+    return 0
+}
+
 # Command: create
 cmd_create() {
     local branch="${1:-}"
@@ -136,6 +203,14 @@ cmd_create() {
         fi
         log_debug "Selected branch: $branch"
     fi
+
+    # A stopped app is resumed in place rather than rebuilt from scratch
+    local resumed=0
+    resume_stopped_app "$branch" || resumed=$?
+    case "$resumed" in
+        0) return 0 ;;
+        2) return 1 ;;
+    esac
 
     # Check if this is the current branch
     local current_branch
@@ -152,9 +227,9 @@ cmd_create() {
         if state_has_app "$branch"; then
             local existing_port
             existing_port=$(get_port_for_branch "$branch")
-            log_error "Review app already exists for branch: $branch"
+            log_error "Review app already running for branch: $branch"
             log_info "Running on port $existing_port"
-            log_info "Use 'rive stop $branch' to stop it first"
+            log_info "Use 'rive stop $branch' to halt it, or 'rive remove $branch' to tear it down"
             return 1
         fi
 
@@ -219,7 +294,7 @@ cmd_create() {
             existing_port=$(get_port_for_branch "$branch")
             log_error "Review app already running for branch: $branch"
             log_info "Running on port $existing_port at $existing_worktree"
-            log_info "Use 'rive stop $branch' to stop it first"
+            log_info "Use 'rive stop $branch' to halt it, or 'rive remove $branch' to tear it down"
             return 1
         fi
 
@@ -375,8 +450,12 @@ cmd_list() {
         pid=$(parse_state_line "$line" "pid")
         timestamp=$(parse_state_line "$line" "timestamp")
 
-        status=$(get_process_status "$pid")
-        uptime=$(calculate_uptime "$timestamp")
+        status=$(get_process_status "$pid") || true
+        if [[ "$status" == "running" ]]; then
+            uptime=$(calculate_uptime "$timestamp")
+        else
+            uptime="-"
+        fi
 
         # Truncate worktree path if too long
         local worktree_display="$worktree"
@@ -390,6 +469,11 @@ cmd_list() {
 }
 
 # Command: stop
+#
+# Halts the server but leaves the worktree, the state entry and the current-app
+# pointer alone, so the app can be resumed in place. This is deliberately not
+# `remove`: it exists so a server can be bounced without paying to recreate the
+# workspace, and so the port it was published on is still there afterwards.
 cmd_stop() {
     local identifier="${1:-}"
 
@@ -401,7 +485,7 @@ cmd_stop() {
     # Fall back to current app if no identifier provided
     if [[ -z "$identifier" ]]; then
         if ! identifier=$(get_current_app); then
-            error_exit 1 "No app specified and no current app set. Usage: rive remove <branch|port|--all>"
+            error_exit 1 "No app specified and no current app set. Usage: rive stop <branch|port|--all>"
         fi
         log_debug "Using current app: $identifier"
     fi
@@ -409,8 +493,8 @@ cmd_stop() {
     stop_one_app "$identifier" || error_exit 1 "Failed to stop review app: $identifier"
 }
 
-# Stops a single app and cleans up after it. Returns non-zero rather than
-# exiting, so `remove --all` can carry on past one bad entry.
+# Stops a single app's server, keeping everything else. Returns non-zero rather
+# than exiting, so `stop --all` can carry on past one bad entry.
 stop_one_app() {
     local identifier="$1"
 
@@ -428,13 +512,126 @@ stop_one_app() {
         return 1
     fi
 
-    local branch pid worktree
+    local branch port worktree pid
+    branch=$(parse_state_line "$app" "branch")
+    port=$(parse_state_line "$app" "port")
+    worktree=$(parse_state_line "$app" "worktree")
+    pid=$(parse_state_line "$app" "pid")
+
+    # Stopping something already stopped is a no-op, not a failure - it makes
+    # `stop --all` and scripted use safe to repeat
+    if is_stopped_pid "$pid"; then
+        log_info "Review app is already stopped: $branch"
+        return 0
+    fi
+
+    if ! stop_server "$pid" "$port"; then
+        return 1
+    fi
+
+    state_mark_stopped "$branch"
+
+    echo ""
+    log_success "Review app stopped: $branch"
+    echo ""
+    echo "  Worktree: $worktree"
+    echo "  Port $port stays reserved for this app"
+    echo ""
+    echo "  Resume it with: rive start $branch"
+    echo ""
+    return 0
+}
+
+# Command: stop --all
+cmd_stop_all() {
+    local apps
+    apps=$(state_list_apps)
+
+    if [[ -z "$apps" ]]; then
+        echo "No review apps"
+        return 0
+    fi
+
+    local branches=()
+    local line branch
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        branch=$(parse_state_line "$line" "branch")
+        [[ -n "$branch" ]] && branches+=("$branch")
+    done <<< "$apps"
+
+    local total=${#branches[@]}
+    log_info "Stopping $total review app(s)..."
+
+    local stopped=0 failed=0
+    for branch in "${branches[@]}"; do
+        if stop_one_app "$branch"; then
+            stopped=$((stopped + 1))
+        else
+            failed=$((failed + 1))
+            log_warning "Continuing with remaining apps..."
+        fi
+    done
+
+    echo ""
+    if (( failed > 0 )); then
+        log_warning "Stopped $stopped of $total review app(s), $failed failed"
+        echo ""
+        return 1
+    fi
+
+    log_success "Stopped all $stopped review app(s)"
+    echo ""
+    return 0
+}
+
+# Command: remove
+cmd_remove() {
+    local identifier="${1:-}"
+
+    if [[ "$identifier" == "--all" ]]; then
+        cmd_remove_all
+        return $?
+    fi
+
+    # Fall back to current app if no identifier provided
+    if [[ -z "$identifier" ]]; then
+        if ! identifier=$(get_current_app); then
+            error_exit 1 "No app specified and no current app set. Usage: rive remove <branch|port|--all>"
+        fi
+        log_debug "Using current app: $identifier"
+    fi
+
+    remove_one_app "$identifier" || error_exit 1 "Failed to remove review app: $identifier"
+}
+
+# Stops a single app and cleans up after it. Returns non-zero rather than
+# exiting, so `remove --all` can carry on past one bad entry.
+remove_one_app() {
+    local identifier="$1"
+
+    # Try to find by branch first
+    local app
+    app=$(state_get_app "$identifier")
+
+    # If not found, try by port
+    if [[ -z "$app" ]]; then
+        app=$(state_get_app_by_port "$identifier")
+    fi
+
+    if [[ -z "$app" ]]; then
+        log_error "Review app not found: $identifier"
+        return 1
+    fi
+
+    local branch pid worktree port
     branch=$(parse_state_line "$app" "branch")
     pid=$(parse_state_line "$app" "pid")
     worktree=$(parse_state_line "$app" "worktree")
+    port=$(parse_state_line "$app" "port")
 
     # Stop server
-    stop_server "$pid"
+    stop_server "$pid" "$port"
 
     # Remove from state
     state_remove_app "$branch"
@@ -563,8 +760,13 @@ cmd_status() {
     echo ""
 
     if [[ "$status" != "running" ]]; then
-        log_warning "The server process is not running"
-        log_info "Use 'rive restart $branch' to start it again, or 'rive clean' to drop the entry"
+        if is_stopped_pid "$pid"; then
+            log_info "This app is stopped; its worktree and port are being held"
+            log_info "Use 'rive start $branch' to resume it, or 'rive remove $branch' to tear it down"
+        else
+            log_warning "The server process is not running"
+            log_info "Use 'rive restart $branch' to start it again, or 'rive clean' to drop the entry"
+        fi
         echo ""
         return 1
     fi
@@ -573,7 +775,7 @@ cmd_status() {
 }
 
 # Command: remove --all
-cmd_stop_all() {
+cmd_remove_all() {
     local apps
     apps=$(state_list_apps)
 
@@ -582,7 +784,7 @@ cmd_stop_all() {
         return 0
     fi
 
-    # Snapshot the branch list before touching anything: stop_one_app rewrites
+    # Snapshot the branch list before touching anything: remove_one_app rewrites
     # the state file as it goes, so iterating it live would skip entries.
     local branches=()
     local line branch
@@ -597,7 +799,7 @@ cmd_stop_all() {
 
     local stopped=0 failed=0
     for branch in "${branches[@]}"; do
-        if stop_one_app "$branch"; then
+        if remove_one_app "$branch"; then
             stopped=$((stopped + 1))
         else
             failed=$((failed + 1))
@@ -932,7 +1134,11 @@ main() {
             shift
             cmd_status "$@"
             ;;
-        remove|stop|delete|del|down|rm)
+        remove|delete|del|down|rm)
+            shift
+            cmd_remove "$@"
+            ;;
+        stop)
             shift
             cmd_stop "$@"
             ;;

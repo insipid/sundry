@@ -2,7 +2,7 @@
 
 ## add
 
-Create a new review app from a git branch.
+Create a new review app from a git branch, or resume one that was stopped.
 
 **Aliases:** `start`, `create`, `new`, `up`
 
@@ -32,6 +32,11 @@ rive create feature/new-ui
 **Special case:** If you select the branch already checked out in your main
 working directory, rive skips worktree creation and starts the server in the
 repository root instead.
+
+**Resuming a stopped app:** If the branch has an app that was stopped with
+[`rive stop`](#stop), `add` resumes it rather than building it again — same
+worktree, same port, so any URL you have already shared keeps working. An app
+that is still *running* is refused, as before.
 
 ## Interactive Branch Selection
 
@@ -119,14 +124,57 @@ or `worktree missing` if the directory has been deleted behind rive's back.
 `.rive-server.log` is ignored, the same as it is when deciding whether removal
 is safe.
 
-If the server process is not running, `status` reports `stopped`, suggests
-`restart` or `clean`, and exits non-zero — so it is usable in scripts.
+If the server process is not running, `status` reports `stopped` and exits
+non-zero — so it is usable in scripts. An app parked with [`rive stop`](#stop)
+is told apart from one whose process died: the first is pointed at `rive start`,
+the second at `rive restart` or `rive clean`.
+
+## stop
+
+Stop a review app's server, keeping everything else.
+
+```bash
+rive stop [branch|port|--all]
+
+# Examples
+rive stop feature/user-auth      # Stop by branch name
+rive stop 40000                  # Stop by port number
+rive stop                        # Stop current app (if set)
+rive stop --all                  # Stop every app
+```
+
+Use this to free a port, or bounce a server, without paying to rebuild the
+workspace. The worktree, the state entry, and the current-app pointer all
+survive, so `rive restart` and `rive start` with no arguments keep working.
+
+**What is kept:**
+- The **worktree**, with any uncommitted work in it
+- The **port**, reserved so the next `rive add` cannot take it and the app comes
+  back on the same URL
+- The **current-app pointer**, if it pointed at this app
+
+Resume it with [`rive start`](#add) or [`rive restart`](#restart). A stopped app
+shows up in `rive list` with status `stopped`, and `rive clean` leaves it alone
+— being stopped is a state rive is holding for you, not a stale entry.
+
+Stopping an app that is already stopped is not an error, so `stop --all` and
+scripted use are safe to repeat.
+
+**How the server is stopped:** rive launches each server as its own process
+group and signals the whole group, not just the process it spawned. A command
+like `npm run dev` spawns the process that actually binds the port as a
+grandchild; signalling only the top process would leave that grandchild holding
+the port and break the next start. After the group exits, rive checks the port
+really came free and clears anything still on it.
+
+> **Changed in 1.2.0:** `stop` used to be an alias for `remove` and deleted the
+> worktree. It no longer does. Use `rive remove` for that.
 
 ## remove
 
-Stop a running review app.
+Stop a review app **and** delete its worktree.
 
-**Aliases:** `stop`, `delete`, `del`, `down`, `rm`
+**Aliases:** `delete`, `del`, `down`, `rm`
 
 ```bash
 rive remove [branch|port|--all]
@@ -135,8 +183,10 @@ rive remove [branch|port|--all]
 rive remove feature/user-auth    # Remove by branch name
 rive remove 40000                # Remove by port number
 rive remove                      # Remove current app (if set)
-rive remove --all                # Remove every running app
+rive remove --all                # Remove every review app
 ```
+
+For stopping a server without losing the worktree, use [`rive stop`](#stop).
 
 **`--all`** stops every running review app in one go. It applies exactly the
 same per-app rules as a single removal — clean worktrees are removed, dirty ones
@@ -163,6 +213,9 @@ rive restart [branch]
 rive restart feature/user-auth
 rive restart                   # Restart current app (if set)
 ```
+
+This also resumes an app that was stopped with [`rive stop`](#stop) — there is
+nothing to shut down first, so it just starts.
 
 ## cd
 

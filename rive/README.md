@@ -26,7 +26,13 @@ rive logs
 # List all running apps
 rive list
 
-# Stop when done
+# Stop the server, keep the workspace
+rive stop
+# → Server stops; worktree and port are held for you
+rive start
+# → Same worktree, same port, back up again
+
+# Tear it down when done
 rive remove
 # → Stops server, removes worktree if clean
 ```
@@ -57,6 +63,7 @@ See [docs/installation.md](docs/installation.md) for alternative methods.
 
 - **Interactive branch selection** - Run `rive add` with no argument to pick from a list
 - **Auto worktree management** - One command creates isolated workspace
+- **Stop without teardown** - Park a server and resume it later on the same port
 - **Port allocation** - Never worry about port conflicts
 - **Current app context** - Commands work without specifying branch/port
 - **Smart cleanup** - Auto-removes worktrees (preserves uncommitted work)
@@ -78,13 +85,16 @@ See [docs/configuration.md](docs/configuration.md) for all options and framework
 ## Commands
 
 ```
-add [branch]         Create review app; prompts for branch if omitted
+add [branch]         Create review app, or resume a stopped one; prompts for
+                     branch if omitted
                      (aliases: start, create, new, up)
-remove [branch|port] Stop app; --all stops every running app
-                     (aliases: stop, delete, del, down, rm)
-list                 List all running apps (aliases: ls, l)
+stop [branch|port]   Stop app's server, keeping worktree and port
+                     --all stops every app
+remove [branch|port] Stop app and delete its worktree; --all removes every app
+                     (aliases: delete, del, down, rm)
+list                 List all apps (aliases: ls, l)
 status [branch|port] Show detailed info for one app
-restart [branch]     Restart app
+restart [branch]     Restart app (also resumes a stopped one)
 cd [branch|port]     Print worktree path
 pull [branch|port]   Pull latest changes
 logs [branch|port]   Tail server logs
@@ -140,6 +150,10 @@ rive pull
 
 # Check logs if needed
 rive logs
+
+# Free the port for a while without losing the worktree
+rive stop
+rive start           # Back on the same port, same worktree
 
 # Work on another feature while keeping first one running
 rive add feature/user-profile
