@@ -23,6 +23,12 @@ is_port_allocated() {
         local pid
         pid=$(parse_state_line "$app" "pid")
 
+        # A stopped app is resumed on this same port, so it keeps the
+        # reservation even though nothing is running on it right now
+        if is_stopped_pid "$pid"; then
+            return 0  # Port is held for a stopped app
+        fi
+
         # Check if process is actually running
         if ps -p "$pid" >/dev/null 2>&1; then
             return 0  # Port is allocated and process is running

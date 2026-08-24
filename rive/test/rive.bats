@@ -182,6 +182,61 @@ teardown() {
     [ ! -f "$RIVE_CURRENT_FILE" ]
 }
 
+@test "state: mark_stopped replaces the pid with the stopped sentinel" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "stop-me" "50010" "$TEST_TEMP/worktree10" "12345"
+
+    state_mark_stopped "stop-me"
+
+    local app
+    app=$(state_get_app "stop-me")
+    run parse_state_line "$app" "pid"
+    [ "$output" = "-" ]
+}
+
+@test "state: mark_stopped preserves port and worktree" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "stop-me" "50011" "$TEST_TEMP/worktree11" "12345"
+
+    state_mark_stopped "stop-me"
+
+    local app
+    app=$(state_get_app "stop-me")
+    run parse_state_line "$app" "port"
+    [ "$output" = "50011" ]
+
+    app=$(state_get_app "stop-me")
+    run parse_state_line "$app" "worktree"
+    [ "$output" = "$TEST_TEMP/worktree11" ]
+}
+
+# `rive list` calls state_clean_stale before printing, so a stopped app that
+# got reaped here would vanish the moment the user listed their apps.
+@test "state: clean_stale keeps a deliberately stopped app" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "stopped-app" "50012" "$TEST_TEMP/worktree12" "12345"
+    state_mark_stopped "stopped-app"
+
+    state_clean_stale
+
+    run state_has_app "stopped-app"
+    [ "$status" -eq 0 ]
+}
+
+@test "state: clean_stale still removes an app whose process died" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "crashed-app" "50013" "$TEST_TEMP/worktree13" 999999
+
+    state_clean_stale
+
+    run state_has_app "crashed-app"
+    [ "$status" -ne 0 ]
+}
+
 #############################################
 # Port Management Tests
 #############################################
@@ -222,6 +277,29 @@ teardown() {
     run find_available_port
     [ "$status" -eq 0 ]
     [ "$output" -eq "$RIVE_START_PORT" ]
+}
+
+# A stopped app is resumed on its original port, so that port must stay
+# reserved - otherwise the next `rive add` takes it and the resume collides.
+@test "port: a stopped app keeps its port reserved" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "feature/stopped" "$RIVE_START_PORT" "$TEST_TEMP/wt" "12345"
+    state_mark_stopped "feature/stopped"
+
+    run is_port_allocated "$RIVE_START_PORT"
+    [ "$status" -eq 0 ]
+}
+
+@test "port: allocation skips a port held by a stopped app" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "feature/stopped" "$RIVE_START_PORT" "$TEST_TEMP/wt" "12345"
+    state_mark_stopped "feature/stopped"
+
+    run find_available_port
+    [ "$status" -eq 0 ]
+    [ "$output" -gt "$RIVE_START_PORT" ]
 }
 
 #############################################
@@ -297,6 +375,11 @@ teardown() {
     local two_days_ago=$((now - 172800))
     run calculate_uptime "$two_days_ago"
     [[ "$output" == *"d"* ]]
+}
+
+@test "process: status for the stopped sentinel returns stopped" {
+    run get_process_status "-"
+    [ "$output" = "stopped" ]
 }
 
 #############################################

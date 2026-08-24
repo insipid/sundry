@@ -4,6 +4,18 @@
 # Current app file location
 RIVE_CURRENT_FILE="${RIVE_CURRENT_FILE:-$HOME/.rive/current}"
 
+# Written into the PID field of an app that was deliberately stopped with
+# `rive stop`. It is what separates "the user parked this" from "the process
+# died": a crashed entry is reaped by state_clean_stale and gives its port
+# back, while a parked one keeps its entry, its worktree and its port
+# reservation until it is resumed.
+RIVE_STOPPED_PID="-"
+
+# True when a PID field marks a deliberately stopped app
+is_stopped_pid() {
+    [[ "${1:-}" == "$RIVE_STOPPED_PID" ]]
+}
+
 # Initialize state file
 init_state_file() {
     local state_file="$RIVE_STATE_FILE"
@@ -60,6 +72,40 @@ state_remove_app() {
     mv "$temp_file" "$state_file"
 
     log_debug "Removed app from state: $branch"
+    return 0
+}
+
+# Mark a review app as stopped without discarding it. Port, worktree and
+# start timestamp are all preserved so the app can be resumed in place.
+state_mark_stopped() {
+    local branch="$1"
+    local state_file="$RIVE_STATE_FILE"
+    local temp_file="${state_file}.tmp"
+
+    if [[ ! -f "$state_file" ]]; then
+        return 0
+    fi
+
+    : > "$temp_file"
+
+    local line
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+
+        if [[ "$line" == "${branch}|"* ]]; then
+            local port worktree timestamp
+            port=$(parse_state_line "$line" "port")
+            worktree=$(parse_state_line "$line" "worktree")
+            timestamp=$(parse_state_line "$line" "timestamp")
+            echo "$branch|$port|$worktree|$RIVE_STOPPED_PID|$timestamp" >> "$temp_file"
+        else
+            echo "$line" >> "$temp_file"
+        fi
+    done < "$state_file"
+
+    mv "$temp_file" "$state_file"
+
+    log_debug "Marked app as stopped: $branch"
     return 0
 }
 
@@ -151,8 +197,9 @@ state_clean_stale() {
         local pid
         pid=$(parse_state_line "$line" "pid")
 
-        # Keep the entry if process is still running
-        if ps -p "$pid" >/dev/null 2>&1; then
+        # Keep the entry if the app was deliberately stopped, or if its
+        # process is still running
+        if is_stopped_pid "$pid" || ps -p "$pid" >/dev/null 2>&1; then
             echo "$line" >> "$temp_file"
         else
             local branch
