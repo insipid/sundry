@@ -241,24 +241,18 @@ calculate_uptime() {
 restart_server() {
     local identifier="$1"
 
-    # Try to find by branch first
+    # resolve_app handles branch, port and repo:branch forms, and honours the
+    # current scope, so restart resolves an app exactly like every other
+    # lookup command. It reports the reason itself when nothing matches.
     local app
-    app=$(state_get_app "$identifier")
+    app=$(resolve_app "$identifier" "${RIVE_SCOPE:-local}") || exit 1
 
-    # If not found, try by port
-    if [[ -z "$app" ]]; then
-        app=$(state_get_app_by_port "$identifier")
-    fi
-
-    if [[ -z "$app" ]]; then
-        error_exit 1 "Review app not found: $identifier"
-    fi
-
-    local branch port worktree pid
+    local branch port worktree pid repo
     branch=$(parse_state_line "$app" "branch")
     port=$(parse_state_line "$app" "port")
     worktree=$(parse_state_line "$app" "worktree")
     pid=$(parse_state_line "$app" "pid")
+    repo=$(parse_state_line "$app" "repo")
 
     # Stop existing server
     stop_server "$pid" "$port"
@@ -270,20 +264,20 @@ restart_server() {
         log_error "Previous server was stopped but new server failed to start"
         log_error "Worktree is still available at: $worktree"
         # Remove stale state since server is no longer running
-        state_remove_app "$branch"
+        state_remove_app "$branch" "$repo"
         return 1
     fi
 
     # Verify we got a valid PID
     if [[ -z "$new_pid" ]] || ! [[ "$new_pid" =~ ^[0-9]+$ ]]; then
         log_error "Server start returned invalid PID: '$new_pid'"
-        state_remove_app "$branch"
+        state_remove_app "$branch" "$repo"
         return 1
     fi
 
-    # Update state with new PID
-    state_remove_app "$branch"
-    state_add_app "$branch" "$port" "$worktree" "$new_pid"
+    # Update state with new PID, keeping it attributed to the same repository
+    state_remove_app "$branch" "$repo"
+    state_add_app "$branch" "$port" "$worktree" "$new_pid" "$repo"
 
     log_success "Review app restarted: $branch"
 }

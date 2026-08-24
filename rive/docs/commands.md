@@ -134,13 +134,15 @@ the second at `rive restart` or `rive clean`.
 Stop a review app's server, keeping everything else.
 
 ```bash
-rive stop [branch|port|--all]
+rive stop [branch|port|all]
 
 # Examples
 rive stop feature/user-auth      # Stop by branch name
 rive stop 40000                  # Stop by port number
+rive stop my-web:main            # Stop an app in another repository
 rive stop                        # Stop current app (if set)
-rive stop --all                  # Stop every app
+rive stop all                    # Stop every app in this repository
+rive stop all --global           # Stop every app, everywhere
 ```
 
 Use this to free a port, or bounce a server, without paying to rebuild the
@@ -157,8 +159,11 @@ Resume it with [`rive start`](#add) or [`rive restart`](#restart). A stopped app
 shows up in `rive list` with status `stopped`, and `rive clean` leaves it alone
 — being stopped is a state rive is holding for you, not a stale entry.
 
-Stopping an app that is already stopped is not an error, so `stop --all` and
+Stopping an app that is already stopped is not an error, so `stop all` and
 scripted use are safe to repeat.
+
+Like `remove`, `all` here is a keyword rather than a flag — `--all` is one of
+the spellings of global scope.
 
 **How the server is stopped:** rive launches each server as its own process
 group and signals the whole group, not just the process it spawned. A command
@@ -177,21 +182,27 @@ Stop a review app **and** delete its worktree.
 **Aliases:** `delete`, `del`, `down`, `rm`
 
 ```bash
-rive remove [branch|port|--all]
+rive remove [branch|port|all]
 
 # Examples
 rive remove feature/user-auth    # Remove by branch name
 rive remove 40000                # Remove by port number
 rive remove                      # Remove current app (if set)
-rive remove --all                # Remove every review app
+rive remove my-web:main          # Remove an app in another repository
+rive remove all                  # Remove every app in this repository
+rive remove all --global         # Remove every app, everywhere
 ```
 
 For stopping a server without losing the worktree, use [`rive stop`](#stop).
 
-**`--all`** stops every running review app in one go. It applies exactly the
-same per-app rules as a single removal — clean worktrees are removed, dirty ones
-are preserved with a warning, and the current-app pointer is cleared. There is
-no confirmation prompt; the flag is the confirmation.
+**`all`** stops every running review app in scope. It applies exactly the same
+per-app rules as a single removal — clean worktrees are removed, dirty ones are
+preserved with a warning, and the current-app pointer is cleared. There is no
+confirmation prompt; naming `all` is the confirmation.
+
+`all` is a keyword, not a flag: `--all` is now one of the spellings of global
+scope. So `rive remove all` clears this repository and `rive remove all --all`
+(or `-a`) clears every repository.
 
 If one app fails to stop, the rest are still processed and the command reports
 how many succeeded before exiting non-zero. With no apps running it prints

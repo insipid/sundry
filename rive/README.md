@@ -94,8 +94,9 @@ add [branch]         Create review app, or resume a stopped one; prompts for
                      branch if omitted
                      (aliases: start, create, new, up)
 stop [branch|port]   Stop app's server, keeping worktree and port
-                     --all stops every app
-remove [branch|port] Stop app and delete its worktree; --all removes every app
+                     'stop all' stops every app in scope
+remove [branch|port] Stop app and delete its worktree
+                     'remove all' removes every app in scope
                      (aliases: delete, del, down, rm)
 list                 List all apps (aliases: ls, l)
 status [branch|port] Show detailed info for one app
@@ -111,6 +112,38 @@ version              Show version
 ```
 
 See [docs/commands.md](docs/commands.md) for detailed command reference.
+
+## Multiple Repositories
+
+rive is repo-aware. Apps are identified by **(repository, branch)**, so the same
+branch name can run in several repositories at once:
+
+```bash
+cd ~/code/my-api && rive add feature/login   # port 40000
+cd ~/code/my-web && rive add feature/login   # port 40001, no conflict
+```
+
+Commands act on the repository you are standing in. Widen with `--global`
+(`-G`, or the aliases `--all` / `-a`):
+
+```bash
+rive list              # this repository
+rive list --global     # everywhere, with a REPO column
+```
+
+Reach into another repository by name — git forbids colons in branch names, so
+the prefix is unambiguous:
+
+```bash
+rive status my-web:feature/login
+```
+
+Set your own default with `RIVE_DEFAULT_SCOPE=global`. Ports stay globally
+allocated, which is what keeps repositories from colliding. Upgrading needs no
+migration: existing state is backfilled automatically.
+
+See [docs/configuration.md](docs/configuration.md#multiple-repositories) for the
+full picture.
 
 ## Interactive Branch Selection
 
@@ -172,7 +205,7 @@ rive remove feature/checkout-flow
 rive remove feature/user-profile
 
 # Or stop everything at once
-rive remove --all
+rive remove all
 ```
 
 ## Troubleshooting

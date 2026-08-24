@@ -1,10 +1,16 @@
 # Rive Changelog
 
-## v1.2.0 - 2026-08-24
+## v1.2.0 - 2026-08-25
 
-**A `stop` command that keeps your workspace, and a rive-specific config file**
+**Repository scoping, a `stop` command that keeps your workspace, and a
+rive-specific config file**
 
 ### Overview
+
+Apps are now identified by **(repository, branch)** rather than branch name
+alone, which is what prevented the same branch running in two repositories at
+once. Commands act on the repository you are standing in, and `--global`
+widens them.
 
 Stopping a review app used to mean `rive remove`, which also deleted the
 worktree. There was no way to free a port or bounce a misbehaving server
@@ -12,24 +18,55 @@ without paying to rebuild the workspace afterwards. `rive stop` fills that gap,
 and `rive add` now resumes a stopped app instead of refusing it.
 
 This release also adds `.rive.env`, a config file of rive's own that overrides
-a project's `.env`, and fixes two long-standing bugs found along the way: how
-servers are shut down, and CLI flags losing to `.env`.
+a project's `.env`, and fixes three long-standing bugs found along the way: how
+servers are shut down, CLI flags losing to `.env`, and `rive use` hanging on a
+prompt.
 
 ### Breaking
 
 - **`stop` is no longer an alias for `remove`.** `rive stop` now halts the
   server and *keeps* the worktree; it used to delete it. Use `rive remove` for
   teardown — its other aliases (`delete`, `del`, `down`, `rm`) are unchanged.
+- **`rive remove --all` is now `rive remove all`.** `--all` became a spelling of
+  global scope, so the bulk stop is a positional keyword. `rive remove all`
+  clears the current repository; `rive remove all --all` clears everything.
+  `rive stop all` follows the same rule.
 
 ### Added
 
-#### `rive stop [branch|port|--all]`
+#### Repository scoping
+- **Repository-aware identity.** Repositories are keyed on the absolute path of
+  their main working directory, so two checkouts sharing a directory name
+  (`~/work/api` and `~/oss/api`) are correctly distinct - the old basename-only
+  identity could not express that.
+- **Local-by-default scope.** Commands act on the repository you are standing
+  in. `rive list` shows this repository and says how many apps are running
+  elsewhere.
+- **`--global` / `-G`** (aliases `--all` / `-a`) widens any command to every
+  repository. Accepted anywhere on the command line, not only before the
+  command.
+- **`RIVE_DEFAULT_SCOPE`** (`local` | `global`) sets the default, following the
+  usual precedence: CLI flag > `.rive.env` > `.env` > environment. Validated at
+  startup and
+  shown in `rive config` and `rive help`.
+- **Qualified names** - `rive status my-web:feature/login` reaches an app in
+  another repository from anywhere, no flag needed. Git forbids colons in
+  branch names, so the separator is never ambiguous.
+- **Ambiguity is reported, not guessed.** A bare name matching several
+  repositories lists each candidate as `repo:branch` with its port.
+- **A REPO column** in `rive list --global`.
+- **Per-repository current app.** Each repository remembers its own; clearing
+  one leaves the others alone. A single global pointer stopped making sense once
+  commands were repo-scoped.
+
+#### `rive stop [branch|port|all]`
 - **Halts the server, keeps everything else** — the worktree with any
   uncommitted work in it, the state entry, and the current-app pointer, so
   `rive start` and `rive restart` with no arguments still work
 - **Holds the port**, so the app comes back on the same URL and the next
   `rive add` cannot take it
-- **`--all`** stops every app in one go
+- **`rive stop all`** stops every app in scope, `rive stop all --global`
+  every app everywhere
 - **Repeatable** — stopping an already stopped app is a no-op, not an error
 - Stopped apps show as `stopped` in `rive list` and are left alone by
   `rive clean`, which only reaps entries whose process died unexpectedly
@@ -53,6 +90,14 @@ servers are shut down, and CLI flags losing to `.env`.
   of `.env` in force
 - Useful for keeping rive's settings out of an `.env` that belongs to the
   application, or for local preferences you would rather not commit
+
+### Changed
+
+- **Outside a git repository, scope falls back to global** rather than being
+  refused. Only `add` and `pull` still require a repository, since they need one
+  to work with.
+- **Port allocation stays global**, deliberately - it is what stops two
+  repositories being handed the same port.
 
 ### Fixed
 
@@ -79,10 +124,16 @@ servers are shut down, and CLI flags losing to `.env`.
   project with a `.env` that set `RIVE_START_PORT`. Flags are now re-applied
   once the files have loaded.
 
-### Notes
+### Upgrading
+
+No migration required. State entries written before this change have no
+repository recorded; the first command run derives it from the app's worktree
+and rewrites the entry. A current-app pointer in the old format is honoured and
+migrated on its next change.
 
 State entries written by earlier versions still work: their PID leads no
 process group, and shutdown falls back to signalling the PID directly.
+
 
 ## v1.1.0 - 2026-08-15
 
