@@ -238,6 +238,107 @@ teardown() {
 }
 
 #############################################
+# Config File Precedence Tests
+#############################################
+
+# Precedence, lowest to highest: environment variables, .env, .rive.env, CLI
+# flags. `.rive.env` exists so rive settings can be kept apart from - and can
+# override - whatever else a project already puts in its general-purpose .env.
+
+@test "config: .env in the current directory is loaded" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=45000" > .env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "45000" ]
+}
+
+@test "config: .rive.env in the current directory is loaded" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=46000" > .rive.env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "46000" ]
+}
+
+@test "config: .rive.env takes precedence over .env" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=45000" > .env
+    echo "RIVE_START_PORT=46000" > .rive.env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "46000" ]
+}
+
+# .rive.env overrides key by key, it does not replace the whole file
+@test "config: .env still supplies keys .rive.env does not set" {
+    cd "$TEST_TEMP" || return 1
+    printf 'RIVE_START_PORT=45000\nRIVE_HOSTNAME=from-dot-env\n' > .env
+    echo "RIVE_START_PORT=46000" > .rive.env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "46000" ]
+    [ "$RIVE_HOSTNAME" = "from-dot-env" ]
+}
+
+@test "config: absent config files are not an error" {
+    cd "$TEST_TEMP" || return 1
+
+    run load_config_files
+    [ "$status" -eq 0 ]
+}
+
+@test "config: non-RIVE keys in .rive.env are ignored" {
+    cd "$TEST_TEMP" || return 1
+    printf 'SOME_OTHER_VAR=nope\nRIVE_START_PORT=46000\n' > .rive.env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "46000" ]
+    [ -z "${SOME_OTHER_VAR:-}" ]
+}
+
+@test "cli: a flag outranks .rive.env" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=46000" > .rive.env
+
+    run "$RIVE_DIR/bin/rive" --start-port 51234 config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_START_PORT=51234"* ]]
+}
+
+@test "cli: a flag outranks .env" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=45000" > .env
+
+    run "$RIVE_DIR/bin/rive" --start-port 51234 config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_START_PORT=51234"* ]]
+}
+
+@test "cli: --hostname outranks .rive.env" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_HOSTNAME=from-file" > .rive.env
+
+    run "$RIVE_DIR/bin/rive" --hostname from-flag config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_HOSTNAME=from-flag"* ]]
+}
+
+@test "cli: .rive.env is used when no flag overrides it" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_HOSTNAME=from-rive-env" > .rive.env
+
+    run "$RIVE_DIR/bin/rive" config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_HOSTNAME=from-rive-env"* ]]
+}
+
+#############################################
 # Port Management Tests
 #############################################
 

@@ -83,8 +83,12 @@ OPTIONS:
 CONFIGURATION:
     Configuration is loaded from (in order of precedence):
     1. CLI flags (highest)
-    2. .env file in current directory
-    3. Environment variables (lowest)
+    2. .rive.env file in current directory
+    3. .env file in current directory
+    4. Environment variables (lowest)
+
+    Each source overrides the ones below it key by key. Only RIVE_* variables
+    are read from the files.
 
     Available variables:
     - RIVE_START_PORT        Starting port (default: 40000)
@@ -1093,19 +1097,26 @@ main() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --verbose|-v)
+                # Set both: the RIVE_ var so config loading itself is verbose,
+                # and the RIVE_FLAG_ copy so a config file cannot turn it back
+                # off. See apply_cli_overrides.
                 export RIVE_VERBOSE=true
+                export RIVE_FLAG_VERBOSE=true
                 shift
                 ;;
             --start-port)
                 export RIVE_START_PORT="$2"
+                export RIVE_FLAG_START_PORT="$2"
                 shift 2
                 ;;
             --hostname)
                 export RIVE_HOSTNAME="$2"
+                export RIVE_FLAG_HOSTNAME="$2"
                 shift 2
                 ;;
             --worktree-dir)
                 export RIVE_WORKTREE_DIR="$2"
+                export RIVE_FLAG_WORKTREE_DIR="$2"
                 shift 2
                 ;;
             *)

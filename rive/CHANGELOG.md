@@ -2,7 +2,7 @@
 
 ## v1.2.0 - 2026-08-24
 
-**A `stop` command that keeps your workspace**
+**A `stop` command that keeps your workspace, and a rive-specific config file**
 
 ### Overview
 
@@ -11,8 +11,9 @@ worktree. There was no way to free a port or bounce a misbehaving server
 without paying to rebuild the workspace afterwards. `rive stop` fills that gap,
 and `rive add` now resumes a stopped app instead of refusing it.
 
-Along the way this release fixes a long-standing bug in how servers are shut
-down, which affected `remove` and `restart` too.
+This release also adds `.rive.env`, a config file of rive's own that overrides
+a project's `.env`, and fixes two long-standing bugs found along the way: how
+servers are shut down, and CLI flags losing to `.env`.
 
 ### Breaking
 
@@ -44,6 +45,15 @@ down, which affected `remove` and `restart` too.
 - **`rive restart` accepts a port**, not just a branch name — it was the only
   lookup command that did not
 
+#### `.rive.env`
+- **A rive-specific config file**, read from the current directory, sitting
+  between CLI flags and `.env` in precedence: CLI flags > `.rive.env` > `.env` >
+  environment variables
+- **Overrides key by key**, so a `.rive.env` setting one value leaves the rest
+  of `.env` in force
+- Useful for keeping rive's settings out of an `.env` that belongs to the
+  application, or for local preferences you would rather not commit
+
 ### Fixed
 
 - **Servers are now stopped by process group rather than by the single PID
@@ -59,6 +69,11 @@ down, which affected `remove` and `restart` too.
 - **`rive list` no longer aborts under `set -e`** when an app is not running.
 - **`rive help` no longer claims `rive cd` navigates anywhere.** It prints a
   worktree path; the examples now show substituting it, and the `rivecd` alias.
+- **CLI flags now actually outrank `.env`**, as the documented precedence has
+  always claimed. Config files were loaded *after* the flags were applied and
+  exported over them, so `rive --start-port 51234` was silently ignored in any
+  project with a `.env` that set `RIVE_START_PORT`. Flags are now re-applied
+  once the files have loaded.
 
 ### Notes
 

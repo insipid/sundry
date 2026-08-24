@@ -3,8 +3,13 @@
 Rive loads configuration from multiple sources with the following precedence:
 
 1. **CLI flags** (highest priority)
-2. **`.env` file** in current directory
-3. **Environment variables** (lowest priority)
+2. **`.rive.env` file** in current directory
+3. **`.env` file** in current directory
+4. **Environment variables** (lowest priority)
+
+Each source overrides the ones below it **key by key**, so a `.rive.env` that
+sets only `RIVE_START_PORT` still leaves every other value coming from `.env`.
+Only variables named `RIVE_*` are read; anything else in the files is ignored.
 
 ## Configuration Variables
 
@@ -21,7 +26,7 @@ Rive loads configuration from multiple sources with the following precedence:
 | `RIVE_ENABLE_LOGS` | `false` | Log server output to `.rive-server.log` in worktree (auto-cleaned on stop) |
 | `RIVE_VERBOSE` | `false` | Enable verbose output |
 
-## Creating a .env File
+## Creating a Config File
 
 Create a `.env` file in your project directory:
 
@@ -34,6 +39,29 @@ RIVE_SERVER_COMMAND="npm run dev -- --port %PORT% --host %HOSTNAME%"
 RIVE_AUTO_INSTALL=true
 RIVE_ENABLE_LOGS=true
 ```
+
+### `.rive.env` — keeping rive settings separate
+
+Most projects already have a `.env`, and it usually belongs to the application
+rather than to your tooling. `.rive.env` gives rive a file of its own:
+
+```bash
+# .rive.env — read after .env, so these win
+RIVE_START_PORT=42000
+RIVE_SERVER_COMMAND="npm run dev -- --port %PORT%"
+```
+
+Use it when you want to:
+
+- **Keep rive out of a shared `.env`** that is committed, or generated, or
+  owned by the application
+- **Override just a few keys** for one checkout, leaving the rest of `.env`
+  in force
+- **Keep local preferences uncommitted** — add `.rive.env` to `.gitignore`
+  while `.env` stays tracked
+
+Both files are optional, and both are read from the directory you run `rive`
+in, not from the repository root.
 
 ## Exporting Configuration
 
@@ -48,6 +76,9 @@ source my-config.env
 
 # Or use it as .env
 cp my-config.env .env
+
+# Or as the rive-specific file, which takes precedence over .env
+cp my-config.env .rive.env
 ```
 
 ## Framework-Specific Commands

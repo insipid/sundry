@@ -80,6 +80,11 @@ RIVE_ENABLE_LOGS=true
 RIVE_AUTO_INSTALL=true
 ```
 
+Or use `.rive.env` to keep rive's settings out of an `.env` that belongs to the
+application. It is read after `.env` and overrides it key by key, so you can put
+just the values you want to change there. Precedence, highest first: CLI flags,
+`.rive.env`, `.env`, environment variables.
+
 See [docs/configuration.md](docs/configuration.md) for all options and framework-specific commands.
 
 ## Commands
