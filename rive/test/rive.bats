@@ -383,6 +383,64 @@ teardown() {
 }
 
 #############################################
+# Process Tree Tests
+#############################################
+
+# A server command is launched through `bash -c`, so the PID rive records is a
+# wrapper, not the process bound to the port. These tests use a fake server
+# that spawns a child - the shape of `npm run dev` spawning vite - to prove the
+# whole tree is signalled, not just the wrapper.
+fake_server_with_child() {
+    cat > "$TEST_TEMP/fakeserver.sh" <<'EOS'
+#!/usr/bin/env bash
+sleep 300 &
+echo $! > "$FAKE_CHILD_FILE"
+wait
+EOS
+    chmod +x "$TEST_TEMP/fakeserver.sh"
+    export FAKE_CHILD_FILE="$TEST_TEMP/child.pid"
+    export RIVE_SERVER_COMMAND="$TEST_TEMP/fakeserver.sh --port %PORT%"
+}
+
+@test "process: server is started as its own process group leader" {
+    fake_server_with_child
+    mkdir -p "$TEST_TEMP/wt"
+
+    local pid pgid
+    pid=$(start_server 50020 "$TEST_TEMP/wt")
+
+    pgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+    [ "$pgid" = "$pid" ]
+
+    kill -KILL -"$pid" 2>/dev/null || true
+}
+
+@test "process: stopping a server also kills its children" {
+    fake_server_with_child
+    mkdir -p "$TEST_TEMP/wt"
+
+    local pid child
+    pid=$(start_server 50021 "$TEST_TEMP/wt")
+    child=$(cat "$FAKE_CHILD_FILE")
+    ps -p "$child" >/dev/null 2>&1
+
+    stop_server "$pid" 50021
+
+    run ps -p "$child"
+    [ "$status" -ne 0 ]
+}
+
+@test "process: stopping an already-dead app is not an error" {
+    run stop_server 999999 50022
+    [ "$status" -eq 0 ]
+}
+
+@test "process: stopping the stopped sentinel is not an error" {
+    run stop_server "-" 50023
+    [ "$status" -eq 0 ]
+}
+
+#############################################
 # CLI Integration Tests
 #############################################
 
