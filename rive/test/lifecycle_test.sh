@@ -271,10 +271,12 @@ state_field() {
 # Removes every app so each test starts from a known state
 reset_apps() {
     local branch line wt
+    # --global: removal is scoped to the repository it runs from, so a bare
+    # `remove` here would leave the second repository's apps behind
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         branch="$(cut -d'|' -f1 <<< "$line")"
-        "$RIVE" remove "$branch" >/dev/null 2>&1
+        "$RIVE" remove "$branch" --global >/dev/null 2>&1
     done < <(cat "$RIVE_STATE_FILE" 2>/dev/null)
 
     # `remove` deliberately preserves dirty worktrees, so tests that leave
@@ -288,19 +290,31 @@ reset_apps() {
     # `add` resolving to a path that no longer existed.
     local wt_root
     wt_root="$(cd -P "$RIVE_WORKTREE_DIR" 2>/dev/null && pwd)" || wt_root="$RIVE_WORKTREE_DIR"
-    while IFS= read -r wt; do
-        case "$wt" in
-            "$wt_root"/*|"$RIVE_WORKTREE_DIR"/*) ;;
-            *) continue ;;
-        esac
-        git -C "$REPO" worktree remove --force "$wt" >/dev/null 2>&1
-    done < <(git -C "$REPO" worktree list --porcelain 2>/dev/null \
-        | awk '/^worktree /{print substr($0, 10)}')
+
+    # Every repository the suite uses, not just the first. The rm below clears
+    # the whole worktree directory, so a repository left unpruned keeps a
+    # registration pointing at a directory that no longer exists - and its next
+    # `add` then fails trying to cd into it.
+    local repo
+    for repo in "$REPO" "$REPO2"; do
+        [[ -n "$repo" && -d "$repo" ]] || continue
+        while IFS= read -r wt; do
+            case "$wt" in
+                "$wt_root"/*|"$RIVE_WORKTREE_DIR"/*) ;;
+                *) continue ;;
+            esac
+            git -C "$repo" worktree remove --force "$wt" >/dev/null 2>&1
+        done < <(git -C "$repo" worktree list --porcelain 2>/dev/null \
+            | awk '/^worktree /{print substr($0, 10)}')
+    done
 
     # Prune AFTER deleting the directories, so registrations whose directories
     # are gone are cleaned up rather than left dangling
     rm -rf "${RIVE_WORKTREE_DIR:?}"/*
-    git -C "$REPO" worktree prune >/dev/null 2>&1
+    for repo in "$REPO" "$REPO2"; do
+        [[ -n "$repo" && -d "$repo" ]] || continue
+        git -C "$repo" worktree prune >/dev/null 2>&1
+    done
 
     : > "$RIVE_STATE_FILE"
     rm -f "$RIVE_CURRENT_FILE"
@@ -501,6 +515,28 @@ test_remove_by_port() {
     return 0
 }
 
+test_restart_resolves_an_app_by_port() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+
+    local old_pid
+    old_pid="$(state_field feature/alpha pid)" || return 1
+
+    "$RIVE" restart 41500 >/dev/null 2>&1 || return 1
+
+    local new_pid port
+    new_pid="$(state_field feature/alpha pid)" || return 1
+    port="$(state_field feature/alpha port)" || return 1
+
+    assert_pid_alive "$new_pid" || return 1
+    assert_eq "41500" "$port" || return 1
+    if [[ "$old_pid" == "$new_pid" ]]; then
+        echo "        PID did not change; the server was not restarted" >&2
+        return 1
+    fi
+    return 0
+}
+
 test_lookup_of_unknown_app_reports_clearly() {
     local out result=0
     out="$("$RIVE" status no-such-branch 2>&1)" || result=$?
@@ -646,6 +682,14 @@ test_remove_all_clears_current_app() {
 # Runs rive from the second repository
 rive_in_repo2() {
     (cd "$REPO2" && "$RIVE" "$@")
+}
+
+# PID field for one app, identified by (branch, repository) the way rive now
+# identifies apps. Empty when there is no such entry.
+state_pid_for() {
+    local branch="$1" repo_path="$2" key
+    key="$(cd "$repo_path" && pwd -P)" || return 1
+    grep "^${branch}|.*|${key}$" "$RIVE_STATE_FILE" 2>/dev/null | head -1 | cut -d'|' -f4
 }
 
 test_same_branch_runs_in_two_repos() {
@@ -1010,6 +1054,338 @@ test_allocation_skips_port_held_by_other_process() {
 # Runner
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Stop (halt without teardown)
+# ---------------------------------------------------------------------------
+
+test_stop_kills_the_process() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+
+    local pid
+    pid="$(state_field feature/alpha pid)" || return 1
+    assert_pid_alive "$pid" || return 1
+
+    "$RIVE" stop feature/alpha >/dev/null 2>&1 || return 1
+    assert_pid_dead "$pid"
+}
+
+# The whole point of the command: the workspace survives
+test_stop_keeps_the_worktree() {
+    assert_dir_exists "$(expected_worktree feature/alpha)"
+}
+
+test_stop_keeps_the_state_entry() {
+    local port
+    port="$(state_field feature/alpha port)" || {
+        echo "        State entry was discarded by stop" >&2
+        return 1
+    }
+    assert_eq "41500" "$port"
+}
+
+# `rive restart` with no argument has to keep working after a stop
+test_stop_keeps_the_current_app() {
+    local out
+    out="$("$RIVE" use 2>&1)"
+    assert_contains "$out" "feature/alpha"
+}
+
+test_stop_marks_the_app_stopped_in_list() {
+    local out
+    out="$("$RIVE" list 2>&1)"
+    assert_contains "$out" "feature/alpha" || return 1
+    assert_contains "$out" "stopped"
+}
+
+# `rive list` calls state_clean_stale first; a stopped app must survive it
+test_stopped_app_survives_a_list() {
+    "$RIVE" list >/dev/null 2>&1
+    if ! state_field feature/alpha port >/dev/null; then
+        echo "        Stopped app was reaped by list" >&2
+        return 1
+    fi
+    return 0
+}
+
+test_stopped_app_keeps_its_port_reserved() {
+    "$RIVE" add feature/beta >/dev/null 2>&1 || return 1
+
+    local beta_port
+    beta_port="$(state_field feature/beta port)" || return 1
+    if [[ "$beta_port" == "41500" ]]; then
+        echo "        New app took the stopped app's reserved port" >&2
+        return 1
+    fi
+    "$RIVE" remove feature/beta >/dev/null 2>&1
+    return 0
+}
+
+test_restart_resumes_a_stopped_app() {
+    "$RIVE" restart feature/alpha >/dev/null 2>&1 || return 1
+
+    local pid port
+    pid="$(state_field feature/alpha pid)" || return 1
+    port="$(state_field feature/alpha port)" || return 1
+
+    assert_pid_alive "$pid" || return 1
+    assert_eq "41500" "$port"
+}
+
+test_add_resumes_a_stopped_app_in_place() {
+    "$RIVE" stop feature/alpha >/dev/null 2>&1 || return 1
+
+    local worktree_before
+    worktree_before="$(state_field feature/alpha worktree)" || return 1
+
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+
+    local pid port worktree_after
+    pid="$(state_field feature/alpha pid)" || return 1
+    port="$(state_field feature/alpha port)" || return 1
+    worktree_after="$(state_field feature/alpha worktree)" || return 1
+
+    assert_pid_alive "$pid" || return 1
+    assert_eq "41500" "$port" || return 1
+    assert_eq "$worktree_before" "$worktree_after"
+}
+
+test_add_still_rejects_a_running_app() {
+    local out result=0
+    out="$("$RIVE" add feature/alpha 2>&1)" || result=$?
+    if [[ $result -eq 0 ]]; then
+        echo "        Expected non-zero exit for an already running app" >&2
+        return 1
+    fi
+    assert_contains "$out" "already"
+}
+
+test_stop_defaults_to_the_current_app() {
+    local pid
+    pid="$(state_field feature/alpha pid)" || return 1
+
+    "$RIVE" use feature/alpha >/dev/null 2>&1 || return 1
+    "$RIVE" stop >/dev/null 2>&1 || return 1
+
+    assert_pid_dead "$pid"
+}
+
+test_stop_resolves_an_app_by_port() {
+    "$RIVE" restart feature/alpha >/dev/null 2>&1 || return 1
+    local pid
+    pid="$(state_field feature/alpha pid)" || return 1
+
+    "$RIVE" stop 41500 >/dev/null 2>&1 || return 1
+    assert_pid_dead "$pid"
+}
+
+test_stopping_an_already_stopped_app_is_not_an_error() {
+    local out result=0
+    out="$("$RIVE" stop feature/alpha 2>&1)" || result=$?
+    if [[ $result -ne 0 ]]; then
+        echo "        Expected exit 0, got $result" >&2
+        return 1
+    fi
+    assert_contains "$out" "already stopped"
+}
+
+test_stop_of_unknown_app_reports_clearly() {
+    local out result=0
+    out="$("$RIVE" stop feature/nonexistent 2>&1)" || result=$?
+    if [[ $result -eq 0 ]]; then
+        echo "        Expected non-zero exit" >&2
+        return 1
+    fi
+    assert_contains "$out" "not found"
+}
+
+test_stop_all_stops_every_app() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    "$RIVE" add feature/beta >/dev/null 2>&1 || return 1
+
+    local pid_a pid_b
+    pid_a="$(state_field feature/alpha pid)" || return 1
+    pid_b="$(state_field feature/beta pid)" || return 1
+
+    "$RIVE" stop all >/dev/null 2>&1 || return 1
+
+    assert_pid_dead "$pid_a" || return 1
+    assert_pid_dead "$pid_b"
+}
+
+test_stop_all_keeps_worktrees_and_entries() {
+    assert_dir_exists "$(expected_worktree feature/alpha)" || return 1
+    assert_dir_exists "$(expected_worktree feature/beta)" || return 1
+    state_field feature/alpha port >/dev/null || return 1
+    state_field feature/beta port >/dev/null
+}
+
+# remove must still tear down, or the two commands have collapsed into one
+test_remove_still_tears_down_alongside_stop() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    "$RIVE" remove feature/alpha >/dev/null 2>&1 || return 1
+
+    assert_dir_missing "$(expected_worktree feature/alpha)" || return 1
+    if state_field feature/alpha port >/dev/null 2>&1; then
+        echo "        remove left a state entry behind" >&2
+        return 1
+    fi
+    return 0
+}
+
+# stop is no longer an alias for remove, but the other aliases must survive
+test_remove_aliases_still_tear_down() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    "$RIVE" rm feature/alpha >/dev/null 2>&1 || return 1
+    assert_dir_missing "$(expected_worktree feature/alpha)"
+}
+
+# start stays an alias for add
+test_start_alias_still_creates_an_app() {
+    reset_apps
+    "$RIVE" start feature/alpha >/dev/null 2>&1 || return 1
+
+    local pid
+    pid="$(state_field feature/alpha pid)" || return 1
+    assert_pid_alive "$pid" || return 1
+    assert_dir_exists "$(expected_worktree feature/alpha)"
+}
+
+# The bug the process-group launch fixes: killing the wrapper used to leave
+# the process actually holding the port running.
+test_stop_kills_grandchildren_holding_the_port() {
+    reset_apps
+
+    local marker="rive-grandchild-$$"
+    local saved_command="$RIVE_SERVER_COMMAND"
+    export RIVE_SERVER_COMMAND="sh -c 'sleep 600 # $marker %PORT%' & wait"
+
+    if ! "$RIVE" add feature/alpha >/dev/null 2>&1; then
+        export RIVE_SERVER_COMMAND="$saved_command"
+        return 1
+    fi
+
+    if ! pgrep -f "$marker" >/dev/null 2>&1; then
+        export RIVE_SERVER_COMMAND="$saved_command"
+        echo "        Fixture did not spawn a grandchild" >&2
+        return 1
+    fi
+
+    "$RIVE" stop feature/alpha >/dev/null 2>&1
+
+    local survivors
+    survivors="$(pgrep -f "$marker" 2>/dev/null | tr '\n' ' ')"
+    export RIVE_SERVER_COMMAND="$saved_command"
+
+    if [[ -n "$survivors" ]]; then
+        pkill -KILL -f "$marker" 2>/dev/null
+        echo "        Orphaned grandchild survived stop: $survivors" >&2
+        return 1
+    fi
+    return 0
+}
+
+# --- stop x scoping -------------------------------------------------------
+#
+# These cover the seam between the two features rather than either alone:
+# stopping is a state rewrite, and it has to be keyed on (repo, branch) for the
+# same reason removal is.
+
+test_stop_only_parks_this_repos_app() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    rive_in_repo2 add feature/alpha >/dev/null 2>&1 || return 1
+
+    local other_pid
+    other_pid="$(state_pid_for feature/alpha "$REPO2")"
+    if [[ -z "$other_pid" || "$other_pid" == "-" ]]; then
+        echo "        Could not find the second repository's app" >&2
+        return 1
+    fi
+
+    "$RIVE" stop feature/alpha >/dev/null 2>&1 || return 1
+
+    # The other repository's identically named app must still be running
+    assert_pid_alive "$other_pid" || return 1
+
+    if [[ "$(state_pid_for feature/alpha "$REPO2")" == "-" ]]; then
+        echo "        Stopping one repo also parked the other repo's app" >&2
+        return 1
+    fi
+    assert_eq "-" "$(state_pid_for feature/alpha "$REPO")"
+}
+
+# state_mark_stopped rebuilds the line; dropping the repo field there would
+# silently un-scope the app
+test_stop_preserves_the_repo_field() {
+    local repo_key line repo
+    repo_key="$(cd "$REPO" && pwd -P)"
+    line="$(grep "^feature/alpha|.*|${repo_key}\$" "$RIVE_STATE_FILE" | head -1)"
+    repo="$(cut -d"|" -f6 <<< "$line")"
+    if [[ -z "$repo" ]]; then
+        echo "        Repo field was lost when the app was stopped: $line" >&2
+        return 1
+    fi
+    return 0
+}
+
+test_stopped_app_still_resolves_by_qualified_name() {
+    local out
+    out="$("$RIVE" status "$(basename "$REPO")":feature/alpha 2>&1)" || true
+    assert_contains "$out" "stopped"
+}
+
+test_stop_all_is_scoped_to_this_repo() {
+    reset_apps
+    # feature/beta exists only in the first repository, feature/alpha in both
+    "$RIVE" add feature/beta >/dev/null 2>&1 || return 1
+    rive_in_repo2 add feature/alpha >/dev/null 2>&1 || return 1
+
+    local other_pid
+    other_pid="$(state_pid_for feature/alpha "$REPO2")"
+    if [[ -z "$other_pid" || "$other_pid" == "-" ]]; then
+        echo "        Second repository's app was not running to begin with" >&2
+        return 1
+    fi
+
+    "$RIVE" stop all >/dev/null 2>&1 || return 1
+
+    # The other repository is out of scope and must be untouched
+    assert_pid_alive "$other_pid" || return 1
+    assert_eq "$other_pid" "$(state_pid_for feature/alpha "$REPO2")" || return 1
+
+    assert_eq "-" "$(state_pid_for feature/beta "$REPO")"
+}
+
+test_stop_all_global_reaches_every_repo() {
+    "$RIVE" stop all --global >/dev/null 2>&1 || return 1
+    assert_eq "-" "$(state_pid_for feature/alpha "$REPO2")"
+}
+
+# Resuming must pick this repository's parked app, not another repo's
+test_add_resumes_only_this_repos_stopped_app() {
+    reset_apps
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+    rive_in_repo2 add feature/alpha >/dev/null 2>&1 || return 1
+    "$RIVE" stop feature/alpha >/dev/null 2>&1 || return 1
+
+    "$RIVE" add feature/alpha >/dev/null 2>&1 || return 1
+
+    # Exactly one entry per repository, and ours is running again
+    assert_eq "2" "$(grep -c "^feature/alpha|" "$RIVE_STATE_FILE")" || return 1
+
+    local mine
+    mine="$(state_pid_for feature/alpha "$REPO")"
+    if [[ -z "$mine" || "$mine" == "-" ]]; then
+        echo "        This repository's app was not resumed" >&2
+        return 1
+    fi
+    assert_pid_alive "$mine"
+}
+
 main() {
     echo "========================================"
     echo "  RIVE Lifecycle Tests"
@@ -1044,6 +1420,7 @@ main() {
     print_header "Lookup by Port"
     run_test "cd resolves an app by port" test_cd_by_port
     run_test "remove resolves an app by port" test_remove_by_port
+    run_test "restart resolves an app by port" test_restart_resolves_an_app_by_port
     run_test "an unknown app is reported clearly" test_lookup_of_unknown_app_reports_clearly
 
     print_header "Status"
@@ -1053,6 +1430,28 @@ main() {
     run_test "status resolves an app by port" test_status_by_port
     run_test "status reports uncommitted changes" test_status_reports_uncommitted_changes
     run_test "status flags a dead process" test_status_flags_a_dead_process
+
+    print_header "Stop"
+    run_test "stop kills the server process" test_stop_kills_the_process
+    run_test "stop keeps the worktree" test_stop_keeps_the_worktree
+    run_test "stop keeps the state entry" test_stop_keeps_the_state_entry
+    run_test "stop keeps the current app" test_stop_keeps_the_current_app
+    run_test "list shows a stopped app as stopped" test_stop_marks_the_app_stopped_in_list
+    run_test "a stopped app survives being listed" test_stopped_app_survives_a_list
+    run_test "a stopped app keeps its port reserved" test_stopped_app_keeps_its_port_reserved
+    run_test "restart resumes a stopped app" test_restart_resumes_a_stopped_app
+    run_test "add resumes a stopped app in place" test_add_resumes_a_stopped_app_in_place
+    run_test "add still rejects a running app" test_add_still_rejects_a_running_app
+    run_test "stop defaults to the current app" test_stop_defaults_to_the_current_app
+    run_test "stop resolves an app by port" test_stop_resolves_an_app_by_port
+    run_test "stopping a stopped app is not an error" test_stopping_an_already_stopped_app_is_not_an_error
+    run_test "stop of an unknown app is reported clearly" test_stop_of_unknown_app_reports_clearly
+    run_test "stop all stops every app" test_stop_all_stops_every_app
+    run_test "stop all keeps worktrees and entries" test_stop_all_keeps_worktrees_and_entries
+    run_test "remove still tears down alongside stop" test_remove_still_tears_down_alongside_stop
+    run_test "remove aliases still tear down" test_remove_aliases_still_tear_down
+    run_test "start is still an alias for add" test_start_alias_still_creates_an_app
+    run_test "stop kills grandchildren holding the port" test_stop_kills_grandchildren_holding_the_port
 
     print_header "Remove All"
     run_test "remove all stops every app" test_remove_all_stops_every_app
@@ -1077,6 +1476,14 @@ main() {
     run_test "remove all is scoped to this repository" test_remove_all_is_scoped_to_this_repo
     run_test "remove all --global clears everything" test_remove_all_global_clears_everything
     run_test "legacy state entries are backfilled" test_legacy_state_entries_are_backfilled
+
+    print_header "Stop and Repository Scoping"
+    run_test "stop parks only this repository's app" test_stop_only_parks_this_repos_app
+    run_test "stop preserves the repo field" test_stop_preserves_the_repo_field
+    run_test "a stopped app still resolves by qualified name" test_stopped_app_still_resolves_by_qualified_name
+    run_test "stop all is scoped to this repository" test_stop_all_is_scoped_to_this_repo
+    run_test "stop all --global reaches every repository" test_stop_all_global_reaches_every_repo
+    run_test "add resumes only this repository's stopped app" test_add_resumes_only_this_repos_stopped_app
 
     print_header "Interactive Branch Selection"
     run_test "menu lists local branches" test_menu_lists_local_branches

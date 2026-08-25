@@ -22,13 +22,17 @@ rive version    # should report 1.1.0 or higher
 
 **Possible causes:**
 - Too many review apps running
+- Apps stopped with `rive stop`, which hold their ports so they can be resumed
 - Other services using ports in the configured range
 - Stale state entries from crashed processes
 
 **Solutions:**
 ```bash
-# Check how many apps are running
+# Check how many apps are running, and which are merely stopped
 rive list
+
+# Free a stopped app's port for good by tearing it down
+rive remove <branch>
 
 # Clean up stale entries from crashed processes
 rive clean

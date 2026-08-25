@@ -215,6 +215,195 @@ teardown() {
     [ ! -f "$RIVE_CURRENT_FILE" ]
 }
 
+@test "state: mark_stopped replaces the pid with the stopped sentinel" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "stop-me" "50010" "$TEST_TEMP/worktree10" "12345"
+
+    state_mark_stopped "stop-me"
+
+    local app
+    app=$(state_get_app "stop-me")
+    run parse_state_line "$app" "pid"
+    [ "$output" = "-" ]
+}
+
+@test "state: mark_stopped preserves port and worktree" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "stop-me" "50011" "$TEST_TEMP/worktree11" "12345"
+
+    state_mark_stopped "stop-me"
+
+    local app
+    app=$(state_get_app "stop-me")
+    run parse_state_line "$app" "port"
+    [ "$output" = "50011" ]
+
+    app=$(state_get_app "stop-me")
+    run parse_state_line "$app" "worktree"
+    [ "$output" = "$TEST_TEMP/worktree11" ]
+}
+
+# `rive list` calls state_clean_stale before printing, so a stopped app that
+# got reaped here would vanish the moment the user listed their apps.
+@test "state: clean_stale keeps a deliberately stopped app" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "stopped-app" "50012" "$TEST_TEMP/worktree12" "12345"
+    state_mark_stopped "stopped-app"
+
+    state_clean_stale
+
+    run state_has_app "stopped-app"
+    [ "$status" -eq 0 ]
+}
+
+@test "state: clean_stale still removes an app whose process died" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "crashed-app" "50013" "$TEST_TEMP/worktree13" 999999
+
+    state_clean_stale
+
+    run state_has_app "crashed-app"
+    [ "$status" -ne 0 ]
+}
+
+#############################################
+# Config File Precedence Tests
+#############################################
+
+# Precedence, lowest to highest: environment variables, .env, .rive.env, CLI
+# flags. `.rive.env` exists so rive settings can be kept apart from - and can
+# override - whatever else a project already puts in its general-purpose .env.
+
+@test "config: .env in the current directory is loaded" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=45000" > .env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "45000" ]
+}
+
+@test "config: .rive.env in the current directory is loaded" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=46000" > .rive.env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "46000" ]
+}
+
+@test "config: .rive.env takes precedence over .env" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=45000" > .env
+    echo "RIVE_START_PORT=46000" > .rive.env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "46000" ]
+}
+
+# .rive.env overrides key by key, it does not replace the whole file
+@test "config: .env still supplies keys .rive.env does not set" {
+    cd "$TEST_TEMP" || return 1
+    printf 'RIVE_START_PORT=45000\nRIVE_HOSTNAME=from-dot-env\n' > .env
+    echo "RIVE_START_PORT=46000" > .rive.env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "46000" ]
+    [ "$RIVE_HOSTNAME" = "from-dot-env" ]
+}
+
+@test "config: absent config files are not an error" {
+    cd "$TEST_TEMP" || return 1
+
+    run load_config_files
+    [ "$status" -eq 0 ]
+}
+
+@test "config: non-RIVE keys in .rive.env are ignored" {
+    cd "$TEST_TEMP" || return 1
+    printf 'SOME_OTHER_VAR=nope\nRIVE_START_PORT=46000\n' > .rive.env
+
+    load_config_files
+
+    [ "$RIVE_START_PORT" = "46000" ]
+    [ -z "${SOME_OTHER_VAR:-}" ]
+}
+
+@test "cli: a flag outranks .rive.env" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=46000" > .rive.env
+
+    run "$RIVE_DIR/bin/rive" --start-port 51234 config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_START_PORT=51234"* ]]
+}
+
+@test "cli: a flag outranks .env" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_START_PORT=45000" > .env
+
+    run "$RIVE_DIR/bin/rive" --start-port 51234 config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_START_PORT=51234"* ]]
+}
+
+@test "cli: --hostname outranks .rive.env" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_HOSTNAME=from-file" > .rive.env
+
+    run "$RIVE_DIR/bin/rive" --hostname from-flag config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_HOSTNAME=from-flag"* ]]
+}
+
+@test "cli: .rive.env is used when no flag overrides it" {
+    cd "$TEST_TEMP" || return 1
+    echo "RIVE_HOSTNAME=from-rive-env" > .rive.env
+
+    run "$RIVE_DIR/bin/rive" config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RIVE_HOSTNAME=from-rive-env"* ]]
+}
+
+# `rive use` with no current app offers a y/n prompt. Nothing guarded that
+# prompt against a non-interactive stdin, so any pipeline or CI job that ran it
+# sat on `read` until the writer went away - forever, in practice. Uses a
+# background process and a bounded wait rather than `timeout`, which is not on
+# a stock macOS.
+@test "cli: use does not block on a prompt when stdin is not a terminal" {
+    cd "$TEST_TEMP" || return 1
+    git init -q . && git config user.email t@example.com && git config user.name T
+    git commit -q --allow-empty -m "init"
+
+    init_state_file
+    printf 'feature/alpha|50100|%s/wt|99999|1700000000\n' "$TEST_TEMP" > "$RIVE_STATE_FILE"
+    rm -f "$RIVE_CURRENT_FILE"
+
+    # An open pipe that never delivers a line
+    "$RIVE_DIR/bin/rive" use < <(sleep 30) > "$TEST_TEMP/use.out" 2>&1 &
+    local rive_pid=$!
+
+    local waited=0
+    while kill -0 "$rive_pid" 2>/dev/null && (( waited < 50 )); do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+
+    if kill -0 "$rive_pid" 2>/dev/null; then
+        kill -9 "$rive_pid" 2>/dev/null
+        echo "rive use blocked waiting for input" >&2
+        false
+    fi
+
+    grep -q "Usage: rive use" "$TEST_TEMP/use.out"
+}
+
 #############################################
 # Port Management Tests
 #############################################
@@ -255,6 +444,29 @@ teardown() {
     run find_available_port
     [ "$status" -eq 0 ]
     [ "$output" -eq "$RIVE_START_PORT" ]
+}
+
+# A stopped app is resumed on its original port, so that port must stay
+# reserved - otherwise the next `rive add` takes it and the resume collides.
+@test "port: a stopped app keeps its port reserved" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "feature/stopped" "$RIVE_START_PORT" "$TEST_TEMP/wt" "12345"
+    state_mark_stopped "feature/stopped"
+
+    run is_port_allocated "$RIVE_START_PORT"
+    [ "$status" -eq 0 ]
+}
+
+@test "port: allocation skips a port held by a stopped app" {
+    init_state_file
+    : > "$RIVE_STATE_FILE"
+    state_add_app "feature/stopped" "$RIVE_START_PORT" "$TEST_TEMP/wt" "12345"
+    state_mark_stopped "feature/stopped"
+
+    run find_available_port
+    [ "$status" -eq 0 ]
+    [ "$output" -gt "$RIVE_START_PORT" ]
 }
 
 #############################################
@@ -421,6 +633,69 @@ teardown() {
     local two_days_ago=$((now - 172800))
     run calculate_uptime "$two_days_ago"
     [[ "$output" == *"d"* ]]
+}
+
+@test "process: status for the stopped sentinel returns stopped" {
+    run get_process_status "-"
+    [ "$output" = "stopped" ]
+}
+
+#############################################
+# Process Tree Tests
+#############################################
+
+# A server command is launched through `bash -c`, so the PID rive records is a
+# wrapper, not the process bound to the port. These tests use a fake server
+# that spawns a child - the shape of `npm run dev` spawning vite - to prove the
+# whole tree is signalled, not just the wrapper.
+fake_server_with_child() {
+    cat > "$TEST_TEMP/fakeserver.sh" <<'EOS'
+#!/usr/bin/env bash
+sleep 300 &
+echo $! > "$FAKE_CHILD_FILE"
+wait
+EOS
+    chmod +x "$TEST_TEMP/fakeserver.sh"
+    export FAKE_CHILD_FILE="$TEST_TEMP/child.pid"
+    export RIVE_SERVER_COMMAND="$TEST_TEMP/fakeserver.sh --port %PORT%"
+}
+
+@test "process: server is started as its own process group leader" {
+    fake_server_with_child
+    mkdir -p "$TEST_TEMP/wt"
+
+    local pid pgid
+    pid=$(start_server 50020 "$TEST_TEMP/wt")
+
+    pgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+    [ "$pgid" = "$pid" ]
+
+    kill -KILL -"$pid" 2>/dev/null || true
+}
+
+@test "process: stopping a server also kills its children" {
+    fake_server_with_child
+    mkdir -p "$TEST_TEMP/wt"
+
+    local pid child
+    pid=$(start_server 50021 "$TEST_TEMP/wt")
+    child=$(cat "$FAKE_CHILD_FILE")
+    ps -p "$child" >/dev/null 2>&1
+
+    stop_server "$pid" 50021
+
+    run ps -p "$child"
+    [ "$status" -ne 0 ]
+}
+
+@test "process: stopping an already-dead app is not an error" {
+    run stop_server 999999 50022
+    [ "$status" -eq 0 ]
+}
+
+@test "process: stopping the stopped sentinel is not an error" {
+    run stop_server "-" 50023
+    [ "$status" -eq 0 ]
 }
 
 #############################################

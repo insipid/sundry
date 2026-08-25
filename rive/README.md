@@ -26,7 +26,13 @@ rive logs
 # List all running apps
 rive list
 
-# Stop when done
+# Stop the server, keep the workspace
+rive stop
+# → Server stops; worktree and port are held for you
+rive start
+# → Same worktree, same port, back up again
+
+# Tear it down when done
 rive remove
 # → Stops server, removes worktree if clean
 ```
@@ -57,6 +63,7 @@ See [docs/installation.md](docs/installation.md) for alternative methods.
 
 - **Interactive branch selection** - Run `rive add` with no argument to pick from a list
 - **Auto worktree management** - One command creates isolated workspace
+- **Stop without teardown** - Park a server and resume it later on the same port
 - **Port allocation** - Never worry about port conflicts
 - **Current app context** - Commands work without specifying branch/port
 - **Smart cleanup** - Auto-removes worktrees (preserves uncommitted work)
@@ -73,18 +80,27 @@ RIVE_ENABLE_LOGS=true
 RIVE_AUTO_INSTALL=true
 ```
 
+Or use `.rive.env` to keep rive's settings out of an `.env` that belongs to the
+application. It is read after `.env` and overrides it key by key, so you can put
+just the values you want to change there. Precedence, highest first: CLI flags,
+`.rive.env`, `.env`, environment variables.
+
 See [docs/configuration.md](docs/configuration.md) for all options and framework-specific commands.
 
 ## Commands
 
 ```
-add [branch]         Create review app; prompts for branch if omitted
+add [branch]         Create review app, or resume a stopped one; prompts for
+                     branch if omitted
                      (aliases: start, create, new, up)
-remove [branch|port] Stop app; 'remove all' stops every app in scope
-                     (aliases: stop, delete, del, down, rm)
-list                 List all running apps (aliases: ls, l)
+stop [branch|port]   Stop app's server, keeping worktree and port
+                     'stop all' stops every app in scope
+remove [branch|port] Stop app and delete its worktree
+                     'remove all' removes every app in scope
+                     (aliases: delete, del, down, rm)
+list                 List all apps (aliases: ls, l)
 status [branch|port] Show detailed info for one app
-restart [branch]     Restart app
+restart [branch|port] Restart app (also resumes a stopped one)
 cd [branch|port]     Print worktree path
 pull [branch|port]   Pull latest changes
 logs [branch|port]   Tail server logs
@@ -173,6 +189,10 @@ rive pull
 # Check logs if needed
 rive logs
 
+# Free the port for a while without losing the worktree
+rive stop
+rive start           # Back on the same port, same worktree
+
 # Work on another feature while keeping first one running
 rive add feature/user-profile
 # → New server on port 40001, now current
@@ -185,7 +205,7 @@ rive remove feature/checkout-flow
 rive remove feature/user-profile
 
 # Or stop everything at once
-rive remove --all
+rive remove all
 ```
 
 ## Troubleshooting

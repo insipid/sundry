@@ -13,12 +13,29 @@ RIVE_ENABLE_LOGS="${RIVE_ENABLE_LOGS:-false}"
 RIVE_VERBOSE="${RIVE_VERBOSE:-false}"
 RIVE_DEFAULT_SCOPE="${RIVE_DEFAULT_SCOPE:-local}"
 
-# Load .env file if it exists
+# Config files read from the current directory, in ASCENDING order of
+# precedence - each one overwrites keys set by the one before it.
+#
+# `.rive.env` is the rive-specific file. It sits above a project's
+# general-purpose `.env` so rive settings can be kept apart from whatever else
+# the project keeps there, and so they win when both files set the same key.
+RIVE_CONFIG_FILES=(".env" ".rive.env")
+
+# Load every config file present, lowest precedence first
+load_config_files() {
+    local file
+    for file in "${RIVE_CONFIG_FILES[@]}"; do
+        load_env_file "$file"
+    done
+    return 0
+}
+
+# Load one env-style file if it exists
 load_env_file() {
-    local env_file=".env"
+    local env_file="${1:-.env}"
 
     if [[ ! -f "$env_file" ]]; then
-        log_debug "No .env file found at $env_file"
+        log_debug "No $env_file file found in $(pwd)"
         return 0
     fi
 
@@ -43,7 +60,7 @@ load_env_file() {
         # Export if it's a RIVE_ variable
         if [[ "$key" =~ ^RIVE_ ]]; then
             export "$key=$value"
-            log_debug "Loaded $key from .env"
+            log_debug "Loaded $key from $env_file"
         fi
     done < "$env_file"
 
@@ -136,13 +153,28 @@ validate_paths_writable() {
     return 0
 }
 
+# Re-applies values that came from CLI flags.
+#
+# This has to run AFTER the config files, not before: load_env_file exports
+# whatever a file contains, so a flag set earlier would simply be overwritten
+# by any file that mentions the same key. Flags are held in RIVE_FLAG_* by the
+# argument parser precisely so they can be put back on top here.
+apply_cli_overrides() {
+    [[ -n "${RIVE_FLAG_START_PORT:-}" ]] && export RIVE_START_PORT="$RIVE_FLAG_START_PORT"
+    [[ -n "${RIVE_FLAG_HOSTNAME:-}" ]] && export RIVE_HOSTNAME="$RIVE_FLAG_HOSTNAME"
+    [[ -n "${RIVE_FLAG_WORKTREE_DIR:-}" ]] && export RIVE_WORKTREE_DIR="$RIVE_FLAG_WORKTREE_DIR"
+    [[ -n "${RIVE_FLAG_VERBOSE:-}" ]] && export RIVE_VERBOSE="$RIVE_FLAG_VERBOSE"
+    return 0
+}
+
 # Initialize configuration
 init_config() {
-    # Load .env file first (lower precedence)
-    load_env_file
-
-    # Environment variables are already loaded (medium precedence)
-    # CLI flags will override later (highest precedence)
+    # Precedence, lowest to highest:
+    #   environment variables  <  .env  <  .rive.env  <  CLI flags
+    # Environment variables are already in place, having seeded the defaults
+    # at the top of this file.
+    load_config_files
+    apply_cli_overrides
 
     # Validate configuration
     validate_config || error_exit 10 "Configuration validation failed"
