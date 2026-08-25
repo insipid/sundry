@@ -147,8 +147,9 @@ EXAMPLES:
     # Substitute it to navigate:
     cd \$(rive cd feature/new-ui)
 
-    # Or define this alias once in your shell profile, then just run 'rivecd'
-    alias rivecd='cd \$(rive cd)'
+    # Or define this function once in your shell profile, then just run
+    # 'rivecd' for the current app or 'rivecd feature/new-ui' for another
+    rivecd() { cd "\$(rive cd "\$@")"; }
 
     # Show configuration
     rive config
