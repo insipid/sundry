@@ -10,7 +10,7 @@
 #
 #   argument         env var                         default
 #   ---------------  ------------------------------  ------------------------------
-#   output-file      CAPTAINSLOG_FILE                ~/Desktop/voice-notes.txt
+#   output-file      CAPTAINSLOG_FILE                ~/Documents/voice-notes.txt
 #   --mode           CAPTAINSLOG_MODE                "Captain's Log"
 #   --watch          CAPTAINSLOG_WATCH               (unset — single pass, no watch)
 #   (none)           CAPTAINSLOG_RECORDINGS_DIR      auto-detected (see below)
@@ -97,7 +97,7 @@ DEFAULT_POLL_FALLBACK=60
 # an apostrophe inside a ${VAR:-default} default value breaks bash's
 # parser even inside double quotes (confirmed while testing this), so
 # this form is used throughout for safety, not just here.
-OUTPUT_FILE="$HOME/Desktop/voice-notes.txt"
+OUTPUT_FILE="$HOME/Documents/voice-notes.txt"
 [ -n "${CAPTAINSLOG_FILE:-}" ] && OUTPUT_FILE="$CAPTAINSLOG_FILE"
 
 MODE_NAME="Captain's Log"
@@ -180,7 +180,7 @@ usage() {
 Usage: $(basename "$0") [output-file] [--mode "Mode Name"] [--watch [SECONDS]] [-q] [--with-viewer] [-k]
 
   output-file    Where transcriptions get appended.
-                 Default: \$CAPTAINSLOG_FILE, or ~/Desktop/voice-notes.txt
+                 Default: \$CAPTAINSLOG_FILE, or ~/Documents/voice-notes.txt
 
   --mode         Superwhisper Mode to pull from.
                  Default: \$CAPTAINSLOG_MODE, or "Captain's Log"

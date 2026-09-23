@@ -12,7 +12,7 @@ setting it once points both tools at the same transcript file.
 
     argument   env var             default
     ---------  ------------------  --------------------------
-    file       CAPTAINSLOG_FILE    ~/Desktop/voice-notes.txt
+    file       CAPTAINSLOG_FILE    ~/Documents/voice-notes.txt
     --port     CAPTAINSLOG_PORT    8420
     -q         (no env var)        off — status messages print
 
@@ -35,7 +35,7 @@ import signal
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-DEFAULT_FILE = os.path.expanduser("~/Desktop/voice-notes.txt")
+DEFAULT_FILE = os.path.expanduser("~/Documents/voice-notes.txt")
 DEFAULT_PORT = 8420
 
 # Matches the "[YYYY-MM-DD HH:MM:SS]" stamps captainslog.sh writes, and

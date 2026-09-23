@@ -2,10 +2,11 @@
 
 Speak into (Superwhisper)[https://superwhisper.com/], get a timestamped text log. Use it for brief updates/statuses/thoughts. Optionally, watch it update live in a browser.
 
-Two independent scripts, no daemons, no installed services:
+Independent scripts, no daemons, no installed services:
 
 - **`captainslog.sh`** — pulls transcriptions from one Superwhisper Mode into a plain text file.
 - **`captainslog-viewer.py`** — a live, styled, local web view of that file.
+- **`supplemental.sh`** — the same kind of text file, fed by [VoiceInk](https://tryvoiceink.com/) instead (see [Supplemental: VoiceInk](#supplemental-voiceink)).
 
 _N.B. This is necessarily based on precisely "Superwhisper running on MacOS", because that's what I'm using. It is not designed to be more general than that. If you want, break it into pieces and reassemble your own._
 
@@ -37,7 +38,7 @@ captainslog.sh [output-file] [--mode "Mode Name"] [--watch [SECONDS]] [-q] [--wi
 
 | Flag | Env var | Default |
 |---|---|---|
-| `output-file` | `CAPTAINSLOG_FILE` | `~/Desktop/voice-notes.txt` |
+| `output-file` | `CAPTAINSLOG_FILE` | `~/Documents/voice-notes.txt` |
 | `--mode` | `CAPTAINSLOG_MODE` | `"Captain's Log"` |
 | `--watch` | `CAPTAINSLOG_WATCH` | off (single pass, then exit) |
 | `-q`, `--quiet` | — | off (status messages print) |
@@ -72,13 +73,55 @@ captainslog-viewer.py [file] [--port PORT] [-q]
 
 | Flag | Env var | Default |
 |---|---|---|
-| `file` | `CAPTAINSLOG_FILE` | `~/Desktop/voice-notes.txt` |
+| `file` | `CAPTAINSLOG_FILE` | `~/Documents/voice-notes.txt` |
 | `--port` | `CAPTAINSLOG_PORT` | `8420` |
 | `-q` | — | off |
 
 Standard library Python only, nothing to install. Binds to `127.0.0.1` only — not exposed to the network. It never writes anything to disk itself; it just re-reads the transcript file on each request and serves it as a styled page that polls for updates every couple of seconds, newest-first by default (toggle to flip it). Run it on its own, or let `captainslog.sh --with-viewer` launch and manage it for you.
 
 `CAPTAINSLOG_FILE` is shared between both scripts on purpose — set it once and both tools point at the same file without repeating the path.
+
+## Supplemental: VoiceInk
+
+VoiceInk can run a shell command after every recording, handing it the transcript in `$VOICEINK_TRANSCRIPT`. So instead of pulling from a recordings folder, the transcript is pushed to us — `supplemental.sh` just appends it, one entry per recording, in the exact same `[YYYY-MM-DD HH:MM:SS]` format `captainslog.sh` writes. No `jq`, no `--watch`, no cursor.
+
+It writes to its **own** file, never the Superwhisper one — the two sources are kept separate.
+
+```
+supplemental.sh [output-file]
+```
+
+| Flag | Env var | Default |
+|---|---|---|
+| `output-file` | `CAPTAINSLOG_SUPPLEMENTAL_FILE` | `~/Documents/voiceink-notes.txt` |
+
+**Setup:** in VoiceInk's run-a-command setting, put the full path to the script:
+
+```
+/path/to/sundry/captainslog/supplemental.sh
+```
+
+or, to log somewhere other than the default, add the file:
+
+```
+/path/to/sundry/captainslog/supplemental.sh "$HOME/notes/voiceink-log.txt"
+```
+
+VoiceInk runs this without your shell profile, so a `CAPTAINSLOG_SUPPLEMENTAL_FILE` exported in `~/.zshrc` won't be seen, and nothing on a custom `PATH` will be either — hence the full path, and passing the file as an argument rather than relying on the env var.
+
+**Viewing it:** same viewer, pointed at this file:
+
+```bash
+captainslog-viewer.py ~/Documents/voiceink-notes.txt
+```
+
+**Testing by hand**, without dictating anything:
+
+```bash
+VOICEINK_TRANSCRIPT="Testing, one two." ./supplemental.sh /tmp/test.txt
+```
+
+An empty transcript writes nothing.
 
 ## Design notes
 
