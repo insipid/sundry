@@ -14,7 +14,7 @@ rive add
 # Or name the branch directly
 rive add feature/new-ui
 
-# Navigate to the worktree (add alias: alias rivecd='cd $(rive cd)')
+# Navigate to the worktree (define: rivecd() { cd "$(rive cd "$@")"; })
 rivecd
 
 # Pull latest changes
@@ -180,7 +180,7 @@ rive add feature/checkout-flow
 # → Worktree created, server running, set as current
 
 # Make some changes, test them
-rivecd  # Navigate to worktree (using alias)
+rivecd  # Navigate to worktree (using the shell function)
 # ... edit files ...
 
 # Pull latest from remote
