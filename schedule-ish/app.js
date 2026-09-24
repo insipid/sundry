@@ -83,6 +83,7 @@
   // ---- rendering -----------------------------------------------------------
 
   function render() {
+    placeSidebar();
     renderSidebar();
     renderBoard();
     focusEditor();
@@ -131,9 +132,23 @@
 
       <section class="mt-auto text-[11.5px] leading-relaxed" style="color:var(--muted)">
         <p><b class="font-semibold">Drag down</b> in a day to rough out a chunk, or click for a default one.</p>
-        <p>Drag edges to resize. Double-click to rename. Drop a regular on a <b class="font-semibold">day name</b> to put it in its usual spot.</p>
-        <p>Drag a <b class="font-semibold">zone name</b> (midday, afternoon…) to move where it starts. <b class="font-semibold">+ early / + evening</b> add the ends of the day.</p>
+        <p>Drag edges to resize. Double-click to rename. <b class="font-semibold">⌥-drag</b> to copy. Drop a regular on a <b class="font-semibold">day name</b> to put it in its usual spot.</p>
+        <p>Drag a <b class="font-semibold">zone name</b> (midday, afternoon…) to move where it starts. <b class="font-semibold">+ early / + evening</b> add the ends of the day; click the word to tuck it away.</p>
       </section>`;
+  }
+
+  // Sidebar on the left or right (or hidden). The aside has its own 8px
+  // padding, so the page edge on its side gets less.
+  function placeSidebar() {
+    const { sidebar, sidebarHidden } = state.settings;
+    const main = $('#main');
+    // Inline styles, not Tailwind classes: the browser build generates CSS
+    // for new classes a beat later, and `hidden` would lose to `flex` anyway.
+    main.style.flexDirection = sidebar === 'right' ? 'row-reverse' : 'row';
+    main.style.paddingLeft = !sidebarHidden && sidebar === 'left' ? '12px' : '20px';
+    main.style.paddingRight = !sidebarHidden && sidebar === 'right' ? '12px' : '20px';
+    $('#sidebar').style.display = sidebarHidden ? 'none' : '';
+    $('[data-cmd="toggle-sidebar"]').classList.toggle('on', !sidebarHidden);
   }
 
   function measureStep() {
@@ -175,7 +190,7 @@
       <div class="zone-label ${movable ? 'movable' : ''} ${optional ? 'optional' : ''} ${active ? 'active' : ''}"
            ${movable || optional ? `data-zone-label="${z.id}" title="${tip.charAt(0).toUpperCase() + tip.slice(1)}"` : ''}
            style="top:${Math.max(0, (z.start - r0) * px - 6)}px">
-        <span>${z.label}${optional ? '<i class="zone-minus">−</i>' : ''}</span>
+        <span>${optional ? '<i class="zone-minus">−</i>' : ''}${z.label}</span>
       </div>`;
     }).join('');
 
@@ -243,6 +258,7 @@
            ${roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : ''}`}
       ${isGhost ? '' : `<div class="tools ${roomy ? 'at-bottom' : ''}">
         <button class="tool" data-action="color" title="Change colour" style="color:inherit">●</button>
+        <button class="tool" data-action="duplicate" title="Duplicate (or ⌥-drag)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="3"/><path d="M16 8V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h2"/></svg></button>
         <button class="tool" data-action="make-regular" title="Save as a regular">☆</button>
         <button class="tool" data-action="delete" title="Delete (⌫)">×</button>
       </div>`}
@@ -307,6 +323,7 @@
       beginDrag(e, {
         kind: edge ? 'resize-' + edge.dataset.edge : 'move',
         blockId: b.id,
+        copy: e.altKey && !edge, // ⌥-drag leaves a copy behind
         grab: stepAt(rect, e.clientY) - b.start,
         orig: { day: b.day, start: b.start, size: b.size },
       });
@@ -353,7 +370,7 @@
     const d = ui.drag;
     if (!d) return;
     ui.drag = null;
-    document.body.classList.remove('dragging', 'resizing', 'creating');
+    document.body.classList.remove('dragging', 'resizing', 'creating', 'copying');
     if (d.active) DRAGS[d.kind].end(d, e);
     else if (DRAGS[d.kind].click) DRAGS[d.kind].click(d, e);
   });
@@ -362,7 +379,7 @@
     const d = ui.drag;
     if (!d) return;
     ui.drag = null;
-    document.body.classList.remove('dragging', 'resizing', 'creating');
+    document.body.classList.remove('dragging', 'resizing', 'creating', 'copying');
     if (d.floating) d.floating.remove();
     state = JSON.parse(d.snap);
     ui.ghost = null;
@@ -371,7 +388,11 @@
 
   function startActive(d, e) {
     const body = document.body.classList;
-    if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
+    if (d.copy) {
+      const b = findBlock(d.blockId);
+      state.blocks.push({ ...b, id: M.newId() });
+      body.add('copying');
+    } else if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
     else if (d.kind === 'create') body.add('creating');
     else if (d.kind !== 'boundary' || d.movable) body.add('resizing');
     if (d.kind === 'regular' || d.kind === 'unplaced') {
@@ -637,6 +658,16 @@
         case 'delete':
           ui.selectedId = null;
           return commit(s => { s.blocks = s.blocks.filter(b => b.id !== id); });
+        case 'duplicate': {
+          const b = findBlock(id);
+          const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+          const spot = M.duplicateSpot(state.blocks, b, days, ui.range, ui.zones);
+          const copy = { ...b, id: M.newId(), ...spot };
+          ui.selectedId = copy.id;
+          commit(s => s.blocks.push(copy));
+          if (spot.day !== b.day) toast(`No room after it, so the copy went to ${M.DAY_LONG[spot.day]}`);
+          return;
+        }
         case 'color':
           return commit(() => { const b = findBlock(id); b.color = (b.color + 1) % M.PALETTE.length; });
         case 'make-regular': {
@@ -662,6 +693,7 @@
       case 'settings': return openSettings(cmd);
       case 'new-regular': return editRegular(null, cmd);
       case 'print': return window.print();
+      case 'toggle-sidebar': return commit(s => { s.settings.sidebarHidden = !s.settings.sidebarHidden; });
       case 'show-zone':
         pushUndo();
         if (setZone(cmd.dataset.zone, true)) save(); else undoStack.pop();
@@ -758,6 +790,10 @@
       <div class="seg" data-f="weekStart">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
       <label>days to show</label>
       <div class="seg" data-f="visible">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
+      <label>sidebar</label>
+      <div class="seg" data-f="sidebar">
+        <button data-v="left">left</button><button data-v="right">right</button><button data-v="hidden">hidden</button>
+      </div>
       <label>stretch the day</label>
       <div class="seg" data-f="zones">
         <button data-v="early">early</button><button data-v="evening">evening</button>
@@ -769,6 +805,8 @@
       const sync = () => {
         el.querySelectorAll('[data-f="weekStart"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === state.settings.weekStart));
         el.querySelectorAll('[data-f="visible"] button').forEach(b => b.classList.toggle('on', state.settings.visibleDays[+b.dataset.v]));
+        const sb = state.settings.sidebarHidden ? 'hidden' : state.settings.sidebar;
+        el.querySelectorAll('[data-f="sidebar"] button').forEach(b => b.classList.toggle('on', b.dataset.v === sb));
         el.querySelectorAll('[data-f="zones"] button').forEach(b => b.classList.toggle('on', b.dataset.v === 'early' ? state.view.showEarly : state.view.showEvening));
       };
       sync();
@@ -781,6 +819,12 @@
           const i = +b.dataset.v;
           if (state.settings.visibleDays.filter(Boolean).length === 1 && state.settings.visibleDays[i]) return toast('Keep at least one day');
           commit(s => { s.settings.visibleDays[i] = !s.settings.visibleDays[i]; });
+        } else if (f === 'sidebar') {
+          const v = b.dataset.v;
+          commit(s => {
+            s.settings.sidebarHidden = v === 'hidden';
+            if (v !== 'hidden') s.settings.sidebar = v;
+          });
         } else if (f === 'zones') {
           const shown = b.dataset.v === 'early' ? state.view.showEarly : state.view.showEvening;
           pushUndo();
