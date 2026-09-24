@@ -172,3 +172,32 @@ tools feel:
   same spot on the next visible day, else the first free gap that day.
   ⌥-drag drags a copy.
 - Strapline: "your week on a napkin".
+
+## Round 5 (2026-09-24): named weeks and notes
+
+**Weeks (plan version 3).** A plan is a list of weeks plus `currentWeek`.
+Each week has an id, a name, `view` (early/evening), `zones` and `blocks`.
+Settings (including days shown), regulars and unplaced are global. Weeks are
+live, named instances, not templates you stamp out: loading one and editing
+it changes that week. The header dropdown switches weeks, starts a new blank
+one or a copy of the current one (`copyWeek`: deep, fresh ids, notes and
+ticks kept), and renames or deletes the current one. Every week action is
+one undo step, switching included, because undo snapshots the whole plan.
+v1/v2 plans become one week called "My week".
+
+**Notes.** `notes: [{ text, check }]` on blocks, regulars (default notes)
+and unplaced items. `check` is `null` for a bullet and `false`/`true` for a
+tick box. Double-click opens a dialog focused on the notes: a
+one-input-per-line outliner (Enter = new line of the same kind, Backspace
+on empty = remove, click the mark to cycle • → ☐ → ☑). Enter on a selected
+block keeps the quick inline rename. The board shows "⋯" for a block with
+notes, never the text. Carry-over: duplicate, ⌥-drag, new-from-this-week and
+unplaced round trips keep notes and ticks, and dropping a regular copies its
+default notes.
+
+**Print.** A second page (`break-before: page`) lists noted blocks in board
+day order, top to bottom (`notesForPrint`), each under a "Day · name"
+heading. There's no second page if nothing has notes.
+
+Open: the notes UI is a first cut meant to be tried. Richer lines
+(nesting, reordering) wait until it's clearer what's wanted.

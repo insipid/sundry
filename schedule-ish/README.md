@@ -26,6 +26,18 @@ CDNs, so it needs a network connection on first load.
 
 ## Using it
 
+**Weeks.** The dropdown next to the title shows which week you're on, e.g.
+*My week ▾*. Each week is its own live board, with its own blocks, zone
+breaks and early/evening. Whatever you change is saved into the week you're
+on. The dropdown can:
+- switch to another week;
+- start a **new blank week**, or a **new one from this week** (a full copy,
+  notes and ticks included);
+- **rename** or **delete** this week (deleting asks first, and ⌘Z brings it
+  back).
+
+Days shown, regulars and the unplaced list are shared by all weeks.
+
 **The day** has no hours. It's split into soft zones: *morning*, *midday*
 (tinted, for lunch) and *afternoon*. Faint lines mark steps, and blocks snap
 to those steps. The visible zones always fill the board's full height.
@@ -50,7 +62,8 @@ to those steps. The visible zones always fill the board's full height.
   Type a name and press Enter. Escape (or leaving it blank) throws it away.
 - **Drag** a block to move it, including to another day.
 - **Drag its top or bottom edge** to resize it.
-- **Double-click** (or select it and press Enter) to rename.
+- **Double-click** to open its **notes** (the title is editable there too).
+  Select a block and press Enter for a quick inline rename.
 - Hover for tools: ● change colour, ⧉ duplicate, ☆ save as a regular,
   × delete. Delete or Backspace also removes the selected block.
 - **Duplicate** puts the copy straight after the original. If there's no
@@ -60,6 +73,14 @@ to those steps. The visible zones always fill the board's full height.
 - Blocks that overlap sit side by side. Sizes read as *a smidge*, *a bit*,
   *a good bit* or *a big chunk* rather than durations.
 - Blocks with the same name get the same colour.
+
+**Notes** are a short list of lines. Type, and press Enter for the next line.
+Backspace on an empty line removes it. Click a line's **•** to turn it into
+a tick box **☐**, then **☑**, then back. A new line after a tick box is a
+tick box too. Escape, ⌘Enter or *Done* closes the dialog. A block with notes
+shows **⋯** on the board; the text itself stays in the dialog. Notes travel
+with duplicates, copies of the week, and trips to the unplaced list.
+Regulars can hold **default notes**, which each copy you drop starts with.
 
 **Regulars** (sidebar) are templates for things you do often: a name, a
 rough size, a usual zone and a colour. Dragging one onto the week drops a
@@ -73,9 +94,11 @@ somewhere. Type one in and press Enter. Dragging it onto the week *moves* it
 there. Dragging a block from the week back onto this list takes it off the
 week.
 
-**PDF** is a shortcut for the browser's print (⌘P does the same). It opens the print dialog with just the week on one landscape page.
-The sidebar and buttons are hidden and the colours are kept. Choose "Save
-as PDF" as the destination, or print it.
+**PDF** is a shortcut for the browser's print (⌘P does the same). It opens
+the print dialog with the week on one landscape page. The week's name is at
+the top, the sidebar and buttons are hidden, and the colours are kept. If
+any blocks have notes, a **second page** lists them under "Day · name"
+headings. Choose "Save as PDF" as the destination, or print it.
 
 **Sidebar**: the header button next to undo shows or hides it. Settings
 can put it on the left or the right.
@@ -86,11 +109,11 @@ side, and the optional zones. You can also clear all blocks there. **Undo/redo**
 
 ## Saving
 
-Everything autosaves to the browser's `localStorage`, per browser and per
+Everything (all weeks) autosaves to the browser's `localStorage`, per browser and per
 origin. That means opening the file directly and serving it over
 `localhost` give you separate plans.
 
-**Export** downloads the plan as JSON. **Import** loads one back and
+**Export** downloads everything (all weeks, regulars, unplaced) as JSON. **Import** loads one back and
 replaces the current plan (undoable).
 
 ## Code
