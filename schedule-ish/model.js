@@ -5,18 +5,35 @@
 
   // A day is a run of "steps" (the snap unit), grouped into zones. Block
   // positions are absolute steps from the top of `early`, so showing or
-  // hiding the optional zones never moves anything.
-  const ZONES = [
-    { id: 'early', label: 'early', steps: 3, optional: true },
-    { id: 'morning', label: 'morning', steps: 4 },
-    { id: 'midday', label: 'midday', steps: 2 },
-    { id: 'afternoon', label: 'afternoon', steps: 4 },
-    { id: 'evening', label: 'evening', steps: 4, optional: true },
-  ];
-  let acc = 0;
-  for (const z of ZONES) { z.start = acc; acc += z.steps; z.end = acc; }
-  const TOTAL_STEPS = acc;
+  // hiding the optional zones never moves anything. The day's length is
+  // fixed; the breaks between zones can move (see moveBoundary).
+  const ZONE_IDS = ['early', 'morning', 'midday', 'afternoon', 'evening'];
+  const OPTIONAL = { early: true, evening: true };
+  const DEFAULT_ZONE_SIZES = { early: 3, morning: 4, midday: 2, afternoon: 4, evening: 4 };
+  const TOTAL_STEPS = ZONE_IDS.reduce((n, id) => n + DEFAULT_ZONE_SIZES[id], 0);
   const FULL_RANGE = { start: 0, end: TOTAL_STEPS };
+
+  // Zone sizes (steps per zone) → [{ id, label, steps, start, end, optional }]
+  function zonesFor(sizes) {
+    let acc = 0;
+    return ZONE_IDS.map(id => {
+      const z = { id, label: id, steps: sizes[id], start: acc, end: acc + sizes[id], optional: !!OPTIONAL[id] };
+      acc = z.end;
+      return z;
+    });
+  }
+  const ZONES = zonesFor(DEFAULT_ZONE_SIZES);
+
+  // Move the break at the top of `zoneId` to `newStart`, trading steps with
+  // the zone above only. Both keep at least one step.
+  function moveBoundary(sizes, zoneId, newStart) {
+    const zones = zonesFor(sizes);
+    const i = zones.findIndex(z => z.id === zoneId);
+    if (i <= 0) return { ...sizes };
+    const above = zones[i - 1], z = zones[i];
+    const at = Math.max(above.start + 1, Math.min(z.end - 1, Math.round(newStart)));
+    return { ...sizes, [above.id]: at - above.start, [z.id]: z.end - at };
+  }
 
   const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const DAY_LONG = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -33,19 +50,22 @@
     ['#e6e4df', '#6e6a61'], // stone
   ];
 
-  const zone = id => ZONES.find(z => z.id === id);
-  const zoneStart = id => zone(id).start;
+  // The zone-aware helpers take an optional `zones` layout (from zonesFor),
+  // defaulting to the standard one.
+  const zone = (id, zones = ZONES) => zones.find(z => z.id === id);
+  const zoneStart = (id, zones = ZONES) => zone(id, zones).start;
+  const zoneAt = (step, zones = ZONES) => (zones.find(z => step >= z.start && step < z.end) || zones[zones.length - 1]).id;
 
-  function visibleRange(view) {
+  function visibleRange(view, zones = ZONES) {
     return {
-      start: view.showEarly ? 0 : zoneStart('morning'),
-      end: view.showEvening ? TOTAL_STEPS : zoneStart('evening'),
+      start: view.showEarly ? 0 : zoneStart('morning', zones),
+      end: view.showEvening ? TOTAL_STEPS : zoneStart('evening', zones),
     };
   }
 
-  function visibleZones(view) {
-    const r = visibleRange(view);
-    return ZONES.filter(z => z.start >= r.start && z.end <= r.end);
+  function visibleZones(view, zones = ZONES) {
+    const r = visibleRange(view, zones);
+    return zones.filter(z => z.start >= r.start && z.end <= r.end);
   }
 
   function clampBlock(start, size, range) {
@@ -93,17 +113,17 @@
   // Where to drop a `size`-step block on `day` when we only know its home
   // zone: the first gap at or after the zone start, else anywhere in range,
   // else the zone start anyway (overlapping is allowed, just untidy).
-  function firstFreeGap(blocks, day, size, zoneId, range) {
+  function firstFreeGap(blocks, day, size, zoneId, range, zones = ZONES) {
     const mine = blocks.filter(x => x.day === day);
-    const home = clampBlock(zoneStart(zoneId), size, range).start;
+    const home = clampBlock(zoneStart(zoneId, zones), size, range).start;
     const fits = s => !mine.some(x => overlaps({ start: s, size }, x));
     for (let s = home; s + size <= range.end; s++) if (fits(s)) return s;
     for (let s = range.start; s < home; s++) if (fits(s)) return s;
     return home;
   }
 
-  function canHide(zoneId, blocks) {
-    const z = zone(zoneId);
+  function canHide(zoneId, blocks, zones = ZONES) {
+    const z = zone(zoneId, zones);
     if (zoneId === 'early') return !blocks.some(x => x.start < z.end);
     return !blocks.some(x => x.start + x.size > z.start);
   }
@@ -123,6 +143,7 @@
       version: 1,
       settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true] },
       view: { showEarly: false, showEvening: false },
+      zones: { ...DEFAULT_ZONE_SIZES },
       blocks: [],
       regulars: [
         { id: 'r-gym', title: 'Gym', size: 3, color: 1, zone: 'morning' },
@@ -157,17 +178,22 @@
       .filter(x => x && typeof x.title === 'string')
       .map(x => ({ id: id(x.id), title: x.title, size: clampBlock(0, x.size || 2, FULL_RANGE).size, color: color(x.color) }));
 
+    const rz = raw.zones || {};
+    const zonesOk = ZONE_IDS.every(k => int(rz[k], 1, TOTAL_STEPS)) && ZONE_IDS.reduce((n, k) => n + rz[k], 0) === TOTAL_STEPS;
+    const zoneSizes = zonesOk ? Object.fromEntries(ZONE_IDS.map(k => [k, rz[k]])) : { ...DEFAULT_ZONE_SIZES };
+    const layout = zonesFor(zoneSizes);
+
     const v = raw.view || {};
     const view = {
-      showEarly: Boolean(v.showEarly) || !canHide('early', blocks),
-      showEvening: Boolean(v.showEvening) || !canHide('evening', blocks),
+      showEarly: Boolean(v.showEarly) || !canHide('early', blocks, layout),
+      showEvening: Boolean(v.showEvening) || !canHide('evening', blocks, layout),
     };
-    return { version: 1, settings, view, blocks, regulars, unplaced };
+    return { version: 1, settings, view, zones: zoneSizes, blocks, regulars, unplaced };
   }
 
   const Model = {
-    ZONES, TOTAL_STEPS, DAY_NAMES, DAY_LONG, PALETTE,
-    zone, zoneStart, visibleRange, visibleZones, clampBlock, orderedDays,
+    ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, DAY_NAMES, DAY_LONG, PALETTE,
+    zonesFor, moveBoundary, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
     defaultState, normalizeState,
   };

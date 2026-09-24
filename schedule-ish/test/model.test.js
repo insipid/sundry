@@ -120,3 +120,48 @@ test('normalizeState rejects things that are not a plan', () => {
   assert.throws(() => M.normalizeState([1, 2]));
   assert.throws(() => M.normalizeState('hello'));
 });
+
+// ---- adjustable zone breaks ----
+
+test('zonesFor lays zones out from per-zone step counts', () => {
+  const z = M.zonesFor({ early: 2, morning: 5, midday: 2, afternoon: 4, evening: 4 });
+  assert.deepEqual(z.map(x => [x.id, x.start, x.end]), [
+    ['early', 0, 2], ['morning', 2, 7], ['midday', 7, 9], ['afternoon', 9, 13], ['evening', 13, 17],
+  ]);
+  assert.deepEqual(M.zonesFor(M.DEFAULT_ZONE_SIZES).map(x => x.start), M.ZONES.map(x => x.start));
+});
+
+test('moveBoundary moves the break between a zone and the one above it', () => {
+  const s = M.DEFAULT_ZONE_SIZES; // morning 3..7, midday 7..9, afternoon 9..13
+  assert.deepEqual(M.moveBoundary(s, 'midday', 8), { ...s, morning: 5, midday: 1 });
+  assert.deepEqual(M.moveBoundary(s, 'midday', 5), { ...s, morning: 2, midday: 4 });
+  // afternoon's break moves between midday and afternoon only
+  assert.deepEqual(M.moveBoundary(s, 'afternoon', 11), { ...s, midday: 4, afternoon: 2 });
+});
+
+test('moveBoundary keeps both neighbours at least one step', () => {
+  const s = M.DEFAULT_ZONE_SIZES;
+  assert.deepEqual(M.moveBoundary(s, 'midday', 20), { ...s, morning: 5, midday: 1 });
+  assert.deepEqual(M.moveBoundary(s, 'midday', -5), { ...s, morning: 1, midday: 5 });
+});
+
+test('moveBoundary leaves the first zone alone (nothing above it)', () => {
+  assert.deepEqual(M.moveBoundary(M.DEFAULT_ZONE_SIZES, 'early', 2), M.DEFAULT_ZONE_SIZES);
+});
+
+test('zone-aware helpers follow custom zones', () => {
+  const zones = M.zonesFor({ early: 2, morning: 5, midday: 2, afternoon: 3, evening: 5 });
+  assert.deepEqual(M.visibleRange({ showEarly: false, showEvening: false }, zones), { start: 2, end: 12 });
+  assert.equal(M.firstFreeGap([], 0, 2, 'afternoon', { start: 2, end: 12 }, zones), 9);
+  assert.equal(M.canHide('evening', [b('a', 0, 11, 1)], zones), true);
+  assert.equal(M.canHide('evening', [b('a', 0, 12, 1)], zones), false);
+  assert.equal(M.zoneAt(8, zones), 'midday');
+});
+
+test('normalizeState keeps valid zone sizes and resets broken ones', () => {
+  const custom = { early: 2, morning: 5, midday: 2, afternoon: 4, evening: 4 };
+  assert.deepEqual(M.normalizeState({ zones: custom }).zones, custom);
+  assert.deepEqual(M.normalizeState({}).zones, M.DEFAULT_ZONE_SIZES);
+  assert.deepEqual(M.normalizeState({ zones: { ...custom, morning: 0, midday: 7 } }).zones, M.DEFAULT_ZONE_SIZES);
+  assert.deepEqual(M.normalizeState({ zones: { ...custom, morning: 9 } }).zones, M.DEFAULT_ZONE_SIZES); // wrong total
+});
