@@ -151,3 +151,24 @@ tools feel:
   height on screen.
 - PDF stays a print stylesheet. The button is just a visible shortcut for
   ⌘P, which gives the same page.
+
+## Round 4 (2026-09-24): pushing breaks, clickable zone words, sidebar, duplicate
+
+- **Breaks push blocks** (`moveBoundaryPushing`). Only the zone that
+  shrinks is affected. The line shoves the blocks it reaches, those shove
+  the next, and a gap absorbs the push. If the chain overruns the zone's far
+  edge, all the zone's blocks are laid end to end, with a step shaved off
+  the biggest until they fit (one step minimum; any extras pile on the last
+  step). Blocks straddling the break are left alone, since the line is
+  already inside them. Pushes are always computed from the drag's starting
+  positions, so dragging back restores them.
+- **Zone words are the controls.** Clicking *early* or *evening* tucks it
+  away. For evening, which is also draggable, a click tucks and a drag
+  moves. The separate − button is gone; a faint − appears on hover as a
+  hint.
+- **Sidebar**: `settings.sidebar` ('left' | 'right') and
+  `settings.sidebarHidden`, with a header toggle and a Settings segment.
+- **Duplicate** (`duplicateSpot`): straight after the original, else the
+  same spot on the next visible day, else the first free gap that day.
+  ⌥-drag drags a copy.
+- Strapline: "your week on a napkin".

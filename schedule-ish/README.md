@@ -1,6 +1,6 @@
 # schedule-ish
 
-A napkin for your week. Rough out chunks of time ("a good bit of gym in the
+Your week on a napkin. Rough out chunks of time ("a good bit of gym in the
 morning, a big chunk of writing after lunch") with no clock times. It's
 meant to show roughly where your focus goes, not to be a timetable.
 
@@ -32,11 +32,15 @@ to those steps. The visible zones always fill the board's full height.
 - **Move a break:** hover a zone name (*midday*, *afternoon*, …) until the
   cursor shows ↕, then drag. That moves where the zone starts, trading
   steps only with the zone above it. Every zone keeps at least one step, and
-  the day's overall length stays the same. Blocks don't move; only the
-  labels and lines do.
+  the day's overall length stays the same. The moving line **pushes** the
+  blocks in the zone that shrinks, and they push the next ones. If they run
+  out of room they **compress**, biggest first. Drag the line back (in the
+  same drag) and they return; otherwise ⌘Z.
 - **Early and evening** are optional. Click **+ early** or **+ evening** to
-  add one. Once it's open, hover its name and click **−** to tuck it away
-  again. A zone won't hide while blocks are still in it.
+  add one. Once it's open, **click its name** to tuck it away again (a faint
+  − shows on hover). Evening's name can also be dragged to move its break:
+  a click tucks it away, a drag moves it. A zone won't hide while blocks are
+  still in it.
 - Opening one takes a quarter of the height (a fifth each if both are open),
   and the other zones shrink proportionally. Collapsing it puts everything
   back exactly.
@@ -47,8 +51,12 @@ to those steps. The visible zones always fill the board's full height.
 - **Drag** a block to move it, including to another day.
 - **Drag its top or bottom edge** to resize it.
 - **Double-click** (or select it and press Enter) to rename.
-- Hover for tools: ● change colour, ☆ save as a regular, × delete. Delete or
-  Backspace also removes the selected block.
+- Hover for tools: ● change colour, ⧉ duplicate, ☆ save as a regular,
+  × delete. Delete or Backspace also removes the selected block.
+- **Duplicate** puts the copy straight after the original. If there's no
+  room there, it goes to the same spot on the next day (a note says so), and
+  failing that, the first free gap on the same day. Or **⌥-drag** a block to
+  drag a copy wherever you like.
 - Blocks that overlap sit side by side. Sizes read as *a smidge*, *a bit*,
   *a good bit* or *a big chunk* rather than durations.
 - Blocks with the same name get the same colour.
@@ -69,8 +77,11 @@ week.
 The sidebar and buttons are hidden and the colours are kept. Choose "Save
 as PDF" as the destination, or print it.
 
-**Settings** set the first day of the week, which days to show, and the
-optional zones. You can also clear all blocks there. **Undo/redo**:
+**Sidebar**: the header button next to undo shows or hides it. Settings
+can put it on the left or the right.
+
+**Settings** set the first day of the week, which days to show, the sidebar
+side, and the optional zones. You can also clear all blocks there. **Undo/redo**:
 ⌘Z / ⇧⌘Z (Ctrl on other platforms), or the header buttons.
 
 ## Saving
