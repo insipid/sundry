@@ -329,11 +329,20 @@
       .map(x => ({ day: x.day, title: x.title, notes: x.notes }));
   }
 
+  // Move list[from] to insertion point `to` (0..length, counted in the
+  // original list). Returns a new array.
+  function moveItem(list, from, to) {
+    const out = [...list];
+    const [item] = out.splice(from, 1);
+    out.splice(to > from ? to - 1 : to, 0, item);
+    return out;
+  }
+
   const Model = {
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
-    defaultState, normalizeState, blankWeek, copyWeek, nextCheck, notesForPrint,
+    defaultState, normalizeState, blankWeek, copyWeek, nextCheck, notesForPrint, moveItem,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;
   else root.Model = Model;

@@ -88,6 +88,8 @@ rough size, a usual zone and a colour. Dragging one onto the week drops a
 - Drop it **inside a day** to place it where you let go.
 - Drop it **on a day's name** to put it in the first free gap in its usual zone.
 - Click a regular to edit or delete it; **+ regular** makes a new one.
+- **Reorder** regulars by dragging one up or down within the list. A line
+  shows where it will land. The unplaced list reorders the same way.
 
 **Unplaced** (sidebar) is a list of one-off things you'd like to fit in
 somewhere. Type one in and press Enter. Dragging it onto the week *moves* it

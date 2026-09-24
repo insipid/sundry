@@ -378,3 +378,15 @@ test('notesForPrint lists noted blocks by visible day order, then top to bottom'
   assert.deepEqual(out.map(x => [x.day, x.title]), [[6, 'Sun thing'], [0, 'Early'], [0, 'Late']]);
   assert.deepEqual(out[0].notes, n('z'));
 });
+
+// ---- reordering the sidebar ----
+
+test('moveItem moves an item to an insertion point (0..length) in the original list', () => {
+  const l = ['a', 'b', 'c'];
+  assert.deepEqual(M.moveItem(l, 0, 3), ['b', 'c', 'a']);
+  assert.deepEqual(M.moveItem(l, 2, 0), ['c', 'a', 'b']);
+  assert.deepEqual(M.moveItem(l, 0, 2), ['b', 'a', 'c']);
+  assert.deepEqual(M.moveItem(l, 0, 0), l); // before itself
+  assert.deepEqual(M.moveItem(l, 0, 1), l); // just after itself
+  assert.deepEqual(l, ['a', 'b', 'c']);     // input untouched
+});

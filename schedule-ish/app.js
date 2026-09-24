@@ -127,12 +127,12 @@
           <h2 class="text-xs font-semibold tracking-wide" style="color:var(--muted)">REGULARS</h2>
           <button class="ml-auto text-xs px-2 py-0.5 rounded-md hover:bg-black/5" style="color:var(--muted)" data-cmd="new-regular">+ regular</button>
         </div>
-        <div class="flex flex-col gap-1.5">${regulars || `<p class="text-xs" style="color:var(--faint)">Things you do often. Drag onto a day for a copy.</p>`}</div>
+        <div id="regulars-list" class="relative flex flex-col gap-1.5">${regulars || `<p class="text-xs" style="color:var(--faint)">Things you do often. Drag onto a day for a copy.</p>`}</div>
       </section>
 
       <section id="unplaced-drop" class="rounded-xl -mx-2 px-2 py-2 transition-colors">
         <h2 class="text-xs font-semibold tracking-wide mb-2" style="color:var(--muted)">UNPLACED</h2>
-        <div class="flex flex-col gap-1.5">${unplaced}</div>
+        <div id="unplaced-list" class="relative flex flex-col gap-1.5">${unplaced}</div>
         <input id="unplaced-input" class="field mt-2 !text-[13px]" placeholder="Something to fit in…" autocomplete="off">
       </section>
 
@@ -487,8 +487,8 @@
       },
     },
 
-    regular: dropIn(r => findRegular(r), false),
-    unplaced: dropIn(u => findUnplaced(u), true),
+    regular: dropIn(r => findRegular(r), false, { list: 'regulars', key: 'regular' }),
+    unplaced: dropIn(u => findUnplaced(u), true, { list: 'unplaced', key: 'unplaced' }),
 
     boundary: {
       move(d, e) {
@@ -509,15 +509,47 @@
     },
   };
 
+  // Where in its own sidebar list a dragged item would land: an insertion
+  // index (0..length) and a line to show it, or null when not over the list.
+  function reorderTarget(own, x, y) {
+    const listEl = $(`#${own.list}-list`);
+    const r = listEl && listEl.getBoundingClientRect();
+    if (!r || x < r.left || x > r.right || y < r.top - 12 || y > r.bottom + 12) return null;
+    const chips = [...listEl.querySelectorAll(`[data-${own.key}]`)];
+    let to = chips.findIndex(c => { const b = c.getBoundingClientRect(); return y < b.top + b.height / 2; });
+    if (to === -1) to = chips.length;
+    const edge = to < chips.length ? chips[to].offsetTop - 4 : chips[chips.length - 1].offsetTop + chips[chips.length - 1].offsetHeight + 2;
+    return { to, lineTop: edge, listEl };
+  }
+  function showReorderLine(t) {
+    $$('.reorder-line').forEach(l => l.remove());
+    if (!t) return;
+    const line = document.createElement('div');
+    line.className = 'reorder-line';
+    line.style.top = t.lineTop + 'px';
+    t.listEl.appendChild(line);
+  }
+
   // Regulars (copy) and unplaced items (move) share one drag-in behaviour.
   // Drop in a column → exactly where you let go; drop on a day name → the
-  // first free gap in the item's home zone.
-  function dropIn(find, consume) {
+  // first free gap in the item's home zone; drop back in its own list →
+  // reorder that list.
+  function dropIn(find, consume, own) {
     return {
       move(d, e) {
         const item = find(d.sourceId);
         d.floating.style.left = e.clientX + 'px';
         d.floating.style.top = e.clientY + 'px';
+        const t = reorderTarget(own, e.clientX, e.clientY);
+        d.reorderTo = t ? t.to : null;
+        showReorderLine(t);
+        d.sourceEl.style.opacity = consume || t ? '.35' : '';
+        if (t) {
+          $$('.day-head').forEach(h => h.classList.remove('drop-hot'));
+          d.floating.style.visibility = 'visible';
+          if (ui.ghost) { ui.ghost = null; renderBoard(); }
+          return;
+        }
         const headDay = headAt(e.clientX, e.clientY);
         $$('.day-head').forEach(h => h.classList.toggle('drop-hot', +h.dataset.day === headDay));
         const col = headDay == null ? columnAt(e.clientX, e.clientY) : null;
@@ -535,9 +567,15 @@
       },
       end(d) {
         d.floating.remove();
+        showReorderLine(null);
         $$('.day-head').forEach(h => h.classList.remove('drop-hot'));
         const g = ui.ghost, item = find(d.sourceId);
         ui.ghost = null;
+        if (d.reorderTo != null && item) {
+          const key = own.list;
+          state[key] = M.moveItem(state[key], state[key].indexOf(item), d.reorderTo);
+          return settle(d);
+        }
         if (!g || !item) return render();
         const id = consume ? item.id : M.newId();
         week().blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color, notes: cloneNotes(item.notes) });
