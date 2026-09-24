@@ -52,6 +52,50 @@
     ['#e6e4df', '#6e6a61'], // stone
   ];
 
+  // Squeeze blocks (sorted, in order) into [lo, hi): shave a step off the
+  // biggest until they fit, then lay them end to end. If there are more
+  // blocks than steps, the extras pile up on the last step.
+  function compressInto(list, lo, hi) {
+    while (list.reduce((n, x) => n + x.size, 0) > hi - lo) {
+      const big = list.reduce((m, x) => (x.size > m.size ? x : m), list[0]);
+      if (big.size <= 1) break;
+      big.size--;
+    }
+    let at = lo;
+    for (const x of list) { x.start = Math.min(at, hi - 1); at += x.size; }
+  }
+
+  // Move the break at the top of `zoneId` like moveBoundary, and let it push
+  // the blocks of whichever zone shrinks: a moving line shoves the blocks it
+  // reaches, they shove the next ones, and if they run out of room they
+  // compress. Blocks straddling the break, and every other zone, stay put.
+  function moveBoundaryPushing(sizes, blocks, zoneId, newStart) {
+    const zones = moveBoundary(sizes, zoneId, newStart);
+    const out = blocks.map(x => ({ ...x }));
+    const before = zonesFor(sizes), i = before.findIndex(z => z.id === zoneId);
+    if (i <= 0) return { zones, blocks: out };
+    const above = before[i - 1], below = before[i];
+    const oldAt = below.start, newAt = zonesFor(zones)[i].start;
+    const days = [...new Set(out.map(x => x.day))];
+    for (const day of days) {
+      const mine = out.filter(x => x.day === day);
+      if (newAt > oldAt) {
+        // Zone below shrinks from the top: push down.
+        const list = mine.filter(x => x.start >= oldAt && x.start < below.end).sort((a, c) => a.start - c.start);
+        let wall = newAt;
+        for (const x of list) if (x.start < wall) { x.start = wall; wall = x.start + x.size; }
+        if (list.some(x => x.start + x.size > below.end)) compressInto(list, newAt, below.end);
+      } else if (newAt < oldAt) {
+        // Zone above shrinks from the bottom: push up.
+        const list = mine.filter(x => x.start >= above.start && x.start + x.size <= oldAt).sort((a, c) => c.start + c.size - (a.start + a.size));
+        let wall = newAt;
+        for (const x of list) if (x.start + x.size > wall) { x.start = wall - x.size; wall = x.start; }
+        if (list.some(x => x.start < above.start)) compressInto(list.sort((a, c) => a.start - c.start), above.start, newAt);
+      }
+    }
+    return { zones, blocks: out };
+  }
+
   // The zone-aware helpers take an optional `zones` layout (from zonesFor),
   // defaulting to the standard one.
   const zone = (id, zones = ZONES) => zones.find(z => z.id === id);
@@ -124,6 +168,18 @@
     return home;
   }
 
+  // Where a copy of `block` goes: straight after it if that's free, else the
+  // same spot on the next visible day, else the first free gap on its day.
+  function duplicateSpot(blocks, block, days, range, zones = ZONES) {
+    const free = (day, start) => start >= range.start && start + block.size <= range.end &&
+      !blocks.some(x => x.day === day && overlaps({ start, size: block.size }, x));
+    const after = block.start + block.size;
+    if (free(block.day, after)) return { day: block.day, start: after };
+    const next = days[days.indexOf(block.day) + 1];
+    if (next !== undefined && free(next, block.start)) return { day: next, start: block.start };
+    return { day: block.day, start: firstFreeGap(blocks, block.day, block.size, zoneAt(block.start, zones), range, zones) };
+  }
+
   function canHide(zoneId, blocks, zones = ZONES) {
     const z = zone(zoneId, zones);
     if (zoneId === 'early') return !blocks.some(x => x.start < z.end);
@@ -153,7 +209,7 @@
   function defaultState() {
     return {
       version: 2,
-      settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true] },
+      settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false },
       view: { showEarly: false, showEvening: false },
       zones: { ...DEFAULT_ZONE_SIZES },
       blocks: [],
@@ -176,7 +232,12 @@
 
     const s = raw.settings || {};
     const vd = Array.isArray(s.visibleDays) && s.visibleDays.length === 7 ? s.visibleDays.map(Boolean) : Array(7).fill(true);
-    const settings = { weekStart: int(s.weekStart, 0, 6) ? s.weekStart : 0, visibleDays: vd };
+    const settings = {
+      weekStart: int(s.weekStart, 0, 6) ? s.weekStart : 0,
+      visibleDays: vd,
+      sidebar: s.sidebar === 'right' ? 'right' : 'left',
+      sidebarHidden: s.sidebarHidden === true,
+    };
 
     let rawBlocks = (Array.isArray(raw.blocks) ? raw.blocks : [])
       .filter(x => x && int(x.day, 0, 6) && Number.isFinite(x.start) && Number.isFinite(x.size));
@@ -217,7 +278,7 @@
 
   const Model = {
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, DAY_NAMES, DAY_LONG, PALETTE,
-    zonesFor, moveBoundary, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
+    zonesFor, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
     defaultState, normalizeState,
   };

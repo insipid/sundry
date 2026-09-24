@@ -211,3 +211,85 @@ test('v1 plans with moved breaks or no zones use their own old layout', () => {
   const bare = M.normalizeState({ version: 1, blocks: [b('am', 0, 3, 4)] });
   assert.deepEqual([bare.blocks[0].start, bare.blocks[0].size], [4, 5]);
 });
+
+// ---- moving a break pushes, then compresses, the blocks in the shrinking zone ----
+
+const pos = (blocks, id) => { const x = blocks.find(y => y.id === id); return [x.start, x.size]; };
+
+test('moving a break down pushes the zone below, cascading', () => {
+  // afternoon 11-16; move its top break to 12
+  const r = M.moveBoundaryPushing(M.DEFAULT_ZONE_SIZES, [b('a', 0, 11, 1), b('c', 0, 12, 1), b('far', 0, 14, 1)], 'afternoon', 12);
+  assert.deepEqual(r.zones, { ...M.DEFAULT_ZONE_SIZES, midday: 3, afternoon: 4 });
+  assert.deepEqual(pos(r.blocks, 'a'), [12, 1]);
+  assert.deepEqual(pos(r.blocks, 'c'), [13, 1]);   // pushed by a
+  assert.deepEqual(pos(r.blocks, 'far'), [14, 1]); // gap absorbed the push
+});
+
+test('when there is no more room, pushed blocks compress (biggest first)', () => {
+  const r = M.moveBoundaryPushing(M.DEFAULT_ZONE_SIZES, [b('a', 0, 11, 2), b('b', 0, 13, 2)], 'afternoon', 13);
+  // afternoon is now 13-16: 3 steps for 4 steps of blocks
+  assert.deepEqual(pos(r.blocks, 'a'), [13, 1]);
+  assert.deepEqual(pos(r.blocks, 'b'), [14, 2]);
+});
+
+test('moving a break up pushes the zone above upward, then compresses', () => {
+  // morning 4-9; move midday's top break up to 7
+  const r = M.moveBoundaryPushing(M.DEFAULT_ZONE_SIZES, [b('m1', 0, 4, 2), b('m2', 0, 6, 3)], 'midday', 7);
+  assert.deepEqual(r.zones, { ...M.DEFAULT_ZONE_SIZES, morning: 3, midday: 4 });
+  assert.deepEqual(pos(r.blocks, 'm1'), [4, 1]);
+  assert.deepEqual(pos(r.blocks, 'm2'), [5, 2]);
+});
+
+test('moving a break up only pushes what it reaches', () => {
+  const r = M.moveBoundaryPushing(M.DEFAULT_ZONE_SIZES, [b('m1', 0, 4, 1), b('m2', 0, 7, 2)], 'midday', 8);
+  assert.deepEqual(pos(r.blocks, 'm2'), [6, 2]);
+  assert.deepEqual(pos(r.blocks, 'm1'), [4, 1]);
+});
+
+test('pushing leaves other zones, other days, and blocks straddling the break alone', () => {
+  const blocks = [b('straddle', 0, 7, 3), b('pm', 0, 12, 2), b('other', 1, 4, 5), b('am', 0, 4, 2)];
+  const r = M.moveBoundaryPushing(M.DEFAULT_ZONE_SIZES, blocks, 'midday', 8);
+  assert.deepEqual(pos(r.blocks, 'straddle'), [7, 3]);
+  assert.deepEqual(pos(r.blocks, 'pm'), [12, 2]);
+  assert.deepEqual(pos(r.blocks, 'am'), [4, 2]);
+  assert.deepEqual(pos(r.blocks, 'other'), [4, 4]); // day 1's own morning block is compressed to fit
+});
+
+test('moveBoundaryPushing never mutates its input', () => {
+  const blocks = [b('a', 0, 11, 2)];
+  M.moveBoundaryPushing(M.DEFAULT_ZONE_SIZES, blocks, 'afternoon', 13);
+  assert.deepEqual(pos(blocks, 'a'), [11, 2]);
+});
+
+// ---- where a duplicate lands ----
+
+test('a duplicate goes straight after the original when there is room', () => {
+  const orig = b('x', 0, 4, 2);
+  assert.deepEqual(M.duplicateSpot([orig], orig, [0, 1, 2], { start: 4, end: 16 }), { day: 0, start: 6 });
+});
+
+test('otherwise the same spot on the next visible day', () => {
+  const orig = b('x', 0, 4, 2);
+  assert.deepEqual(M.duplicateSpot([orig, b('y', 0, 6, 1)], orig, [0, 1, 2], { start: 4, end: 16 }), { day: 1, start: 4 });
+  const late = b('z', 0, 14, 2); // nothing after it before the end of the day
+  assert.deepEqual(M.duplicateSpot([late], late, [0, 3], { start: 4, end: 16 }), { day: 3, start: 14 });
+});
+
+test('otherwise the first free gap on the same day', () => {
+  const orig = b('x', 0, 4, 2);
+  const blocks = [orig, b('y', 0, 6, 2), b('z', 1, 4, 2)];
+  assert.deepEqual(M.duplicateSpot(blocks, orig, [0, 1], { start: 4, end: 16 }), { day: 0, start: 8 });
+  const last = b('w', 2, 4, 2);
+  assert.deepEqual(M.duplicateSpot([last, b('v', 2, 6, 1)], last, [0, 1, 2], { start: 4, end: 16 }), { day: 2, start: 7 });
+});
+
+// ---- sidebar settings ----
+
+test('sidebar side and visibility are settings with safe defaults', () => {
+  assert.deepEqual(M.defaultState().settings.sidebar, 'left');
+  assert.equal(M.defaultState().settings.sidebarHidden, false);
+  const s = M.normalizeState({ settings: { sidebar: 'right', sidebarHidden: true } }).settings;
+  assert.equal(s.sidebar, 'right');
+  assert.equal(s.sidebarHidden, true);
+  assert.equal(M.normalizeState({ settings: { sidebar: 'up' } }).settings.sidebar, 'left');
+});
