@@ -69,6 +69,8 @@
   // The week on the board. Settings, regulars and unplaced are global.
   function week() { return state.weeks.find(w => w.id === state.currentWeek); }
 
+  const cloneNotes = notes => (notes || []).map(n => ({ ...n }));
+
   const findBlock = id => week().blocks.find(b => b.id === id);
   const findRegular = id => state.regulars.find(r => r.id === id);
   const findUnplaced = id => state.unplaced.find(u => u.id === id);
@@ -260,6 +262,7 @@
         ? `<input data-edit value="${esc(b.title)}" placeholder="what’s this?">`
         : `<div class="title">${esc(b.title) || '<span style="opacity:.5">untitled</span>'}</div>
            ${roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : ''}`}
+      ${!isGhost && b.notes && b.notes.length ? '<span class="has-notes" title="Has notes (double-click)">⋯</span>' : ''}
       ${isGhost ? '' : `<div class="tools ${roomy ? 'at-bottom' : ''}">
         <button class="tool" data-action="color" title="Change colour" style="color:inherit">●</button>
         <button class="tool" data-action="duplicate" title="Duplicate (or ⌥-drag)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="3"/><path d="M16 8V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h2"/></svg></button>
@@ -308,7 +311,7 @@
 
   document.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
-    if (e.target.closest('[data-edit], [data-action], button, input, .popover')) return;
+    if (e.target.closest('[data-edit], [data-action], button, input, .popover, .dialog-overlay')) return;
     // A click away from a title being edited just finishes the edit.
     if (ui.editing) { commitEditing(); e.preventDefault(); return; }
 
@@ -394,7 +397,7 @@
     const body = document.body.classList;
     if (d.copy) {
       const b = findBlock(d.blockId);
-      week().blocks.push({ ...b, id: M.newId() });
+      week().blocks.push({ ...b, id: M.newId(), notes: cloneNotes(b.notes) });
       body.add('copying');
     } else if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
     else if (d.kind === 'create') body.add('creating');
@@ -432,7 +435,7 @@
         if (d.toUnplaced) {
           const b = findBlock(d.blockId);
           week().blocks = week().blocks.filter(x => x !== b);
-          state.unplaced.push({ id: b.id, title: b.title || 'untitled', size: b.size, color: b.color });
+          state.unplaced.push({ id: b.id, title: b.title || 'untitled', size: b.size, color: b.color, notes: b.notes });
           ui.selectedId = null;
           toast('Moved to unplaced');
         }
@@ -537,7 +540,7 @@
         ui.ghost = null;
         if (!g || !item) return render();
         const id = consume ? item.id : M.newId();
-        week().blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color });
+        week().blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color, notes: cloneNotes(item.notes) });
         if (consume) state.unplaced = state.unplaced.filter(u => u !== item);
         ui.selectedId = id;
         settle(d);
@@ -560,7 +563,7 @@
   }
 
   function createBlock(day, start, size) {
-    const b = { id: M.newId(), day, start, size, title: '', color: 7 };
+    const b = { id: M.newId(), day, start, size, title: '', color: 7, notes: [] };
     pushUndo();
     week().blocks.push(b);
     ui.selectedId = b.id;
@@ -607,7 +610,7 @@
     if (t.id === 'unplaced-input' && e.key === 'Enter') {
       const title = t.value.trim();
       if (title) {
-        commit(s => s.unplaced.push({ id: M.newId(), title, size: 2, color: colorFor(title) }));
+        commit(s => s.unplaced.push({ id: M.newId(), title, size: 2, color: colorFor(title), notes: [] }));
         $('#unplaced-input').focus();
       }
       return;
@@ -645,11 +648,109 @@
   document.addEventListener('dblclick', e => {
     const blockEl = e.target.closest('.block:not(.ghost)');
     const unpEl = e.target.closest('[data-unplaced]');
-    if (blockEl) ui.editing = { kind: 'block', id: blockEl.dataset.block };
-    else if (unpEl) ui.editing = { kind: 'unplaced', id: unpEl.dataset.unplaced };
+    if (blockEl) return openBlockDialog(blockEl.dataset.block);
+    if (unpEl) ui.editing = { kind: 'unplaced', id: unpEl.dataset.unplaced };
     else return;
     render();
   });
+
+  // ---- notes ---------------------------------------------------------------
+  // A tiny outliner: each line is an input. Enter starts a new line (a tick
+  // box if you were on one), Backspace on an empty line removes it, and the
+  // mark at the front cycles • → ☐ → ☑. Empty lines are dropped on close.
+
+  const MARKS = { null: '•', false: '☐', true: '☑' };
+  const cleanNotes = notes => notes.filter(n => n.text.trim()).map(n => ({ text: n.text.trim(), check: n.check }));
+
+  function mountNotes(host, notes) {
+    if (!notes.length) notes.push({ text: '', check: null });
+    const draw = (focusAt, caretEnd = true) => {
+      host.innerHTML = `<ul class="notes">${notes.map((n, i) => `
+        <li class="note ${n.check === true ? 'done' : ''}">
+          <button class="note-mark" data-i="${i}" title="Bullet → to-do → done">${MARKS[n.check]}</button>
+          <input class="note-text" data-i="${i}" value="${esc(n.text)}" placeholder="${i === 0 && notes.length === 1 ? 'Notes… (Enter for a new line)' : ''}">
+        </li>`).join('')}</ul>`;
+      if (focusAt != null) {
+        const input = host.querySelectorAll('.note-text')[focusAt];
+        if (input) { input.focus(); const at = caretEnd ? input.value.length : 0; input.setSelectionRange(at, at); }
+      }
+    };
+    host.addEventListener('input', e => {
+      if (e.target.matches('.note-text')) notes[+e.target.dataset.i].text = e.target.value;
+    });
+    host.addEventListener('click', e => {
+      const mark = e.target.closest('.note-mark');
+      if (!mark) return;
+      const i = +mark.dataset.i;
+      notes[i].check = M.nextCheck(notes[i].check);
+      draw(i);
+    });
+    host.addEventListener('keydown', e => {
+      if (!e.target.matches('.note-text')) return;
+      const i = +e.target.dataset.i;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        notes.splice(i + 1, 0, { text: '', check: notes[i].check === null ? null : false });
+        draw(i + 1);
+      } else if (e.key === 'Backspace' && e.target.value === '' && notes.length > 1) {
+        e.preventDefault();
+        notes.splice(i, 1);
+        draw(Math.max(0, i - 1));
+      } else if (e.key === 'ArrowUp' && i > 0) { e.preventDefault(); draw(i - 1); }
+      else if (e.key === 'ArrowDown' && i < notes.length - 1) { e.preventDefault(); draw(i + 1); }
+    });
+    draw(null);
+    return { focusEnd: () => draw(notes.length - 1) };
+  }
+
+  // Double-click a block: its title and notes, with the cursor in the notes.
+  function openBlockDialog(id) {
+    const b = findBlock(id);
+    if (!b) return;
+    closePopover();
+    select(id);
+    const before = snapshot();
+    const notes = cloneNotes(b.notes);
+    const [fill, ink] = M.PALETTE[b.color] || M.PALETTE[0];
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dialog" role="dialog" aria-label="Block notes">
+        <div class="dialog-head" style="background:${fill}; color:${ink}">
+          <input class="dialog-title" value="${esc(b.title)}" placeholder="untitled">
+          <div class="text-xs opacity-70">${M.DAY_LONG[b.day]} · ${M.zoneAt(b.start, ui.zones)} · ${M.sizeWord(b.size)}</div>
+        </div>
+        <div class="dialog-body"></div>
+        <div class="flex items-center px-4 pb-4">
+          <span class="text-[11.5px]" style="color:var(--muted)">Enter: new line · click • for a tick box</span>
+          <button class="btn primary ml-auto" data-do="done">Done</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const editor = mountNotes(overlay.querySelector('.dialog-body'), notes);
+    editor.focusEnd();
+
+    const close = () => {
+      overlay.remove();
+      const title = overlay.querySelector('.dialog-title').value.trim();
+      const next = cleanNotes(notes);
+      const changed = JSON.stringify(next) !== JSON.stringify(b.notes || []) || (title && title !== b.title);
+      if (changed) {
+        pushUndo(before);
+        b.notes = next;
+        if (title) b.title = title;
+        save();
+      }
+      render();
+    };
+    overlay.addEventListener('pointerdown', e => { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-do="done"]').addEventListener('click', close);
+    overlay.addEventListener('keydown', e => {
+      e.stopPropagation(); // keep ⌫, ⌘Z etc. away from the board underneath
+      if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); close(); }
+      else if (e.key === 'Enter' && e.target.matches('.dialog-title')) { e.preventDefault(); editor.focusEnd(); }
+    });
+  }
 
   // ---- clicks: block tools, sidebar, header commands -----------------------
 
@@ -666,7 +767,7 @@
           const b = findBlock(id);
           const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
           const spot = M.duplicateSpot(week().blocks, b, days, ui.range, ui.zones);
-          const copy = { ...b, id: M.newId(), ...spot };
+          const copy = { ...b, id: M.newId(), ...spot, notes: cloneNotes(b.notes) };
           ui.selectedId = copy.id;
           commit(() => week().blocks.push(copy));
           if (spot.day !== b.day) toast(`No room after it, so the copy went to ${M.DAY_LONG[spot.day]}`);
@@ -677,7 +778,7 @@
         case 'make-regular': {
           const b = findBlock(id);
           if (state.regulars.some(r => r.title.toLowerCase() === b.title.toLowerCase())) return toast(`“${b.title}” is already a regular`);
-          commit(s => s.regulars.push({ id: M.newId(), title: b.title || 'untitled', size: b.size, color: b.color, zone: M.zoneAt(b.start, ui.zones) }));
+          commit(s => s.regulars.push({ id: M.newId(), title: b.title || 'untitled', size: b.size, color: b.color, zone: M.zoneAt(b.start, ui.zones), notes: cloneNotes(b.notes) }));
           return toast(`Saved “${b.title || 'untitled'}” as a regular`);
         }
         case 'drop-unplaced': {
@@ -737,7 +838,7 @@
 
   function editRegular(id, anchor) {
     const existing = id && findRegular(id);
-    const draft = existing ? { ...existing } : { title: '', size: 2, color: 1, zone: 'morning' };
+    const draft = existing ? { ...existing, notes: cloneNotes(existing.notes) } : { title: '', size: 2, color: 1, zone: 'morning', notes: [] };
     openPopover(anchor, `
       <label>name</label>
       <input class="field" data-f="title" value="${esc(draft.title)}" placeholder="e.g. Gym">
@@ -747,6 +848,8 @@
       <div class="seg" data-f="zone">${M.ZONES.map(z => `<button data-v="${z.id}">${z.label}</button>`).join('')}</div>
       <label>colour</label>
       <div class="flex gap-1.5" data-f="color">${M.PALETTE.map(([fill, ink], i) => `<button class="swatch" data-v="${i}" style="background:${fill}; box-shadow: inset 0 0 0 1px ${ink}33"></button>`).join('')}</div>
+      <label>default notes</label>
+      <div data-f="notes" class="-mx-1"></div>
       <div class="flex items-center gap-2 mt-4">
         ${existing ? '<button class="btn danger" data-do="delete">Delete</button>' : ''}
         <button class="btn ml-auto" data-do="cancel">Cancel</button>
@@ -758,9 +861,11 @@
         el.querySelectorAll('[data-f="color"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === draft.color));
       };
       sync();
+      mountNotes(el.querySelector('[data-f="notes"]'), draft.notes);
       const title = el.querySelector('[data-f="title"]');
       title.focus();
       const doSave = () => {
+        draft.notes = cleanNotes(draft.notes);
         draft.title = title.value.trim();
         if (!draft.title) { title.focus(); return; }
         commit(s => {
@@ -957,7 +1062,17 @@
   }
 
   // On paper the day is squeezed to fit one landscape page.
-  window.addEventListener('beforeprint', () => { ui.printing = true; renderBoard(); });
+  // Page 2: every block's notes, listed by day and name (not a calendar).
+  function renderPrintNotes() {
+    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const items = M.notesForPrint(week(), days);
+    $('#print-notes').innerHTML = items.length ? `
+      <h2>Notes · ${esc(week().name)}</h2>
+      ${items.map(it => `
+        <h3>${M.DAY_LONG[it.day]} · ${esc(it.title || 'untitled')}</h3>
+        <ul>${it.notes.map(n => `<li class="${n.check === true ? 'done' : ''}">${MARKS[n.check]} ${esc(n.text)}</li>`).join('')}</ul>`).join('')}` : '';
+  }
+  window.addEventListener('beforeprint', () => { ui.printing = true; renderBoard(); renderPrintNotes(); });
   window.addEventListener('afterprint', () => { ui.printing = false; renderBoard(); });
 
   // Re-fit the day to the board whenever the board changes size. This also
