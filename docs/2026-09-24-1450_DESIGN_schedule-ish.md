@@ -110,3 +110,23 @@ tools feel:
   isn't empty. Delete them freely.
 - Day headers and the zone gutter stay pinned when the board scrolls, which
   matters on tablet widths.
+
+## Round 2 (2026-09-24): zone breaks, toggles, PDF
+
+- **Movable breaks.** Zone sizes are now part of the plan (`state.zones`,
+  steps per zone, always summing to the fixed day length). Dragging a zone
+  name moves the break at the top of that zone, trading steps only with the
+  zone above it (`moveBoundary`), with a minimum of one step each. So
+  dragging *midday* down lengthens morning and shortens midday, and
+  afternoon stays put. The first visible zone has no break above it, so it
+  isn't draggable.
+- **Early/evening are click toggles.** The drag tabs were confusing: one
+  control did two jobs, and a second "evening" appeared once the zone was
+  open. Now a hidden zone is a quiet "+ evening" row, and an open one has a
+  hover "−" beside its name. Tucking away is still refused while blocks
+  sit in the zone.
+- **PDF via print.** A print stylesheet plus `window.print()`, with no
+  library. `beforeprint` re-renders the day at a fixed height so the week
+  fits one landscape page on both Letter and A4 (checked with headless
+  Chrome's print-to-PDF). jsPDF and html2canvas were the alternatives, but
+  both mean more code or blurrier text for little gain.

@@ -28,9 +28,15 @@ CDNs, so it needs a network connection on first load.
 
 **The day** has no hours. It's split into soft zones: *morning*, *midday*
 (tinted, for lunch) and *afternoon*. Faint lines mark steps, and blocks snap
-to those steps. Two optional zones, *early* and *evening*, are tucked away.
-Drag the **⋯ early** / **⋯ evening** tabs down to reveal one, or up to tuck
-it away again. A zone won't hide while blocks are still in it.
+to those steps.
+- **Move a break:** hover a zone name (*midday*, *afternoon*, …) until the
+  cursor shows ↕, then drag. That moves where the zone starts, trading
+  steps only with the zone above it. Every zone keeps at least one step, and
+  the day's overall length stays the same. Blocks don't move; only the
+  labels and lines do.
+- **Early and evening** are optional. Click **+ early** or **+ evening** to
+  add one. Once it's open, hover its name and click **−** to tuck it away
+  again. A zone won't hide while blocks are still in it.
 
 **Blocks**
 - **Drag down** in a day to rough out a chunk, or **click** for a default one.
@@ -56,6 +62,10 @@ somewhere. Type one in and press Enter. Dragging it onto the week *moves* it
 there. Dragging a block from the week back onto this list takes it off the
 week.
 
+**PDF** opens the print dialog with just the week on one landscape page.
+The sidebar and buttons are hidden and the colours are kept. Choose "Save
+as PDF" as the destination, or print it.
+
 **Settings** set the first day of the week, which days to show, and the
 optional zones. You can also clear all blocks there. **Undo/redo**:
 ⌘Z / ⇧⌘Z (Ctrl on other platforms), or the header buttons.
@@ -73,9 +83,9 @@ replaces the current plan (undoable).
 
 | File | What |
 |---|---|
-| `index.html` | Page shell, Tailwind, and a small `<style>` block for the grid and blocks |
+| `index.html` | Page shell, Tailwind, and a small `<style>` block for the grid, blocks and print layout |
 | `model.js` | Pure logic: zones and steps, snapping, overlap layout, gap finding, loading/validation. No DOM. |
-| `app.js` | Rendering, pointer-event drag/resize, sidebar, popovers, persistence, undo |
+| `app.js` | Rendering, pointer-event drag/resize (blocks and zone breaks), sidebar, popovers, persistence, undo, print |
 | `test/model.test.js` | Unit tests for `model.js` |
 
 Run the tests with Node 18 or later (no dependencies):
