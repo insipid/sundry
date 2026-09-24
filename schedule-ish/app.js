@@ -21,8 +21,8 @@
     ghost: null,        // { day, start, size, color } preview while dragging in
     drag: null,
     stepPx: 32,
-    zones: M.zonesFor(state.zones),
-    range: M.visibleRange(state.view, M.zonesFor(state.zones)),
+    zones: M.zonesFor(week().zones),
+    range: M.visibleRange(week().view, M.zonesFor(week().zones)),
     printing: false,
   };
 
@@ -66,14 +66,17 @@
     save(); render();
   }
 
-  const findBlock = id => state.blocks.find(b => b.id === id);
+  // The week on the board. Settings, regulars and unplaced are global.
+  function week() { return state.weeks.find(w => w.id === state.currentWeek); }
+
+  const findBlock = id => week().blocks.find(b => b.id === id);
   const findRegular = id => state.regulars.find(r => r.id === id);
   const findUnplaced = id => state.unplaced.find(u => u.id === id);
 
   // Same title → same colour, so "Gym" always looks like Gym.
   function colorFor(title) {
     const t = title.trim().toLowerCase();
-    const match = state.regulars.find(r => r.title.toLowerCase() === t) || state.blocks.find(b => b.title.toLowerCase() === t);
+    const match = state.regulars.find(r => r.title.toLowerCase() === t) || week().blocks.find(b => b.title.toLowerCase() === t);
     if (match) return match.color;
     let h = 0;
     for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -83,6 +86,7 @@
   // ---- rendering -----------------------------------------------------------
 
   function render() {
+    $('#week-name').textContent = week().name;
     placeSidebar();
     renderSidebar();
     renderBoard();
@@ -154,7 +158,7 @@
   function measureStep() {
     const steps = ui.range.end - ui.range.start;
     if (ui.printing) { ui.stepPx = PRINT_GRID_H / steps; return; }
-    const addRows = !state.view.showEarly + !state.view.showEvening;
+    const addRows = !week().view.showEarly + !week().view.showEvening;
     const avail = $('#board-body').clientHeight - $('#board-head').offsetHeight - ADD_ROW_H * addRows - 2;
     // Fill the board exactly: the visible zones always use the full height.
     // (Only a very short window falls back to a minimum and scrolls.)
@@ -162,8 +166,8 @@
   }
 
   function renderBoard() {
-    ui.zones = M.zonesFor(state.zones);
-    ui.range = M.visibleRange(state.view, ui.zones);
+    ui.zones = M.zonesFor(week().zones);
+    ui.range = M.visibleRange(week().view, ui.zones);
     const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
     const { start: r0, end: r1 } = ui.range;
     // min-width makes the grid as wide as its columns, so the sticky gutter can pin all the way.
@@ -182,7 +186,7 @@
     // Zone names sit on the line at the top of their zone. Dragging one moves
     // that line (the first visible zone has no line above it to move);
     // clicking early or evening tucks it away.
-    const gutter = M.visibleZones(state.view, ui.zones).map((z, i) => {
+    const gutter = M.visibleZones(week().view, ui.zones).map((z, i) => {
       const movable = i > 0, optional = z.optional;
       const active = ui.drag && ui.drag.kind === 'boundary' && ui.drag.active && ui.drag.zone === z.id;
       const tip = [optional && `Click to tuck ${z.label} away`, movable && `drag to move where ${z.label} starts`].filter(Boolean).join(' · ');
@@ -203,7 +207,7 @@
     const band = `<div class="band" style="top:${(midday.start - r0) * px}px; height:${midday.steps * px}px"></div>`;
 
     const columns = days.map(d => {
-      const blocks = state.blocks.filter(b => b.day === d);
+      const blocks = week().blocks.filter(b => b.day === d);
       const layout = M.layoutDay(blocks);
       const ghost = ui.ghost && ui.ghost.day === d ? blockHtml({ ...ui.ghost, id: '_ghost', title: ui.ghost.title || '' }, { col: 0, cols: 1 }, true) : '';
       return `<div class="day-col relative" data-day="${d}" style="height:${height}px">
@@ -223,12 +227,12 @@
       </div>`;
 
     $('#board-grid').innerHTML = `
-      ${state.view.showEarly ? '' : addRow('early')}
+      ${week().view.showEarly ? '' : addRow('early')}
       <div class="grid" style="${cols}">
         <div class="relative pin-left" style="height:${height}px">${gutter}</div>
         ${columns}
       </div>
-      ${state.view.showEvening ? '' : addRow('evening')}`;
+      ${week().view.showEvening ? '' : addRow('evening')}`;
   }
 
   function blockHtml(b, lay, isGhost = false) {
@@ -342,8 +346,8 @@
         optional: labelEl.classList.contains('optional'),
         // Pushes are always worked out from where things were at the start,
         // so dragging the break back puts the blocks back too.
-        origZones: { ...state.zones },
-        origBlocks: state.blocks.map(x => ({ ...x })),
+        origZones: { ...week().zones },
+        origBlocks: week().blocks.map(x => ({ ...x })),
       });
     } else if (!e.target.closest('#sidebar')) {
       select(null);
@@ -390,7 +394,7 @@
     const body = document.body.classList;
     if (d.copy) {
       const b = findBlock(d.blockId);
-      state.blocks.push({ ...b, id: M.newId() });
+      week().blocks.push({ ...b, id: M.newId() });
       body.add('copying');
     } else if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
     else if (d.kind === 'create') body.add('creating');
@@ -427,7 +431,7 @@
       end(d) {
         if (d.toUnplaced) {
           const b = findBlock(d.blockId);
-          state.blocks = state.blocks.filter(x => x !== b);
+          week().blocks = week().blocks.filter(x => x !== b);
           state.unplaced.push({ id: b.id, title: b.title || 'untitled', size: b.size, color: b.color });
           ui.selectedId = null;
           toast('Moved to unplaced');
@@ -488,9 +492,9 @@
         if (!d.movable) return;
         const col = $('.day-col').getBoundingClientRect();
         const next = M.moveBoundaryPushing(d.origZones, d.origBlocks, d.zone, stepAt(col, e.clientY));
-        if (JSON.stringify(next.zones) === JSON.stringify(state.zones)) return;
-        state.zones = next.zones;
-        state.blocks = next.blocks;
+        if (JSON.stringify(next.zones) === JSON.stringify(week().zones)) return;
+        week().zones = next.zones;
+        week().blocks = next.blocks;
         renderBoard();
       },
       end: settle,
@@ -516,7 +520,7 @@
         const col = headDay == null ? columnAt(e.clientX, e.clientY) : null;
         let ghost = null;
         if (headDay != null) {
-          ghost = { day: headDay, start: M.firstFreeGap(state.blocks, headDay, item.size, item.zone || 'morning', ui.range, ui.zones), size: item.size };
+          ghost = { day: headDay, start: M.firstFreeGap(week().blocks, headDay, item.size, item.zone || 'morning', ui.range, ui.zones), size: item.size };
         } else if (col) {
           const c = M.clampBlock(stepAt(col.rect, e.clientY) - item.size / 2, item.size, ui.range);
           ghost = { day: col.day, ...c };
@@ -533,7 +537,7 @@
         ui.ghost = null;
         if (!g || !item) return render();
         const id = consume ? item.id : M.newId();
-        state.blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color });
+        week().blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color });
         if (consume) state.unplaced = state.unplaced.filter(u => u !== item);
         ui.selectedId = id;
         settle(d);
@@ -546,11 +550,11 @@
 
   function setZone(zoneId, show) {
     const key = zoneId === 'early' ? 'showEarly' : 'showEvening';
-    if (!show && !M.canHide(zoneId, state.blocks, ui.zones)) {
+    if (!show && !M.canHide(zoneId, week().blocks, ui.zones)) {
       toast(`Move the ${zoneId} blocks out first`);
       return false;
     }
-    state.view[key] = show;
+    week().view[key] = show;
     render();
     return true;
   }
@@ -558,7 +562,7 @@
   function createBlock(day, start, size) {
     const b = { id: M.newId(), day, start, size, title: '', color: 7 };
     pushUndo();
-    state.blocks.push(b);
+    week().blocks.push(b);
     ui.selectedId = b.id;
     ui.editing = { kind: 'block', id: b.id, isNew: true };
     save();
@@ -578,7 +582,7 @@
       if (!b) return render();
       if (ed.isNew && (cancel || !value)) {
         // An abandoned new block just disappears, along with its undo step.
-        state.blocks = state.blocks.filter(x => x !== b);
+        week().blocks = week().blocks.filter(x => x !== b);
         undoStack.pop();
       } else if (!cancel && value !== b.title) {
         if (!ed.isNew) pushUndo();
@@ -622,7 +626,7 @@
       e.preventDefault();
       const id = ui.selectedId;
       ui.selectedId = null;
-      commit(s => { s.blocks = s.blocks.filter(b => b.id !== id); });
+      commit(() => { week().blocks = week().blocks.filter(b => b.id !== id); });
     }
     if (e.key === 'Enter' && ui.selectedId) {
       e.preventDefault();
@@ -657,14 +661,14 @@
       switch (act.dataset.action) {
         case 'delete':
           ui.selectedId = null;
-          return commit(s => { s.blocks = s.blocks.filter(b => b.id !== id); });
+          return commit(() => { week().blocks = week().blocks.filter(b => b.id !== id); });
         case 'duplicate': {
           const b = findBlock(id);
           const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
-          const spot = M.duplicateSpot(state.blocks, b, days, ui.range, ui.zones);
+          const spot = M.duplicateSpot(week().blocks, b, days, ui.range, ui.zones);
           const copy = { ...b, id: M.newId(), ...spot };
           ui.selectedId = copy.id;
-          commit(s => s.blocks.push(copy));
+          commit(() => week().blocks.push(copy));
           if (spot.day !== b.day) toast(`No room after it, so the copy went to ${M.DAY_LONG[spot.day]}`);
           return;
         }
@@ -691,6 +695,7 @@
       case 'export': return exportPlan();
       case 'import': return $('#import-file').click();
       case 'settings': return openSettings(cmd);
+      case 'weeks': return openWeeks(cmd);
       case 'new-regular': return editRegular(null, cmd);
       case 'print': return window.print();
       case 'toggle-sidebar': return commit(s => { s.settings.sidebarHidden = !s.settings.sidebarHidden; });
@@ -725,7 +730,7 @@
     return true;
   }
   document.addEventListener('pointerdown', e => {
-    if (popover && !popover.contains(e.target) && !e.target.closest('[data-cmd="settings"], [data-cmd="new-regular"]')) closePopover();
+    if (popover && !popover.contains(e.target) && !e.target.closest('[data-cmd="settings"], [data-cmd="new-regular"], [data-cmd="weeks"]')) closePopover();
   }, true);
 
   const SIZE_OPTS = [[1, 'a smidge'], [2, 'a bit'], [3, 'a good bit'], [4, 'a big chunk'], [6, 'loads']];
@@ -783,6 +788,80 @@
     });
   }
 
+  // ---- weeks: the header dropdown -------------------------------------------
+  // Each week is a live, named board: switching to one and changing it
+  // changes that week. New weeks start blank or as a copy of this one.
+
+  function switchWeek(id) {
+    ui.selectedId = null;
+    ui.editing = null;
+    commit(s => { s.currentWeek = id; });
+  }
+
+  function openWeeks(anchor) {
+    if (closePopover()) return;
+    const cur = week();
+    openPopover(anchor, `
+      <label>weeks</label>
+      <div class="flex flex-col gap-0.5">${state.weeks.map(w => `
+        <button class="menu-item ${w.id === cur.id ? 'on' : ''}" data-week="${w.id}">
+          <span class="w-4 inline-block">${w.id === cur.id ? '✓' : ''}</span>${esc(w.name)}
+        </button>`).join('')}
+      </div>
+      <div class="menu-sep"></div>
+      <button class="menu-item" data-do="new-blank">+ New blank week</button>
+      <button class="menu-item" data-do="new-copy">+ New from this week</button>
+      <div class="menu-sep"></div>
+      <button class="menu-item" data-do="rename">Rename this week…</button>
+      <button class="menu-item danger" data-do="delete" ${state.weeks.length < 2 ? 'disabled title="It’s the only week"' : ''}>Delete this week…</button>`, el => {
+      // Swap the menu for a one-field name form.
+      const askName = (label, initial, done) => {
+        el.innerHTML = `
+          <label>${label}</label>
+          <input class="field" data-f="name" value="${esc(initial)}">
+          <div class="flex items-center gap-2 mt-3">
+            <button class="btn ml-auto" data-do="cancel">Cancel</button>
+            <button class="btn primary" data-do="ok">OK</button>
+          </div>`;
+        const input = el.querySelector('[data-f="name"]');
+        input.focus(); input.select();
+        const ok = () => { const v = input.value.trim(); if (!v) return input.focus(); closePopover(); done(v); };
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
+        el.querySelector('[data-do="ok"]').addEventListener('click', ok);
+        el.querySelector('[data-do="cancel"]').addEventListener('click', closePopover);
+      };
+      el.addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if (!b || b.disabled) return;
+        if (b.dataset.week) { closePopover(); if (b.dataset.week !== cur.id) switchWeek(b.dataset.week); return; }
+        switch (b.dataset.do) {
+          case 'new-blank':
+            return askName('name the new week', 'New week', name => {
+              const w = M.blankWeek(name);
+              ui.selectedId = null;
+              commit(s => { s.weeks.push(w); s.currentWeek = w.id; });
+            });
+          case 'new-copy':
+            return askName('name the copy', `${cur.name} copy`, name => {
+              const w = M.copyWeek(cur, name);
+              ui.selectedId = null;
+              commit(s => { s.weeks.push(w); s.currentWeek = w.id; });
+            });
+          case 'rename':
+            return askName('rename this week', cur.name, name => commit(() => { week().name = name; }));
+          case 'delete':
+            closePopover();
+            if (!confirm(`Delete the week “${cur.name}”? (You can undo.)`)) return;
+            ui.selectedId = null;
+            return commit(s => {
+              s.weeks = s.weeks.filter(w => w.id !== cur.id);
+              s.currentWeek = s.weeks[0].id;
+            });
+        }
+      });
+    });
+  }
+
   function openSettings(anchor) {
     if (closePopover()) return;
     openPopover(anchor, `
@@ -807,7 +886,7 @@
         el.querySelectorAll('[data-f="visible"] button').forEach(b => b.classList.toggle('on', state.settings.visibleDays[+b.dataset.v]));
         const sb = state.settings.sidebarHidden ? 'hidden' : state.settings.sidebar;
         el.querySelectorAll('[data-f="sidebar"] button').forEach(b => b.classList.toggle('on', b.dataset.v === sb));
-        el.querySelectorAll('[data-f="zones"] button').forEach(b => b.classList.toggle('on', b.dataset.v === 'early' ? state.view.showEarly : state.view.showEvening));
+        el.querySelectorAll('[data-f="zones"] button').forEach(b => b.classList.toggle('on', b.dataset.v === 'early' ? week().view.showEarly : week().view.showEvening));
       };
       sync();
       el.addEventListener('click', e => {
@@ -826,13 +905,13 @@
             if (v !== 'hidden') s.settings.sidebar = v;
           });
         } else if (f === 'zones') {
-          const shown = b.dataset.v === 'early' ? state.view.showEarly : state.view.showEvening;
+          const shown = b.dataset.v === 'early' ? week().view.showEarly : week().view.showEvening;
           pushUndo();
           if (setZone(b.dataset.v, !shown)) save(); else undoStack.pop();
         } else if (b.dataset.do === 'clear') {
-          if (!state.blocks.length) return toast('Already empty');
+          if (!week().blocks.length) return toast('Already empty');
           if (confirm('Clear every block from the week? (Regulars and unplaced stay. You can undo.)')) {
-            commit(s => { s.blocks = []; });
+            commit(() => { week().blocks = []; });
             toast('Cleared. ⌘Z to undo');
           }
         } else if (b.dataset.do === 'close') return closePopover();

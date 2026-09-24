@@ -111,6 +111,17 @@
     .btn { font-size: 13px; font-weight: 500; padding: 6px 11px; border-radius: 9px; border: 0; background: #f3efe8; color: var(--ink); }
     .btn:hover { background: #ebe5da; }
     .btn.on { background: #e6dfd2; }
+    .week-btn { font: inherit; font-size: 15px; font-weight: 600; color: var(--ink); background: #f3efe8; border: 0;
+      border-radius: 9px; padding: 3px 10px; display: inline-flex; gap: 6px; align-items: baseline; white-space: nowrap; }
+    .week-btn:hover { background: #ebe5da; }
+    .week-btn .caret { font-size: 11px; color: var(--muted); }
+    .menu-item { display: block; width: 100%; text-align: left; font-size: 13.5px; padding: 6px 8px; border-radius: 8px;
+      border: 0; background: transparent; color: var(--ink); }
+    .menu-item:hover:not([disabled]) { background: #f3efe8; }
+    .menu-item.on { font-weight: 600; }
+    .menu-item.danger { color: #a65a5a; }
+    .menu-item[disabled] { opacity: .4; cursor: default; }
+    .menu-sep { height: 1px; background: var(--grid); margin: 6px 0; }
     .btn.primary { background: var(--ink); color: #fff; }
     .btn.danger { color: #a65a5a; background: transparent; }
     .btn.danger:hover { background: #f8e9e9; }
@@ -125,6 +136,8 @@
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       html, body, .h-full { height: auto !important; background: #fff; }
       header { padding: 0 0 8px !important; }
+      .week-btn { background: none; padding: 0; }
+      .week-btn .caret { display: none; }
       header .ml-auto, #sidebar, #toast, .popover, .zone-add-row, .zone-minus,
       .block .tools, .block .edge { display: none !important; }
       main { display: block !important; padding: 0 !important; }
@@ -140,6 +153,7 @@
     <header class="flex items-center gap-4 px-5 pt-4 pb-3">
       <div class="flex items-baseline gap-3">
         <h1 class="text-xl font-bold tracking-tight whitespace-nowrap">schedule-ish</h1>
+        <button class="week-btn" data-cmd="weeks" title="Switch week, or start a new one"><span id="week-name"></span><span class="caret">▾</span></button>
         <span class="text-sm whitespace-nowrap max-lg:hidden" style="color: var(--muted)">your week on a napkin</span>
       </div>
       <div class="ml-auto flex items-center gap-1.5">
