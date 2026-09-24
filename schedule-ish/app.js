@@ -165,15 +165,17 @@
     const px = ui.stepPx;
     const height = (r1 - r0) * px;
     // Zone names sit on the line at the top of their zone. Dragging one moves
-    // that line; the first visible zone has no line above it to move.
+    // that line (the first visible zone has no line above it to move);
+    // clicking early or evening tucks it away.
     const gutter = M.visibleZones(state.view, ui.zones).map((z, i) => {
-      const movable = i > 0;
+      const movable = i > 0, optional = z.optional;
       const active = ui.drag && ui.drag.kind === 'boundary' && ui.drag.active && ui.drag.zone === z.id;
+      const tip = [optional && `Click to tuck ${z.label} away`, movable && `drag to move where ${z.label} starts`].filter(Boolean).join(' · ');
       return `
-      <div class="zone-label group ${movable ? 'movable' : ''} ${active ? 'active' : ''}" ${movable ? `data-zone-drag="${z.id}" title="Drag to move where ${z.label} starts"` : ''}
+      <div class="zone-label ${movable ? 'movable' : ''} ${optional ? 'optional' : ''} ${active ? 'active' : ''}"
+           ${movable || optional ? `data-zone-label="${z.id}" title="${tip.charAt(0).toUpperCase() + tip.slice(1)}"` : ''}
            style="top:${Math.max(0, (z.start - r0) * px - 6)}px">
-        ${z.optional ? `<button class="zone-toggle" data-cmd="hide-zone" data-zone="${z.id}" title="Tuck ${z.label} away">−</button>` : ''}
-        <span>${z.label}</span>
+        <span>${z.label}${optional ? '<i class="zone-minus">−</i>' : ''}</span>
       </div>`;
     }).join('');
 
@@ -294,7 +296,7 @@
     const regEl = e.target.closest('[data-regular]');
     const unpEl = e.target.closest('[data-unplaced]');
     const colEl = e.target.closest('.day-col');
-    const boundaryEl = e.target.closest('[data-zone-drag]');
+    const labelEl = e.target.closest('[data-zone-label]');
 
     if (blockEl) {
       const b = findBlock(blockEl.dataset.block);
@@ -315,8 +317,17 @@
       select(null);
       const rect = colEl.getBoundingClientRect();
       beginDrag(e, { kind: 'create', day: +colEl.dataset.day, anchor: Math.floor(stepAt(rect, e.clientY)), deselectOnly: hadSelection });
-    } else if (boundaryEl) {
-      beginDrag(e, { kind: 'boundary', zone: boundaryEl.dataset.zoneDrag });
+    } else if (labelEl) {
+      beginDrag(e, {
+        kind: 'boundary',
+        zone: labelEl.dataset.zoneLabel,
+        movable: labelEl.classList.contains('movable'),
+        optional: labelEl.classList.contains('optional'),
+        // Pushes are always worked out from where things were at the start,
+        // so dragging the break back puts the blocks back too.
+        origZones: { ...state.zones },
+        origBlocks: state.blocks.map(x => ({ ...x })),
+      });
     } else if (!e.target.closest('#sidebar')) {
       select(null);
     }
@@ -362,7 +373,7 @@
     const body = document.body.classList;
     if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
     else if (d.kind === 'create') body.add('creating');
-    else body.add('resizing');
+    else if (d.kind !== 'boundary' || d.movable) body.add('resizing');
     if (d.kind === 'regular' || d.kind === 'unplaced') {
       const f = d.sourceEl.cloneNode(true);
       f.classList.add('floating');
@@ -453,13 +464,20 @@
 
     boundary: {
       move(d, e) {
+        if (!d.movable) return;
         const col = $('.day-col').getBoundingClientRect();
-        const next = M.moveBoundary(state.zones, d.zone, stepAt(col, e.clientY));
-        if (JSON.stringify(next) === JSON.stringify(state.zones)) return;
-        state.zones = next;
+        const next = M.moveBoundaryPushing(d.origZones, d.origBlocks, d.zone, stepAt(col, e.clientY));
+        if (JSON.stringify(next.zones) === JSON.stringify(state.zones)) return;
+        state.zones = next.zones;
+        state.blocks = next.blocks;
         renderBoard();
       },
       end: settle,
+      click(d) {
+        if (!d.optional) return;
+        pushUndo(d.snap);
+        if (setZone(d.zone, false)) save(); else undoStack.pop();
+      },
     },
   };
 
@@ -645,9 +663,8 @@
       case 'new-regular': return editRegular(null, cmd);
       case 'print': return window.print();
       case 'show-zone':
-      case 'hide-zone':
         pushUndo();
-        if (setZone(cmd.dataset.zone, cmd.dataset.cmd === 'show-zone')) save(); else undoStack.pop();
+        if (setZone(cmd.dataset.zone, true)) save(); else undoStack.pop();
         return;
     }
   });
