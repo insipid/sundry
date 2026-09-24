@@ -138,10 +138,12 @@
 
   function measureStep() {
     const steps = ui.range.end - ui.range.start;
-    if (ui.printing) { ui.stepPx = Math.floor(PRINT_GRID_H / steps); return; }
+    if (ui.printing) { ui.stepPx = PRINT_GRID_H / steps; return; }
     const addRows = !state.view.showEarly + !state.view.showEvening;
     const avail = $('#board-body').clientHeight - $('#board-head').offsetHeight - ADD_ROW_H * addRows - 2;
-    ui.stepPx = Math.max(22, Math.min(64, Math.floor(avail / steps)));
+    // Fill the board exactly: the visible zones always use the full height.
+    // (Only a very short window falls back to a minimum and scrolls.)
+    ui.stepPx = Math.max(18, avail / steps);
   }
 
   function renderBoard() {
@@ -830,5 +832,6 @@
     if (e.key === STORAGE_KEY && e.newValue) { state = M.normalizeState(JSON.parse(e.newValue)); render(); }
   });
 
+  save(); // write back anything load() repaired or migrated
   render();
 })();

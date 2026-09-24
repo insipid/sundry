@@ -9,7 +9,9 @@
   // fixed; the breaks between zones can move (see moveBoundary).
   const ZONE_IDS = ['early', 'morning', 'midday', 'afternoon', 'evening'];
   const OPTIONAL = { early: true, evening: true };
-  const DEFAULT_ZONE_SIZES = { early: 3, morning: 4, midday: 2, afternoon: 4, evening: 4 };
+  // 12 core steps, 4 each for early and evening: an optional zone opened on
+  // its own takes a quarter of the day's height, both open take a fifth each.
+  const DEFAULT_ZONE_SIZES = { early: 4, morning: 5, midday: 2, afternoon: 5, evening: 4 };
   const TOTAL_STEPS = ZONE_IDS.reduce((n, id) => n + DEFAULT_ZONE_SIZES[id], 0);
   const FULL_RANGE = { start: 0, end: TOTAL_STEPS };
 
@@ -135,12 +137,22 @@
     return 'a big chunk';
   }
 
+  // Version 1 plans used a 17-step day. Map an old step onto the new day zone
+  // by zone, keeping its relative position inside its zone.
+  const V1_ZONE_SIZES = { early: 3, morning: 4, midday: 2, afternoon: 4, evening: 4 };
+  const V1_TOTAL = 17;
+  function migrateStep(step, from, to) {
+    if (step >= V1_TOTAL) return TOTAL_STEPS;
+    const i = Math.max(0, from.findIndex(z => step >= z.start && step < z.end));
+    return to[i].start + (step - from[i].start) * to[i].steps / from[i].steps;
+  }
+
   let idCounter = 0;
   const newId = () => Date.now().toString(36) + (idCounter++).toString(36) + Math.random().toString(36).slice(2, 6);
 
   function defaultState() {
     return {
-      version: 1,
+      version: 2,
       settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true] },
       view: { showEarly: false, showEvening: false },
       zones: { ...DEFAULT_ZONE_SIZES },
@@ -166,8 +178,21 @@
     const vd = Array.isArray(s.visibleDays) && s.visibleDays.length === 7 ? s.visibleDays.map(Boolean) : Array(7).fill(true);
     const settings = { weekStart: int(s.weekStart, 0, 6) ? s.weekStart : 0, visibleDays: vd };
 
-    const blocks = (Array.isArray(raw.blocks) ? raw.blocks : [])
-      .filter(x => x && int(x.day, 0, 6) && Number.isFinite(x.start) && Number.isFinite(x.size))
+    let rawBlocks = (Array.isArray(raw.blocks) ? raw.blocks : [])
+      .filter(x => x && int(x.day, 0, 6) && Number.isFinite(x.start) && Number.isFinite(x.size));
+    let rz = raw.zones || {};
+    if (raw.version === 1) {
+      const oz = raw.zones || {};
+      const oldOk = ZONE_IDS.every(k => int(oz[k], 1, V1_TOTAL)) && ZONE_IDS.reduce((n, k) => n + oz[k], 0) === V1_TOTAL;
+      const from = zonesFor(oldOk ? oz : V1_ZONE_SIZES), to = zonesFor(DEFAULT_ZONE_SIZES);
+      rawBlocks = rawBlocks.map(x => {
+        const start = Math.round(migrateStep(x.start, from, to));
+        const end = Math.round(migrateStep(x.start + x.size, from, to));
+        return { ...x, start, size: Math.max(1, end - start) };
+      });
+      rz = DEFAULT_ZONE_SIZES;
+    }
+    const blocks = rawBlocks
       .map(x => ({ id: id(x.id), day: x.day, ...clampBlock(x.start, x.size, FULL_RANGE), title: str(x.title), color: color(x.color) }));
 
     const regulars = (Array.isArray(raw.regulars) ? raw.regulars : [])
@@ -178,7 +203,6 @@
       .filter(x => x && typeof x.title === 'string')
       .map(x => ({ id: id(x.id), title: x.title, size: clampBlock(0, x.size || 2, FULL_RANGE).size, color: color(x.color) }));
 
-    const rz = raw.zones || {};
     const zonesOk = ZONE_IDS.every(k => int(rz[k], 1, TOTAL_STEPS)) && ZONE_IDS.reduce((n, k) => n + rz[k], 0) === TOTAL_STEPS;
     const zoneSizes = zonesOk ? Object.fromEntries(ZONE_IDS.map(k => [k, rz[k]])) : { ...DEFAULT_ZONE_SIZES };
     const layout = zonesFor(zoneSizes);
@@ -188,7 +212,7 @@
       showEarly: Boolean(v.showEarly) || !canHide('early', blocks, layout),
       showEvening: Boolean(v.showEvening) || !canHide('evening', blocks, layout),
     };
-    return { version: 1, settings, view, zones: zoneSizes, blocks, regulars, unplaced };
+    return { version: 2, settings, view, zones: zoneSizes, blocks, regulars, unplaced };
   }
 
   const Model = {
