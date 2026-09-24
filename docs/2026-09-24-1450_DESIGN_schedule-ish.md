@@ -41,8 +41,8 @@ showing or hiding a zone never moves a block.
 **Optional zones stay optional without adding clutter.** Below the gutter
 there's a small grab handle, "⋯ evening". Dragging it down reveals the
 evening zone, and dragging it back up hides it again. `early` has the same
-handle at the top. A zone can't be hidden while blocks sit in it; the handle
-stops at the last block. That keeps the default view simple while the extra
+handle at the top. A zone can't be hidden while blocks sit in it; trying
+shows a short "move the evening blocks out first" note. That keeps the default view simple while the extra
 zones are always one drag away.
 
 Gridlines: faint at every step, a little stronger at zone boundaries.
@@ -92,8 +92,21 @@ only through small functions, then re-renders and saves.
 
 ## Testing
 
-- `node --test schedule-ish/test` for model logic: snapping, clamping,
+- `node --test schedule-ish/test/*.test.js` for model logic: snapping, clamping,
   overlap columns, first free gap, zone-hide limits, import validation.
 - Manual pass in a browser: create, move across days, resize, overlap,
   regulars to header and column, unplaced round trip, zone handles,
   settings, export/import, reload persistence.
+
+## As built: small additions
+
+These weren't in the Q&A, but they're cheap and they suit how drag-and-drop
+tools feel:
+
+- Undo/redo (⌘Z / ⇧⌘Z). Each drag, edit or import is one step.
+- Blocks with the same name share a colour. New blocks take the colour of a
+  matching regular or block, or else a colour derived from a hash of the name.
+- Three starter regulars on first run (Gym, Lunch, Deep work) so the sidebar
+  isn't empty. Delete them freely.
+- Day headers and the zone gutter stay pinned when the board scrolls, which
+  matters on tablet widths.
