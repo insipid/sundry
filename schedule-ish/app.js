@@ -4,7 +4,8 @@
   const M = window.Model;
   const STORAGE_KEY = 'schedule-ish:v1';
   const DRAG_THRESHOLD = 4;
-  const HANDLE_H = 22;
+  const ADD_ROW_H = 26;     // the "+ early" / "+ evening" rows
+  const PRINT_GRID_H = 600; // px the day is squeezed into on paper
 
   const $ = sel => document.querySelector(sel);
   const $$ = sel => [...document.querySelectorAll(sel)];
@@ -20,7 +21,9 @@
     ghost: null,        // { day, start, size, color } preview while dragging in
     drag: null,
     stepPx: 32,
-    range: M.visibleRange(state.view),
+    zones: M.zonesFor(state.zones),
+    range: M.visibleRange(state.view, M.zonesFor(state.zones)),
+    printing: false,
   };
 
   function load() {
@@ -76,12 +79,10 @@
     for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return h % M.PALETTE.length;
   }
-  const zoneAt = step => (M.ZONES.find(z => step >= z.start && step < z.end) || M.ZONES[1]).id;
 
   // ---- rendering -----------------------------------------------------------
 
   function render() {
-    ui.range = M.visibleRange(state.view);
     renderSidebar();
     renderBoard();
     focusEditor();
@@ -131,18 +132,21 @@
       <section class="mt-auto text-[11.5px] leading-relaxed" style="color:var(--muted)">
         <p><b class="font-semibold">Drag down</b> in a day to rough out a chunk, or click for a default one.</p>
         <p>Drag edges to resize. Double-click to rename. Drop a regular on a <b class="font-semibold">day name</b> to put it in its usual spot.</p>
-        <p>Drag the <b class="font-semibold">⋯ early / evening</b> tabs to stretch the day.</p>
+        <p>Drag a <b class="font-semibold">zone name</b> (midday, afternoon…) to move where it starts. <b class="font-semibold">+ early / + evening</b> add the ends of the day.</p>
       </section>`;
   }
 
   function measureStep() {
-    const body = $('#board-body');
     const steps = ui.range.end - ui.range.start;
-    const avail = body.clientHeight - $('#board-head').offsetHeight - HANDLE_H * 2 - 2;
+    if (ui.printing) { ui.stepPx = Math.floor(PRINT_GRID_H / steps); return; }
+    const addRows = !state.view.showEarly + !state.view.showEvening;
+    const avail = $('#board-body').clientHeight - $('#board-head').offsetHeight - ADD_ROW_H * addRows - 2;
     ui.stepPx = Math.max(22, Math.min(64, Math.floor(avail / steps)));
   }
 
   function renderBoard() {
+    ui.zones = M.zonesFor(state.zones);
+    ui.range = M.visibleRange(state.view, ui.zones);
     const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
     const { start: r0, end: r1 } = ui.range;
     // min-width makes the grid as wide as its columns, so the sticky gutter can pin all the way.
@@ -158,16 +162,25 @@
     measureStep(); // after the header, whose height it subtracts
     const px = ui.stepPx;
     const height = (r1 - r0) * px;
-    const zones = M.visibleZones(state.view);
-    const gutter = zones.map(z => `
-      <div class="absolute left-0 right-0 pr-3 text-right text-[11.5px] font-medium" style="top:${(z.start - r0) * px + 6}px; color: var(--muted)">${z.label}</div>`).join('');
+    // Zone names sit on the line at the top of their zone. Dragging one moves
+    // that line; the first visible zone has no line above it to move.
+    const gutter = M.visibleZones(state.view, ui.zones).map((z, i) => {
+      const movable = i > 0;
+      const active = ui.drag && ui.drag.kind === 'boundary' && ui.drag.active && ui.drag.zone === z.id;
+      return `
+      <div class="zone-label group ${movable ? 'movable' : ''} ${active ? 'active' : ''}" ${movable ? `data-zone-drag="${z.id}" title="Drag to move where ${z.label} starts"` : ''}
+           style="top:${Math.max(0, (z.start - r0) * px - 6)}px">
+        ${z.optional ? `<button class="zone-toggle" data-cmd="hide-zone" data-zone="${z.id}" title="Tuck ${z.label} away">−</button>` : ''}
+        <span>${z.label}</span>
+      </div>`;
+    }).join('');
 
     const lines = [];
     for (let s = r0 + 1; s < r1; s++) {
-      const isZone = M.ZONES.some(z => z.start === s);
+      const isZone = ui.zones.some(z => z.start === s);
       lines.push(`<div class="${isZone ? 'zone-line' : 'step-line'}" style="top:${(s - r0) * px}px"></div>`);
     }
-    const midday = M.zone('midday');
+    const midday = M.zone('midday', ui.zones);
     const band = `<div class="band" style="top:${(midday.start - r0) * px}px; height:${midday.steps * px}px"></div>`;
 
     const columns = days.map(d => {
@@ -181,22 +194,22 @@
       </div>`;
     }).join('');
 
-    const handle = (zoneId, where) => {
-      const shown = zoneId === 'early' ? state.view.showEarly : state.view.showEvening;
-      const tip = shown ? `Drag up (or click) to tuck ${zoneId} away` : `Drag down (or click) to add ${zoneId}`;
-      return `<div class="grid" style="${cols}">
-        <div class="zone-handle pin-left" data-handle="${zoneId}" title="${tip}"><span>⋯ ${zoneId}</span></div>
+    // A hidden optional zone shows as a quiet "+ evening" row; once open, its
+    // gutter label carries the "−" to tuck it away again.
+    const addRow = zoneId => `<div class="grid zone-add-row" style="${cols}; height:${ADD_ROW_H}px">
+        <div class="pin-left flex items-center justify-end pr-2">
+          <button class="zone-add" data-cmd="show-zone" data-zone="${zoneId}" title="Add ${zoneId} to the day">+ ${zoneId}</button>
+        </div>
         <div style="grid-column: 2 / -1"></div>
       </div>`;
-    };
 
     $('#board-grid').innerHTML = `
-      ${handle('early', 'top')}
+      ${state.view.showEarly ? '' : addRow('early')}
       <div class="grid" style="${cols}">
         <div class="relative pin-left" style="height:${height}px">${gutter}</div>
         ${columns}
       </div>
-      ${handle('evening', 'bottom')}`;
+      ${state.view.showEvening ? '' : addRow('evening')}`;
   }
 
   function blockHtml(b, lay, isGhost = false) {
@@ -279,7 +292,7 @@
     const regEl = e.target.closest('[data-regular]');
     const unpEl = e.target.closest('[data-unplaced]');
     const colEl = e.target.closest('.day-col');
-    const handleEl = e.target.closest('[data-handle]');
+    const boundaryEl = e.target.closest('[data-zone-drag]');
 
     if (blockEl) {
       const b = findBlock(blockEl.dataset.block);
@@ -300,8 +313,8 @@
       select(null);
       const rect = colEl.getBoundingClientRect();
       beginDrag(e, { kind: 'create', day: +colEl.dataset.day, anchor: Math.floor(stepAt(rect, e.clientY)), deselectOnly: hadSelection });
-    } else if (handleEl) {
-      beginDrag(e, { kind: 'zone', zone: handleEl.dataset.handle, el: handleEl });
+    } else if (boundaryEl) {
+      beginDrag(e, { kind: 'boundary', zone: boundaryEl.dataset.zoneDrag });
     } else if (!e.target.closest('#sidebar')) {
       select(null);
     }
@@ -436,23 +449,15 @@
     regular: dropIn(r => findRegular(r), false),
     unplaced: dropIn(u => findUnplaced(u), true),
 
-    zone: {
+    boundary: {
       move(d, e) {
-        const dy = e.clientY - d.y0;
-        const shown = d.zone === 'early' ? state.view.showEarly : state.view.showEvening;
-        const want = dy > ui.stepPx * 1.2 ? true : dy < -ui.stepPx * 1.2 ? false : shown;
-        $(`[data-handle="${d.zone}"]`)?.classList.add('pulling');
-        if (want !== shown) { setZone(d.zone, want); d.y0 = e.clientY; }
+        const col = $('.day-col').getBoundingClientRect();
+        const next = M.moveBoundary(state.zones, d.zone, stepAt(col, e.clientY));
+        if (JSON.stringify(next) === JSON.stringify(state.zones)) return;
+        state.zones = next;
+        renderBoard();
       },
-      end(d) {
-        $$('.zone-handle').forEach(h => h.classList.remove('pulling'));
-        settle(d);
-      },
-      click(d) {
-        const shown = d.zone === 'early' ? state.view.showEarly : state.view.showEvening;
-        pushUndo(d.snap);
-        if (setZone(d.zone, !shown)) save(); else undoStack.pop();
-      },
+      end: settle,
     },
   };
 
@@ -470,7 +475,7 @@
         const col = headDay == null ? columnAt(e.clientX, e.clientY) : null;
         let ghost = null;
         if (headDay != null) {
-          ghost = { day: headDay, start: M.firstFreeGap(state.blocks, headDay, item.size, item.zone || 'morning', ui.range), size: item.size };
+          ghost = { day: headDay, start: M.firstFreeGap(state.blocks, headDay, item.size, item.zone || 'morning', ui.range, ui.zones), size: item.size };
         } else if (col) {
           const c = M.clampBlock(stepAt(col.rect, e.clientY) - item.size / 2, item.size, ui.range);
           ghost = { day: col.day, ...c };
@@ -500,7 +505,7 @@
 
   function setZone(zoneId, show) {
     const key = zoneId === 'early' ? 'showEarly' : 'showEvening';
-    if (!show && !M.canHide(zoneId, state.blocks)) {
+    if (!show && !M.canHide(zoneId, state.blocks, ui.zones)) {
       toast(`Move the ${zoneId} blocks out first`);
       return false;
     }
@@ -617,7 +622,7 @@
         case 'make-regular': {
           const b = findBlock(id);
           if (state.regulars.some(r => r.title.toLowerCase() === b.title.toLowerCase())) return toast(`“${b.title}” is already a regular`);
-          commit(s => s.regulars.push({ id: M.newId(), title: b.title || 'untitled', size: b.size, color: b.color, zone: zoneAt(b.start) }));
+          commit(s => s.regulars.push({ id: M.newId(), title: b.title || 'untitled', size: b.size, color: b.color, zone: M.zoneAt(b.start, ui.zones) }));
           return toast(`Saved “${b.title || 'untitled'}” as a regular`);
         }
         case 'drop-unplaced': {
@@ -636,6 +641,12 @@
       case 'import': return $('#import-file').click();
       case 'settings': return openSettings(cmd);
       case 'new-regular': return editRegular(null, cmd);
+      case 'print': return window.print();
+      case 'show-zone':
+      case 'hide-zone':
+        pushUndo();
+        if (setZone(cmd.dataset.zone, cmd.dataset.cmd === 'show-zone')) save(); else undoStack.pop();
+        return;
     }
   });
 
@@ -802,6 +813,10 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
   }
+
+  // On paper the day is squeezed to fit one landscape page.
+  window.addEventListener('beforeprint', () => { ui.printing = true; renderBoard(); });
+  window.addEventListener('afterprint', () => { ui.printing = false; renderBoard(); });
 
   // Re-fit the day to the board whenever the board changes size. This also
   // catches Tailwind's browser build styling the page after our first render.
