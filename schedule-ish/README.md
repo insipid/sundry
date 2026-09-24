@@ -28,7 +28,7 @@ CDNs, so it needs a network connection on first load.
 
 **The day** has no hours. It's split into soft zones: *morning*, *midday*
 (tinted, for lunch) and *afternoon*. Faint lines mark steps, and blocks snap
-to those steps.
+to those steps. The visible zones always fill the board's full height.
 - **Move a break:** hover a zone name (*midday*, *afternoon*, …) until the
   cursor shows ↕, then drag. That moves where the zone starts, trading
   steps only with the zone above it. Every zone keeps at least one step, and
@@ -37,6 +37,9 @@ to those steps.
 - **Early and evening** are optional. Click **+ early** or **+ evening** to
   add one. Once it's open, hover its name and click **−** to tuck it away
   again. A zone won't hide while blocks are still in it.
+- Opening one takes a quarter of the height (a fifth each if both are open),
+  and the other zones shrink proportionally. Collapsing it puts everything
+  back exactly.
 
 **Blocks**
 - **Drag down** in a day to rough out a chunk, or **click** for a default one.
@@ -62,7 +65,7 @@ somewhere. Type one in and press Enter. Dragging it onto the week *moves* it
 there. Dragging a block from the week back onto this list takes it off the
 week.
 
-**PDF** opens the print dialog with just the week on one landscape page.
+**PDF** is a shortcut for the browser's print (⌘P does the same). It opens the print dialog with just the week on one landscape page.
 The sidebar and buttons are hidden and the colours are kept. Choose "Save
 as PDF" as the destination, or print it.
 

@@ -130,3 +130,24 @@ tools feel:
   fits one landscape page on both Letter and A4 (checked with headless
   Chrome's print-to-PDF). jsPDF and html2canvas were the alternatives, but
   both mean more code or blurrier text for little gain.
+
+## Round 3 (2026-09-24): fill the height, fixed share for early/evening
+
+- **Always fill.** The step height is no longer capped (it used to max out
+  at 64px). The visible zones fill the board exactly. Only a very short
+  window falls back to an 18px minimum and scrolls.
+- **20-step day.** The zones are now early 4, morning 5, midday 2,
+  afternoon 5, evening 4 (the table above shows the original 17-step
+  split). With 12 core steps, an optional zone opened on its own is 4/16 =
+  25% of the height, and both open are 4/20 = 20% each. Steps stay a
+  uniform height, so the core zones shrink proportionally (5:2:5 always)
+  and collapsing restores them exactly.
+- **Migration.** Plans are now `version: 2`. A `version: 1` plan (17 steps)
+  is mapped zone by zone. Each block keeps its zone and its relative
+  position and size inside it, using its own saved zone sizes if they're
+  valid. Breaks moved under v1 reset to the new defaults. Plans with no
+  version are taken as current. The size words count steps, so a migrated
+  block can read one size up (e.g. *a bit* → *a good bit*) at the same
+  height on screen.
+- PDF stays a print stylesheet. The button is just a visible shortcut for
+  ⌘P, which gives the same page.
