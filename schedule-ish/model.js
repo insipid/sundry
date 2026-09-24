@@ -206,43 +206,56 @@
   let idCounter = 0;
   const newId = () => Date.now().toString(36) + (idCounter++).toString(36) + Math.random().toString(36).slice(2, 6);
 
+  // Notes are a short list of lines. `check` is null for a plain bullet,
+  // false for an open tick box, true for a ticked one.
+  const nextCheck = c => (c === null ? false : c === false ? true : null);
+
+  const defaultView = () => ({ showEarly: false, showEvening: false });
+
+  function blankWeek(name = 'New week') {
+    return { id: newId(), name, view: defaultView(), zones: { ...DEFAULT_ZONE_SIZES }, blocks: [] };
+  }
+
+  // A deep copy with fresh ids, notes and ticks included.
+  function copyWeek(week, name) {
+    const copy = JSON.parse(JSON.stringify(week));
+    copy.id = newId();
+    copy.name = name;
+    for (const x of copy.blocks) x.id = newId();
+    return copy;
+  }
+
   function defaultState() {
+    const week = { ...blankWeek('My week'), id: 'w-first' };
     return {
-      version: 2,
+      version: 3,
       settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false },
-      view: { showEarly: false, showEvening: false },
-      zones: { ...DEFAULT_ZONE_SIZES },
-      blocks: [],
+      weeks: [week],
+      currentWeek: week.id,
       regulars: [
-        { id: 'r-gym', title: 'Gym', size: 3, color: 1, zone: 'morning' },
-        { id: 'r-lunch', title: 'Lunch', size: 2, color: 4, zone: 'midday' },
-        { id: 'r-deep', title: 'Deep work', size: 4, color: 0, zone: 'morning' },
+        { id: 'r-gym', title: 'Gym', size: 3, color: 1, zone: 'morning', notes: [] },
+        { id: 'r-lunch', title: 'Lunch', size: 2, color: 4, zone: 'midday', notes: [] },
+        { id: 'r-deep', title: 'Deep work', size: 4, color: 0, zone: 'morning', notes: [] },
       ],
       unplaced: [],
     };
   }
 
-  // Validate/repair anything loaded from storage or an import file.
-  function normalizeState(raw) {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Not a schedule-ish plan');
-    const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
-    const str = v => (typeof v === 'string' ? v : '');
-    const color = v => (int(v, 0, PALETTE.length - 1) ? v : 0);
-    const id = v => (typeof v === 'string' && v ? v : newId());
+  const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+  const str = v => (typeof v === 'string' ? v : '');
+  const color = v => (int(v, 0, PALETTE.length - 1) ? v : 0);
+  const idOr = v => (typeof v === 'string' && v ? v : newId());
+  const normNotes = v => (Array.isArray(v) ? v : [])
+    .filter(n => n && typeof n.text === 'string')
+    .map(n => ({ text: n.text, check: n.check === true || n.check === false ? n.check : null }));
 
-    const s = raw.settings || {};
-    const vd = Array.isArray(s.visibleDays) && s.visibleDays.length === 7 ? s.visibleDays.map(Boolean) : Array(7).fill(true);
-    const settings = {
-      weekStart: int(s.weekStart, 0, 6) ? s.weekStart : 0,
-      visibleDays: vd,
-      sidebar: s.sidebar === 'right' ? 'right' : 'left',
-      sidebarHidden: s.sidebarHidden === true,
-    };
-
+  // One week's board: view, zone sizes and blocks. `v1` maps a version-1
+  // (17-step) plan onto the current day.
+  function normalizeWeek(raw, v1 = false) {
     let rawBlocks = (Array.isArray(raw.blocks) ? raw.blocks : [])
       .filter(x => x && int(x.day, 0, 6) && Number.isFinite(x.start) && Number.isFinite(x.size));
     let rz = raw.zones || {};
-    if (raw.version === 1) {
+    if (v1) {
       const oz = raw.zones || {};
       const oldOk = ZONE_IDS.every(k => int(oz[k], 1, V1_TOTAL)) && ZONE_IDS.reduce((n, k) => n + oz[k], 0) === V1_TOTAL;
       const from = zonesFor(oldOk ? oz : V1_ZONE_SIZES), to = zonesFor(DEFAULT_ZONE_SIZES);
@@ -253,34 +266,74 @@
       });
       rz = DEFAULT_ZONE_SIZES;
     }
-    const blocks = rawBlocks
-      .map(x => ({ id: id(x.id), day: x.day, ...clampBlock(x.start, x.size, FULL_RANGE), title: str(x.title), color: color(x.color) }));
-
-    const regulars = (Array.isArray(raw.regulars) ? raw.regulars : [])
-      .filter(x => x && typeof x.title === 'string')
-      .map(x => ({ id: id(x.id), title: x.title, size: clampBlock(0, x.size || 2, FULL_RANGE).size, color: color(x.color), zone: zone(x.zone) ? x.zone : 'morning' }));
-
-    const unplaced = (Array.isArray(raw.unplaced) ? raw.unplaced : [])
-      .filter(x => x && typeof x.title === 'string')
-      .map(x => ({ id: id(x.id), title: x.title, size: clampBlock(0, x.size || 2, FULL_RANGE).size, color: color(x.color) }));
+    const blocks = rawBlocks.map(x => ({
+      id: idOr(x.id), day: x.day, ...clampBlock(x.start, x.size, FULL_RANGE),
+      title: str(x.title), color: color(x.color), notes: normNotes(x.notes),
+    }));
 
     const zonesOk = ZONE_IDS.every(k => int(rz[k], 1, TOTAL_STEPS)) && ZONE_IDS.reduce((n, k) => n + rz[k], 0) === TOTAL_STEPS;
-    const zoneSizes = zonesOk ? Object.fromEntries(ZONE_IDS.map(k => [k, rz[k]])) : { ...DEFAULT_ZONE_SIZES };
-    const layout = zonesFor(zoneSizes);
+    const zones = zonesOk ? Object.fromEntries(ZONE_IDS.map(k => [k, rz[k]])) : { ...DEFAULT_ZONE_SIZES };
+    const layout = zonesFor(zones);
 
     const v = raw.view || {};
     const view = {
       showEarly: Boolean(v.showEarly) || !canHide('early', blocks, layout),
       showEvening: Boolean(v.showEvening) || !canHide('evening', blocks, layout),
     };
-    return { version: 2, settings, view, zones: zoneSizes, blocks, regulars, unplaced };
+    return { id: idOr(raw.id), name: str(raw.name).trim() || 'Untitled week', view, zones, blocks };
+  }
+
+  // Validate/repair anything loaded from storage or an import file.
+  // v3 keeps several named weeks; v1/v2 plans had one board at the top
+  // level, which becomes a single week called "My week".
+  function normalizeState(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Not a schedule-ish plan');
+
+    const s = raw.settings || {};
+    const vd = Array.isArray(s.visibleDays) && s.visibleDays.length === 7 ? s.visibleDays.map(Boolean) : Array(7).fill(true);
+    const settings = {
+      weekStart: int(s.weekStart, 0, 6) ? s.weekStart : 0,
+      visibleDays: vd,
+      sidebar: s.sidebar === 'right' ? 'right' : 'left',
+      sidebarHidden: s.sidebarHidden === true,
+    };
+
+    let weeks;
+    if (Array.isArray(raw.weeks)) {
+      weeks = raw.weeks.filter(w => w && typeof w === 'object' && !Array.isArray(w)).map(w => normalizeWeek(w));
+    } else {
+      weeks = [normalizeWeek({ name: 'My week', view: raw.view, zones: raw.zones, blocks: raw.blocks }, raw.version === 1)];
+    }
+    if (!weeks.length) weeks = [blankWeek('My week')];
+    const currentWeek = weeks.some(w => w.id === raw.currentWeek) ? raw.currentWeek : weeks[0].id;
+
+    const regulars = (Array.isArray(raw.regulars) ? raw.regulars : [])
+      .filter(x => x && typeof x.title === 'string')
+      .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, x.size || 2, FULL_RANGE).size, color: color(x.color),
+        zone: zone(x.zone) ? x.zone : 'morning', notes: normNotes(x.notes) }));
+
+    const unplaced = (Array.isArray(raw.unplaced) ? raw.unplaced : [])
+      .filter(x => x && typeof x.title === 'string')
+      .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, x.size || 2, FULL_RANGE).size, color: color(x.color),
+        notes: normNotes(x.notes) }));
+
+    return { version: 3, settings, weeks, currentWeek, regulars, unplaced };
+  }
+
+  // The print-out's notes page: blocks that have notes, in the board's day
+  // order, top to bottom within a day. Hidden days are left out.
+  function notesForPrint(week, days) {
+    return week.blocks
+      .filter(x => x.notes && x.notes.length && days.includes(x.day))
+      .sort((a, c) => days.indexOf(a.day) - days.indexOf(c.day) || a.start - c.start)
+      .map(x => ({ day: x.day, title: x.title, notes: x.notes }));
   }
 
   const Model = {
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
-    defaultState, normalizeState,
+    defaultState, normalizeState, blankWeek, copyWeek, nextCheck, notesForPrint,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;
   else root.Model = Model;

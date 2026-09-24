@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const M = require('../model.js');
 
 const b = (id, day, start, size) => ({ id, day, start, size, title: id, color: 0 });
+const wk = s => s.weeks.find(w => w.id === s.currentWeek);
 
 // Default day: early 0-4, morning 4-9, midday 9-11, afternoon 11-16, evening 16-20.
 
@@ -101,8 +102,8 @@ test('sizeWord gives rough words, not durations', () => {
 
 test('defaultState is valid and seeds a couple of regulars', () => {
   const s = M.defaultState();
-  assert.equal(s.version, 2);
-  assert.equal(s.blocks.length, 0);
+  assert.equal(s.version, 3);
+  assert.equal(wk(s).blocks.length, 0);
   assert.ok(s.regulars.length >= 1);
   assert.deepEqual(M.normalizeState(JSON.parse(JSON.stringify(s))), s);
 });
@@ -114,16 +115,16 @@ test('normalizeState repairs partial input and drops junk', () => {
   });
   assert.equal(s.settings.weekStart, 3);
   assert.equal(s.settings.visibleDays.length, 7);
-  assert.deepEqual(s.blocks.map(x => x.id), ['a', 'd']);
+  assert.deepEqual(wk(s).blocks.map(x => x.id), ['a', 'd']);
   // d is clamped to the full day
-  assert.deepEqual([s.blocks[1].start, s.blocks[1].size], [15, 5]);
+  assert.deepEqual([wk(s).blocks[1].start, wk(s).blocks[1].size], [15, 5]);
   assert.deepEqual(s.regulars, []);
   assert.deepEqual(s.unplaced, []);
 });
 
 test('normalizeState turns on a hidden zone that has blocks in it', () => {
   const s = M.normalizeState({ blocks: [b('a', 0, 17, 2)], view: { showEvening: false } });
-  assert.equal(s.view.showEvening, true);
+  assert.equal(wk(s).view.showEvening, true);
 });
 
 test('normalizeState rejects things that are not a plan', () => {
@@ -171,10 +172,10 @@ test('zone-aware helpers follow custom zones', () => {
 
 test('normalizeState keeps valid zone sizes and resets broken ones', () => {
   const custom = { early: 3, morning: 6, midday: 2, afternoon: 5, evening: 4 };
-  assert.deepEqual(M.normalizeState({ zones: custom }).zones, custom);
-  assert.deepEqual(M.normalizeState({}).zones, M.DEFAULT_ZONE_SIZES);
-  assert.deepEqual(M.normalizeState({ zones: { ...custom, morning: 0, midday: 8 } }).zones, M.DEFAULT_ZONE_SIZES);
-  assert.deepEqual(M.normalizeState({ zones: { ...custom, morning: 9 } }).zones, M.DEFAULT_ZONE_SIZES); // wrong total
+  assert.deepEqual(wk(M.normalizeState({ zones: custom })).zones, custom);
+  assert.deepEqual(wk(M.normalizeState({})).zones, M.DEFAULT_ZONE_SIZES);
+  assert.deepEqual(wk(M.normalizeState({ zones: { ...custom, morning: 0, midday: 8 } })).zones, M.DEFAULT_ZONE_SIZES);
+  assert.deepEqual(wk(M.normalizeState({ zones: { ...custom, morning: 9 } })).zones, M.DEFAULT_ZONE_SIZES); // wrong total
 });
 
 // ---- migrating plans saved on the old 17-step day (version 1) ----
@@ -186,16 +187,16 @@ test('v1 plans move onto the 20-step day, keeping each block in its zone', () =>
     zones: { early: 3, morning: 4, midday: 2, afternoon: 4, evening: 4 },
     blocks: [b('am', 0, 3, 4), b('lunch', 0, 7, 2), b('pm', 0, 9, 2), b('eve', 0, 13, 2), b('dawn', 0, 0, 3)],
   });
-  assert.equal(s.version, 2);
-  assert.deepEqual(s.zones, M.DEFAULT_ZONE_SIZES);
-  const at = id => { const x = s.blocks.find(y => y.id === id); return [x.start, x.size]; };
+  assert.equal(s.version, 3);
+  assert.deepEqual(wk(s).zones, M.DEFAULT_ZONE_SIZES);
+  const at = id => { const x = wk(s).blocks.find(y => y.id === id); return [x.start, x.size]; };
   assert.deepEqual(at('am'), [4, 5]);    // the whole morning
   assert.deepEqual(at('lunch'), [9, 2]); // the whole midday
   assert.deepEqual(at('pm'), [11, 3]);   // first half of the afternoon (2 of 4 → 2.5 of 5, rounded)
   assert.deepEqual(at('eve'), [16, 2]);
   assert.deepEqual(at('dawn'), [0, 4]);  // the whole early zone
   for (const id of ['am', 'lunch', 'pm', 'eve', 'dawn']) {
-    const x = s.blocks.find(y => y.id === id);
+    const x = wk(s).blocks.find(y => y.id === id);
     const old = { am: 'morning', lunch: 'midday', pm: 'afternoon', eve: 'evening', dawn: 'early' }[id];
     assert.equal(M.zoneAt(x.start), old);
   }
@@ -207,9 +208,9 @@ test('v1 plans with moved breaks or no zones use their own old layout', () => {
     zones: { early: 3, morning: 5, midday: 1, afternoon: 4, evening: 4 }, // midday 8-9
     blocks: [b('lunch', 0, 8, 1)],
   });
-  assert.deepEqual([moved.blocks[0].start, moved.blocks[0].size], [9, 2]);
+  assert.deepEqual([wk(moved).blocks[0].start, wk(moved).blocks[0].size], [9, 2]);
   const bare = M.normalizeState({ version: 1, blocks: [b('am', 0, 3, 4)] });
-  assert.deepEqual([bare.blocks[0].start, bare.blocks[0].size], [4, 5]);
+  assert.deepEqual([wk(bare).blocks[0].start, wk(bare).blocks[0].size], [4, 5]);
 });
 
 // ---- moving a break pushes, then compresses, the blocks in the shrinking zone ----
@@ -292,4 +293,88 @@ test('sidebar side and visibility are settings with safe defaults', () => {
   assert.equal(s.sidebar, 'right');
   assert.equal(s.sidebarHidden, true);
   assert.equal(M.normalizeState({ settings: { sidebar: 'up' } }).settings.sidebar, 'left');
+});
+
+// ---- weeks (v3): several named, live weeks ----
+
+test('a v2 plan becomes a single week called "My week"', () => {
+  const s = M.normalizeState({
+    version: 2, view: { showEarly: true, showEvening: false },
+    zones: { early: 3, morning: 6, midday: 2, afternoon: 5, evening: 4 },
+    blocks: [b('a', 1, 5, 2)], regulars: [], unplaced: [],
+  });
+  assert.equal(s.version, 3);
+  assert.equal(s.weeks.length, 1);
+  assert.equal(wk(s).name, 'My week');
+  assert.deepEqual(wk(s).view, { showEarly: true, showEvening: false });
+  assert.equal(wk(s).zones.morning, 6);
+  assert.deepEqual(wk(s).blocks.map(x => x.id), ['a']);
+  assert.equal(s.blocks, undefined);
+});
+
+test('v3 weeks are each normalised, and currentWeek falls back to the first', () => {
+  const s = M.normalizeState({
+    version: 3,
+    weeks: [
+      { id: 'w1', name: 'Normal', blocks: [b('a', 0, 5, 2)] },
+      { id: 'w2', name: '', blocks: [b('b', 9, 5, 2)], view: { showEvening: false }, zones: { nope: 1 } },
+      'junk',
+    ],
+    currentWeek: 'missing',
+  });
+  assert.deepEqual(s.weeks.map(w => w.id), ['w1', 'w2']);
+  assert.equal(s.currentWeek, 'w1');
+  assert.equal(s.weeks[1].name, 'Untitled week');
+  assert.deepEqual(s.weeks[1].blocks, []);
+  assert.deepEqual(s.weeks[1].zones, M.DEFAULT_ZONE_SIZES);
+  assert.equal(M.normalizeState({ version: 3, weeks: [], currentWeek: 'x' }).weeks.length, 1);
+});
+
+test('blankWeek and copyWeek make fresh weeks; copies are deep, with new ids', () => {
+  const blank = M.blankWeek('Holiday');
+  assert.equal(blank.name, 'Holiday');
+  assert.deepEqual(blank.blocks, []);
+  assert.deepEqual(blank.zones, M.DEFAULT_ZONE_SIZES);
+  const src = { ...M.blankWeek('Normal'), blocks: [{ ...b('a', 0, 5, 2), notes: [{ text: 'legs', check: false }] }] };
+  const copy = M.copyWeek(src, 'Normal copy');
+  assert.equal(copy.name, 'Normal copy');
+  assert.notEqual(copy.id, src.id);
+  assert.notEqual(copy.blocks[0].id, 'a');
+  assert.deepEqual(copy.blocks[0].notes, [{ text: 'legs', check: false }]);
+  copy.blocks[0].notes[0].check = true;
+  assert.equal(src.blocks[0].notes[0].check, false);
+});
+
+// ---- notes ----
+
+test('notes are normalised on blocks, regulars and unplaced items', () => {
+  const s = M.normalizeState({
+    blocks: [{ ...b('a', 0, 5, 2), notes: [{ text: 'one' }, { text: 'two', check: true }, { text: 3 }, 'x'] }, b('bare', 0, 8, 1)],
+    regulars: [{ title: 'Gym', notes: [{ text: 'stretch', check: false }] }],
+    unplaced: [{ title: 'Tidy', notes: 'nope' }],
+  });
+  assert.deepEqual(wk(s).blocks[0].notes, [{ text: 'one', check: null }, { text: 'two', check: true }]);
+  assert.deepEqual(wk(s).blocks[1].notes, []);
+  assert.deepEqual(s.regulars[0].notes, [{ text: 'stretch', check: false }]);
+  assert.deepEqual(s.unplaced[0].notes, []);
+});
+
+test('nextCheck cycles a note: bullet → to-do → done → bullet', () => {
+  assert.equal(M.nextCheck(null), false);
+  assert.equal(M.nextCheck(false), true);
+  assert.equal(M.nextCheck(true), null);
+});
+
+test('notesForPrint lists noted blocks by visible day order, then top to bottom', () => {
+  const n = t => [{ text: t, check: null }];
+  const week = { blocks: [
+    { ...b('late', 0, 12, 1), title: 'Late', notes: n('x') },
+    { ...b('early', 0, 5, 1), title: 'Early', notes: n('y') },
+    { ...b('sun', 6, 5, 1), title: 'Sun thing', notes: n('z') },
+    { ...b('none', 0, 7, 1), title: 'No notes', notes: [] },
+    { ...b('hidden', 3, 5, 1), title: 'Hidden day', notes: n('w') },
+  ] };
+  const out = M.notesForPrint(week, [6, 0, 1]);
+  assert.deepEqual(out.map(x => [x.day, x.title]), [[6, 'Sun thing'], [0, 'Early'], [0, 'Late']]);
+  assert.deepEqual(out[0].notes, n('z'));
 });
