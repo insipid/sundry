@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>schedule-ish</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    :root {
+      --paper: #fbfaf7;
+      --board: #ffffff;
+      --ink: #3b3833;
+      --muted: #948c80;
+      --faint: #c9c1b4;
+      --grid: #f1ede6;
+      --zone-line: #e2dbcf;
+      --band: #faf7f1;
+      --accent: #7a6f5f;
+      --gutter: 92px;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--paper); color: var(--ink);
+      font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { cursor: pointer; }
+    body.dragging, body.dragging * { cursor: grabbing !important; user-select: none; }
+    body.resizing, body.resizing * { cursor: ns-resize !important; user-select: none; }
+    body.creating, body.creating * { cursor: crosshair !important; user-select: none; }
+
+    /* grid */
+    .day-col { background-color: var(--board); border-left: 1px solid var(--grid); touch-action: none; }
+    .day-col:first-of-type { border-left: 0; }
+    .zone-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--zone-line); pointer-events: none; }
+    .step-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--grid); pointer-events: none; }
+    .band { position: absolute; left: 0; right: 0; background: var(--band); pointer-events: none; }
+    .pin-left { position: sticky; left: 0; z-index: 25; background: var(--board); }
+    .day-head.drop-hot { background: #f3eee5; color: var(--ink); }
+
+    /* blocks */
+    .block {
+      position: absolute; box-sizing: border-box; border-radius: 12px;
+      padding: 6px 9px; overflow: hidden; touch-action: none; cursor: grab;
+      border: 1px solid transparent;
+      box-shadow: 0 1px 0 rgba(60,50,30,.04);
+      transition: box-shadow .12s ease, transform .12s ease, opacity .12s ease;
+    }
+    .block:hover { box-shadow: 0 2px 8px rgba(60,50,30,.10); }
+    .block.selected { box-shadow: 0 0 0 2px var(--ring), 0 3px 10px rgba(60,50,30,.12); }
+    .block.lifted { box-shadow: 0 8px 22px rgba(60,50,30,.18); transform: scale(1.015); z-index: 20; }
+    .block.to-unplaced { opacity: .45; }
+    .block.ghost { border: 1.5px dashed var(--ring); opacity: .75; pointer-events: none; }
+    .block .title { font-weight: 600; font-size: 13px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .block .size-word { font-size: 11px; opacity: .7; margin-top: 2px; }
+    .block .edge { position: absolute; left: 0; right: 0; height: 7px; cursor: ns-resize; z-index: 2; }
+    .block .edge.top { top: 0; } .block .edge.bottom { bottom: 0; }
+    .block .tools { position: absolute; top: 4px; right: 4px; display: none; gap: 2px; z-index: 3; }
+    .block .tools.at-bottom { top: auto; bottom: 5px; }
+    .block:hover .tools, .block.selected .tools { display: flex; }
+    .block.lifted .tools, .block.editing .tools { display: none !important; }
+    .tool { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center;
+      font-size: 12px; line-height: 1; background: rgba(255,255,255,.7); color: var(--ink); border: 0; }
+    .tool:hover { background: #fff; }
+    .block input { width: 100%; font: inherit; font-weight: 600; font-size: 13px; background: rgba(255,255,255,.7);
+      border: 0; border-radius: 6px; padding: 2px 5px; outline: none; color: var(--ink); }
+
+    /* sidebar chips */
+    .chip { border-radius: 10px; padding: 7px 10px; font-size: 13px; font-weight: 500; cursor: grab;
+      display: flex; align-items: center; gap: 8px; touch-action: none; border: 1px solid transparent; }
+    .chip:hover { box-shadow: 0 2px 8px rgba(60,50,30,.10); }
+    .pips { display: inline-flex; gap: 2px; margin-left: auto; }
+    .pips i { width: 5px; height: 5px; border-radius: 99px; background: currentColor; opacity: .75; }
+    .pips i.off { opacity: .18; }
+    .floating { position: fixed; pointer-events: none; z-index: 60; transform: translate(-50%, -50%) rotate(-2deg);
+      box-shadow: 0 10px 24px rgba(60,50,30,.2); }
+    #unplaced-drop.drop-hot { background: #f3eee5; outline: 1.5px dashed var(--faint); }
+
+    /* zone handles */
+    .zone-handle { display: flex; align-items: center; justify-content: center; height: 22px;
+      touch-action: none; cursor: ns-resize; user-select: none; }
+    .zone-handle span { font-size: 11px; color: var(--muted); padding: 1px 10px; border-radius: 99px;
+      background: #f3efe8; letter-spacing: .02em; }
+    .zone-handle:hover span { background: #ebe5da; color: var(--ink); }
+    .zone-handle.pulling span { background: #e3dccf; color: var(--ink); }
+
+    /* popover + toast */
+    .popover { position: fixed; z-index: 50; background: #fff; border-radius: 14px; padding: 14px;
+      box-shadow: 0 12px 36px rgba(60,50,30,.18), 0 0 0 1px rgba(60,50,30,.06); width: 272px; }
+    .popover label { display: block; font-size: 11px; font-weight: 600; color: var(--muted);
+      text-transform: lowercase; letter-spacing: .03em; margin: 10px 0 5px; }
+    .popover label:first-child { margin-top: 0; }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    .seg button { font-size: 12px; padding: 4px 8px; border-radius: 8px; background: #f3efe8; border: 0; color: var(--ink); }
+    .seg button.on { background: var(--ink); color: #fff; }
+    .swatch { width: 22px; height: 22px; border-radius: 99px; border: 2px solid transparent; }
+    .swatch.on { border-color: var(--ink); }
+    .field { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 6px 9px; border-radius: 8px;
+      border: 1px solid #e4ded3; outline: none; background: #fff; color: var(--ink); }
+    .field:focus { border-color: var(--faint); }
+    .btn { font-size: 13px; font-weight: 500; padding: 6px 11px; border-radius: 9px; border: 0; background: #f3efe8; color: var(--ink); }
+    .btn:hover { background: #ebe5da; }
+    .btn.primary { background: var(--ink); color: #fff; }
+    .btn.danger { color: #a65a5a; background: transparent; }
+    .btn.danger:hover { background: #f8e9e9; }
+    #toast { position: fixed; bottom: 22px; left: 50%; transform: translate(-50%, 20px); opacity: 0;
+      background: var(--ink); color: #fff; font-size: 13px; padding: 8px 14px; border-radius: 10px;
+      transition: all .2s ease; pointer-events: none; z-index: 70; }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  </style>
+</head>
+<body>
+  <div class="h-full flex flex-col">
+    <header class="flex items-center gap-4 px-5 pt-4 pb-3">
+      <div class="flex items-baseline gap-3">
+        <h1 class="text-xl font-bold tracking-tight whitespace-nowrap">schedule-ish</h1>
+        <span class="text-sm whitespace-nowrap max-lg:hidden" style="color: var(--muted)">a napkin for your week</span>
+      </div>
+      <div class="ml-auto flex items-center gap-1.5">
+        <button class="btn" data-cmd="undo" title="Undo (⌘Z)">↶</button>
+        <button class="btn" data-cmd="redo" title="Redo (⇧⌘Z)">↷</button>
+        <button class="btn" data-cmd="export" title="Download this plan as JSON">Export</button>
+        <button class="btn" data-cmd="import" title="Load a plan from a JSON file">Import</button>
+        <button class="btn" data-cmd="settings" title="Days, zones, clearing">Settings</button>
+        <input id="import-file" type="file" accept="application/json,.json" hidden>
+      </div>
+    </header>
+
+    <main class="flex-1 min-h-0 flex gap-3 pl-3 pr-5 pb-5">
+      <aside id="sidebar" class="w-64 shrink-0 flex flex-col gap-5 overflow-y-auto overflow-x-hidden px-2"></aside>
+      <section class="flex-1 min-w-0 flex flex-col rounded-2xl overflow-hidden"
+               style="background: var(--board); box-shadow: 0 0 0 1px rgba(60,50,30,.07), 0 2px 10px rgba(60,50,30,.04)">
+        <div id="board-body" class="flex-1 min-h-0 overflow-auto">
+          <div id="board-head" class="sticky top-0 z-30" style="background: var(--board)"></div>
+          <div id="board-grid"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="toast"></div>
+
+  <script src="model.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

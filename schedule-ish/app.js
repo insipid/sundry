@@ -1,0 +1,819 @@
+// schedule-ish UI: rendering, pointer interactions, persistence.
+(function () {
+  'use strict';
+  const M = window.Model;
+  const STORAGE_KEY = 'schedule-ish:v1';
+  const DRAG_THRESHOLD = 4;
+  const HANDLE_H = 22;
+
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => [...document.querySelectorAll(sel)];
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ---- state + persistence -------------------------------------------------
+
+  let state = load();
+  const undoStack = [], redoStack = [];
+  const ui = {
+    selectedId: null,
+    editing: null,      // { kind: 'block' | 'unplaced', id, isNew }
+    ghost: null,        // { day, start, size, color } preview while dragging in
+    drag: null,
+    stepPx: 32,
+    range: M.visibleRange(state.view),
+  };
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return M.normalizeState(JSON.parse(raw));
+    } catch (e) { console.warn('schedule-ish: could not load saved plan', e); }
+    return M.defaultState();
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch (e) { console.warn('schedule-ish: could not save', e); }
+  }
+
+  const snapshot = () => JSON.stringify(state);
+  function pushUndo(snap = snapshot()) {
+    undoStack.push(snap);
+    if (undoStack.length > 80) undoStack.shift();
+    redoStack.length = 0;
+  }
+  // Every committed change goes through here: one undo step, save, render.
+  function commit(mutate) {
+    pushUndo();
+    mutate(state);
+    save();
+    render();
+  }
+  function undo() {
+    if (!undoStack.length) return toast('Nothing to undo');
+    redoStack.push(snapshot());
+    state = JSON.parse(undoStack.pop());
+    ui.editing = null;
+    save(); render();
+  }
+  function redo() {
+    if (!redoStack.length) return toast('Nothing to redo');
+    undoStack.push(snapshot());
+    state = JSON.parse(redoStack.pop());
+    ui.editing = null;
+    save(); render();
+  }
+
+  const findBlock = id => state.blocks.find(b => b.id === id);
+  const findRegular = id => state.regulars.find(r => r.id === id);
+  const findUnplaced = id => state.unplaced.find(u => u.id === id);
+
+  // Same title → same colour, so "Gym" always looks like Gym.
+  function colorFor(title) {
+    const t = title.trim().toLowerCase();
+    const match = state.regulars.find(r => r.title.toLowerCase() === t) || state.blocks.find(b => b.title.toLowerCase() === t);
+    if (match) return match.color;
+    let h = 0;
+    for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return h % M.PALETTE.length;
+  }
+  const zoneAt = step => (M.ZONES.find(z => step >= z.start && step < z.end) || M.ZONES[1]).id;
+
+  // ---- rendering -----------------------------------------------------------
+
+  function render() {
+    ui.range = M.visibleRange(state.view);
+    renderSidebar();
+    renderBoard();
+    focusEditor();
+  }
+
+  const colorStyle = c => {
+    const [fill, ink] = M.PALETTE[c] || M.PALETTE[0];
+    return `background:${fill};color:${ink};--ring:${ink};`;
+  };
+  const pips = size => {
+    const n = Math.max(4, size);
+    return `<span class="pips">${Array.from({ length: n }, (_, i) => `<i class="${i < size ? '' : 'off'}"></i>`).join('')}</span>`;
+  };
+
+  function renderSidebar() {
+    const regulars = state.regulars.map(r => `
+      <div class="chip" data-regular="${r.id}" style="${colorStyle(r.color)}" title="Drag onto a day · click to edit">
+        <span class="truncate">${esc(r.title)}</span>
+        <span class="text-[11px] opacity-60">${r.zone}</span>
+        ${pips(r.size)}
+      </div>`).join('');
+
+    const unplaced = state.unplaced.map(u => {
+      const editing = ui.editing && ui.editing.kind === 'unplaced' && ui.editing.id === u.id;
+      return `
+      <div class="chip group" data-unplaced="${u.id}" style="${colorStyle(u.color)}" title="Drag onto a day · double-click to rename">
+        ${editing ? `<input class="field !py-0.5 !text-[13px]" data-edit value="${esc(u.title)}">` : `<span class="truncate">${esc(u.title)}</span>`}
+        ${editing ? '' : `${pips(u.size)}<button class="tool !bg-transparent opacity-0 group-hover:opacity-100" data-action="drop-unplaced" title="Remove">×</button>`}
+      </div>`;
+    }).join('');
+
+    $('#sidebar').innerHTML = `
+      <section>
+        <div class="flex items-center mb-2">
+          <h2 class="text-xs font-semibold tracking-wide" style="color:var(--muted)">REGULARS</h2>
+          <button class="ml-auto text-xs px-2 py-0.5 rounded-md hover:bg-black/5" style="color:var(--muted)" data-cmd="new-regular">+ regular</button>
+        </div>
+        <div class="flex flex-col gap-1.5">${regulars || `<p class="text-xs" style="color:var(--faint)">Things you do often. Drag onto a day for a copy.</p>`}</div>
+      </section>
+
+      <section id="unplaced-drop" class="rounded-xl -mx-2 px-2 py-2 transition-colors">
+        <h2 class="text-xs font-semibold tracking-wide mb-2" style="color:var(--muted)">UNPLACED</h2>
+        <div class="flex flex-col gap-1.5">${unplaced}</div>
+        <input id="unplaced-input" class="field mt-2 !text-[13px]" placeholder="Something to fit in…" autocomplete="off">
+      </section>
+
+      <section class="mt-auto text-[11.5px] leading-relaxed" style="color:var(--muted)">
+        <p><b class="font-semibold">Drag down</b> in a day to rough out a chunk, or click for a default one.</p>
+        <p>Drag edges to resize. Double-click to rename. Drop a regular on a <b class="font-semibold">day name</b> to put it in its usual spot.</p>
+        <p>Drag the <b class="font-semibold">⋯ early / evening</b> tabs to stretch the day.</p>
+      </section>`;
+  }
+
+  function measureStep() {
+    const body = $('#board-body');
+    const steps = ui.range.end - ui.range.start;
+    const avail = body.clientHeight - $('#board-head').offsetHeight - HANDLE_H * 2 - 2;
+    ui.stepPx = Math.max(22, Math.min(64, Math.floor(avail / steps)));
+  }
+
+  function renderBoard() {
+    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const { start: r0, end: r1 } = ui.range;
+    // min-width makes the grid as wide as its columns, so the sticky gutter can pin all the way.
+    const cols = `grid-template-columns: var(--gutter) repeat(${days.length || 1}, minmax(72px, 1fr)); min-width: calc(var(--gutter) + ${(days.length || 1) * 72}px)`;
+
+    $('#board-head').innerHTML = `
+      <div class="grid border-b" style="${cols}; border-color: var(--grid)">
+        <div class="pin-left"></div>
+        ${days.map(d => `<div class="day-head text-center py-2.5 text-sm font-semibold rounded-t-lg transition-colors" data-day="${d}"
+            title="${M.DAY_LONG[d]} · drop a regular here to put it in its usual spot">${M.DAY_NAMES[d]}</div>`).join('')}
+      </div>`;
+
+    measureStep(); // after the header, whose height it subtracts
+    const px = ui.stepPx;
+    const height = (r1 - r0) * px;
+    const zones = M.visibleZones(state.view);
+    const gutter = zones.map(z => `
+      <div class="absolute left-0 right-0 pr-3 text-right text-[11.5px] font-medium" style="top:${(z.start - r0) * px + 6}px; color: var(--muted)">${z.label}</div>`).join('');
+
+    const lines = [];
+    for (let s = r0 + 1; s < r1; s++) {
+      const isZone = M.ZONES.some(z => z.start === s);
+      lines.push(`<div class="${isZone ? 'zone-line' : 'step-line'}" style="top:${(s - r0) * px}px"></div>`);
+    }
+    const midday = M.zone('midday');
+    const band = `<div class="band" style="top:${(midday.start - r0) * px}px; height:${midday.steps * px}px"></div>`;
+
+    const columns = days.map(d => {
+      const blocks = state.blocks.filter(b => b.day === d);
+      const layout = M.layoutDay(blocks);
+      const ghost = ui.ghost && ui.ghost.day === d ? blockHtml({ ...ui.ghost, id: '_ghost', title: ui.ghost.title || '' }, { col: 0, cols: 1 }, true) : '';
+      return `<div class="day-col relative" data-day="${d}" style="height:${height}px">
+        ${band}${lines.join('')}
+        ${blocks.map(b => blockHtml(b, layout[b.id])).join('')}
+        ${ghost}
+      </div>`;
+    }).join('');
+
+    const handle = (zoneId, where) => {
+      const shown = zoneId === 'early' ? state.view.showEarly : state.view.showEvening;
+      const tip = shown ? `Drag up (or click) to tuck ${zoneId} away` : `Drag down (or click) to add ${zoneId}`;
+      return `<div class="grid" style="${cols}">
+        <div class="zone-handle pin-left" data-handle="${zoneId}" title="${tip}"><span>⋯ ${zoneId}</span></div>
+        <div style="grid-column: 2 / -1"></div>
+      </div>`;
+    };
+
+    $('#board-grid').innerHTML = `
+      ${handle('early', 'top')}
+      <div class="grid" style="${cols}">
+        <div class="relative pin-left" style="height:${height}px">${gutter}</div>
+        ${columns}
+      </div>
+      ${handle('evening', 'bottom')}`;
+  }
+
+  function blockHtml(b, lay, isGhost = false) {
+    const px = ui.stepPx;
+    const top = (b.start - ui.range.start) * px + 1.5;
+    const h = b.size * px - 3;
+    const gap = 3;
+    const left = `calc(${(lay.col / lay.cols) * 100}% + ${gap}px)`;
+    const width = `calc(${100 / lay.cols}% - ${gap * 2}px)`;
+    const editing = ui.editing && ui.editing.kind === 'block' && ui.editing.id === b.id;
+    const cls = ['block'];
+    if (isGhost) cls.push('ghost');
+    if (b.id === ui.selectedId) cls.push('selected');
+    if (editing) cls.push('editing');
+    if (ui.drag && ui.drag.blockId === b.id && ui.drag.active) {
+      cls.push('lifted');
+      if (ui.drag.toUnplaced) cls.push('to-unplaced');
+    }
+    const roomy = h >= px * 2 - 4;
+    const tiny = h < 26;
+    return `<div class="${cls.join(' ')}" data-block="${b.id}"
+        style="${colorStyle(b.color)} top:${top}px; height:${h}px; left:${left}; width:${width}; ${tiny ? 'padding-top:2px;padding-bottom:2px;' : ''}">
+      ${isGhost ? '' : '<div class="edge top" data-edge="top"></div><div class="edge bottom" data-edge="bottom"></div>'}
+      ${editing
+        ? `<input data-edit value="${esc(b.title)}" placeholder="what’s this?">`
+        : `<div class="title">${esc(b.title) || '<span style="opacity:.5">untitled</span>'}</div>
+           ${roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : ''}`}
+      ${isGhost ? '' : `<div class="tools ${roomy ? 'at-bottom' : ''}">
+        <button class="tool" data-action="color" title="Change colour" style="color:inherit">●</button>
+        <button class="tool" data-action="make-regular" title="Save as a regular">☆</button>
+        <button class="tool" data-action="delete" title="Delete (⌫)">×</button>
+      </div>`}
+    </div>`;
+  }
+
+  function focusEditor() {
+    const input = document.querySelector('[data-edit]');
+    if (input && document.activeElement !== input) {
+      input.focus();
+      input.select();
+    }
+  }
+
+  // Selection changes don't re-render, so double-click lands on the same node.
+  function select(id) {
+    ui.selectedId = id;
+    $$('.block').forEach(el => el.classList.toggle('selected', el.dataset.block === id));
+  }
+
+  // ---- geometry ------------------------------------------------------------
+
+  const within = (r, x, y) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  function columnAt(x, y, anyY = false) {
+    for (const el of $$('.day-col')) {
+      const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && (anyY || (y >= r.top && y <= r.bottom))) return { day: +el.dataset.day, rect: r };
+    }
+    return null;
+  }
+  function headAt(x, y) {
+    const el = $$('.day-head').find(h => within(h.getBoundingClientRect(), x, y));
+    return el ? +el.dataset.day : null;
+  }
+  function overUnplaced(x, y) {
+    const el = $('#unplaced-drop');
+    return el && within(el.getBoundingClientRect(), x, y);
+  }
+  // Fractional step under the pointer, in absolute (not visible-relative) steps.
+  const stepAt = (rect, y) => ui.range.start + (y - rect.top) / ui.stepPx;
+
+  // ---- pointer interactions -----------------------------------------------
+
+  document.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    if (e.target.closest('[data-edit], [data-action], button, input, .popover')) return;
+    // A click away from a title being edited just finishes the edit.
+    if (ui.editing) { commitEditing(); e.preventDefault(); return; }
+
+    const blockEl = e.target.closest('.block');
+    const regEl = e.target.closest('[data-regular]');
+    const unpEl = e.target.closest('[data-unplaced]');
+    const colEl = e.target.closest('.day-col');
+    const handleEl = e.target.closest('[data-handle]');
+
+    if (blockEl) {
+      const b = findBlock(blockEl.dataset.block);
+      if (!b) return;
+      select(b.id);
+      const edge = e.target.closest('[data-edge]');
+      const rect = blockEl.closest('.day-col').getBoundingClientRect();
+      beginDrag(e, {
+        kind: edge ? 'resize-' + edge.dataset.edge : 'move',
+        blockId: b.id,
+        grab: stepAt(rect, e.clientY) - b.start,
+        orig: { day: b.day, start: b.start, size: b.size },
+      });
+    } else if (regEl || unpEl) {
+      beginDrag(e, { kind: regEl ? 'regular' : 'unplaced', sourceId: (regEl || unpEl).dataset.regular || unpEl.dataset.unplaced, sourceEl: regEl || unpEl });
+    } else if (colEl) {
+      const hadSelection = ui.selectedId != null;
+      select(null);
+      const rect = colEl.getBoundingClientRect();
+      beginDrag(e, { kind: 'create', day: +colEl.dataset.day, anchor: Math.floor(stepAt(rect, e.clientY)), deselectOnly: hadSelection });
+    } else if (handleEl) {
+      beginDrag(e, { kind: 'zone', zone: handleEl.dataset.handle, el: handleEl });
+    } else if (!e.target.closest('#sidebar')) {
+      select(null);
+    }
+  });
+
+  function beginDrag(e, d) {
+    ui.drag = { ...d, x0: e.clientX, y0: e.clientY, active: false, snap: snapshot() };
+    e.preventDefault();
+  }
+
+  window.addEventListener('pointermove', e => {
+    const d = ui.drag;
+    if (!d) return;
+    if (!d.active) {
+      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < DRAG_THRESHOLD) return;
+      d.active = true;
+      startActive(d, e);
+    }
+    DRAGS[d.kind].move(d, e);
+  });
+
+  window.addEventListener('pointerup', e => {
+    const d = ui.drag;
+    if (!d) return;
+    ui.drag = null;
+    document.body.classList.remove('dragging', 'resizing', 'creating');
+    if (d.active) DRAGS[d.kind].end(d, e);
+    else if (DRAGS[d.kind].click) DRAGS[d.kind].click(d, e);
+  });
+
+  function cancelDrag() {
+    const d = ui.drag;
+    if (!d) return;
+    ui.drag = null;
+    document.body.classList.remove('dragging', 'resizing', 'creating');
+    if (d.floating) d.floating.remove();
+    state = JSON.parse(d.snap);
+    ui.ghost = null;
+    render();
+  }
+
+  function startActive(d, e) {
+    const body = document.body.classList;
+    if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
+    else if (d.kind === 'create') body.add('creating');
+    else body.add('resizing');
+    if (d.kind === 'regular' || d.kind === 'unplaced') {
+      const f = d.sourceEl.cloneNode(true);
+      f.classList.add('floating');
+      f.style.width = d.sourceEl.offsetWidth + 'px';
+      document.body.appendChild(f);
+      d.floating = f;
+      if (d.kind === 'unplaced') d.sourceEl.style.opacity = '.35';
+    }
+  }
+
+  // Finish a live drag: keep one undo step if anything changed.
+  function settle(d) {
+    if (snapshot() !== d.snap) { pushUndo(d.snap); save(); }
+    render();
+  }
+
+  const DRAGS = {
+    move: {
+      move(d, e) {
+        const b = findBlock(d.blockId);
+        d.toUnplaced = overUnplaced(e.clientX, e.clientY);
+        $('#unplaced-drop').classList.toggle('drop-hot', d.toUnplaced);
+        const col = columnAt(e.clientX, e.clientY, true);
+        if (col) {
+          b.day = col.day;
+          Object.assign(b, M.clampBlock(stepAt(col.rect, e.clientY) - d.grab, b.size, ui.range));
+        }
+        renderBoard();
+      },
+      end(d) {
+        if (d.toUnplaced) {
+          const b = findBlock(d.blockId);
+          state.blocks = state.blocks.filter(x => x !== b);
+          state.unplaced.push({ id: b.id, title: b.title || 'untitled', size: b.size, color: b.color });
+          ui.selectedId = null;
+          toast('Moved to unplaced');
+        }
+        settle(d);
+      },
+    },
+
+    'resize-top': {
+      move(d, e) {
+        const b = findBlock(d.blockId);
+        const col = $(`.day-col[data-day="${b.day}"]`).getBoundingClientRect();
+        const end = d.orig.start + d.orig.size;
+        const start = Math.max(ui.range.start, Math.min(end - 1, Math.round(stepAt(col, e.clientY))));
+        b.start = start; b.size = end - start;
+        renderBoard();
+      },
+      end: settle,
+    },
+
+    'resize-bottom': {
+      move(d, e) {
+        const b = findBlock(d.blockId);
+        const col = $(`.day-col[data-day="${b.day}"]`).getBoundingClientRect();
+        const end = Math.min(ui.range.end, Math.max(b.start + 1, Math.round(stepAt(col, e.clientY))));
+        b.size = end - b.start;
+        renderBoard();
+      },
+      end: settle,
+    },
+
+    create: {
+      move(d, e) {
+        const col = $(`.day-col[data-day="${d.day}"]`).getBoundingClientRect();
+        const cur = Math.floor(stepAt(col, e.clientY));
+        const lo = Math.max(ui.range.start, Math.min(d.anchor, cur));
+        const hi = Math.min(ui.range.end, Math.max(d.anchor, cur) + 1);
+        ui.ghost = { day: d.day, start: lo, size: Math.max(1, hi - lo), color: 7 };
+        renderBoard();
+      },
+      end(d) {
+        const g = ui.ghost;
+        ui.ghost = null;
+        if (!g) return render();
+        createBlock(d.day, g.start, g.size);
+      },
+      click(d) {
+        if (d.deselectOnly) return;
+        createBlock(d.day, ...Object.values(M.clampBlock(d.anchor, 2, ui.range)));
+      },
+    },
+
+    regular: dropIn(r => findRegular(r), false),
+    unplaced: dropIn(u => findUnplaced(u), true),
+
+    zone: {
+      move(d, e) {
+        const dy = e.clientY - d.y0;
+        const shown = d.zone === 'early' ? state.view.showEarly : state.view.showEvening;
+        const want = dy > ui.stepPx * 1.2 ? true : dy < -ui.stepPx * 1.2 ? false : shown;
+        $(`[data-handle="${d.zone}"]`)?.classList.add('pulling');
+        if (want !== shown) { setZone(d.zone, want); d.y0 = e.clientY; }
+      },
+      end(d) {
+        $$('.zone-handle').forEach(h => h.classList.remove('pulling'));
+        settle(d);
+      },
+      click(d) {
+        const shown = d.zone === 'early' ? state.view.showEarly : state.view.showEvening;
+        pushUndo(d.snap);
+        if (setZone(d.zone, !shown)) save(); else undoStack.pop();
+      },
+    },
+  };
+
+  // Regulars (copy) and unplaced items (move) share one drag-in behaviour.
+  // Drop in a column → exactly where you let go; drop on a day name → the
+  // first free gap in the item's home zone.
+  function dropIn(find, consume) {
+    return {
+      move(d, e) {
+        const item = find(d.sourceId);
+        d.floating.style.left = e.clientX + 'px';
+        d.floating.style.top = e.clientY + 'px';
+        const headDay = headAt(e.clientX, e.clientY);
+        $$('.day-head').forEach(h => h.classList.toggle('drop-hot', +h.dataset.day === headDay));
+        const col = headDay == null ? columnAt(e.clientX, e.clientY) : null;
+        let ghost = null;
+        if (headDay != null) {
+          ghost = { day: headDay, start: M.firstFreeGap(state.blocks, headDay, item.size, item.zone || 'morning', ui.range), size: item.size };
+        } else if (col) {
+          const c = M.clampBlock(stepAt(col.rect, e.clientY) - item.size / 2, item.size, ui.range);
+          ghost = { day: col.day, ...c };
+        }
+        const was = JSON.stringify(ui.ghost);
+        ui.ghost = ghost && { ...ghost, color: item.color, title: item.title };
+        d.floating.style.visibility = ghost ? 'hidden' : 'visible';
+        if (JSON.stringify(ui.ghost) !== was) renderBoard();
+      },
+      end(d) {
+        d.floating.remove();
+        $$('.day-head').forEach(h => h.classList.remove('drop-hot'));
+        const g = ui.ghost, item = find(d.sourceId);
+        ui.ghost = null;
+        if (!g || !item) return render();
+        const id = consume ? item.id : M.newId();
+        state.blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color });
+        if (consume) state.unplaced = state.unplaced.filter(u => u !== item);
+        ui.selectedId = id;
+        settle(d);
+      },
+      click(d) {
+        if (!consume) editRegular(d.sourceId, d.sourceEl);
+      },
+    };
+  }
+
+  function setZone(zoneId, show) {
+    const key = zoneId === 'early' ? 'showEarly' : 'showEvening';
+    if (!show && !M.canHide(zoneId, state.blocks)) {
+      toast(`Move the ${zoneId} blocks out first`);
+      return false;
+    }
+    state.view[key] = show;
+    render();
+    return true;
+  }
+
+  function createBlock(day, start, size) {
+    const b = { id: M.newId(), day, start, size, title: '', color: 7 };
+    pushUndo();
+    state.blocks.push(b);
+    ui.selectedId = b.id;
+    ui.editing = { kind: 'block', id: b.id, isNew: true };
+    save();
+    render();
+  }
+
+  // ---- editing titles ------------------------------------------------------
+
+  function commitEditing(cancel = false) {
+    const ed = ui.editing;
+    if (!ed) return;
+    const input = document.querySelector('[data-edit]');
+    const value = input ? input.value.trim() : '';
+    ui.editing = null;
+    if (ed.kind === 'block') {
+      const b = findBlock(ed.id);
+      if (!b) return render();
+      if (ed.isNew && (cancel || !value)) {
+        // An abandoned new block just disappears, along with its undo step.
+        state.blocks = state.blocks.filter(x => x !== b);
+        undoStack.pop();
+      } else if (!cancel && value !== b.title) {
+        if (!ed.isNew) pushUndo();
+        if (ed.isNew) b.color = colorFor(value); // before the title, so it can't match itself
+        b.title = value;
+      }
+    } else if (ed.kind === 'unplaced') {
+      const u = findUnplaced(ed.id);
+      if (u && !cancel && value && value !== u.title) { pushUndo(); u.title = value; }
+    }
+    save();
+    render();
+  }
+
+  document.addEventListener('keydown', e => {
+    const t = e.target;
+    if (t.matches && t.matches('[data-edit]')) {
+      if (e.key === 'Enter') { e.preventDefault(); commitEditing(); }
+      else if (e.key === 'Escape') { e.preventDefault(); commitEditing(true); }
+      return;
+    }
+    if (t.id === 'unplaced-input' && e.key === 'Enter') {
+      const title = t.value.trim();
+      if (title) {
+        commit(s => s.unplaced.push({ id: M.newId(), title, size: 2, color: colorFor(title) }));
+        $('#unplaced-input').focus();
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (ui.drag) return cancelDrag();
+      if (closePopover()) return;
+      select(null);
+      return;
+    }
+    if (t.closest && t.closest('input, textarea, select, .popover')) return;
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+    if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selectedId) {
+      e.preventDefault();
+      const id = ui.selectedId;
+      ui.selectedId = null;
+      commit(s => { s.blocks = s.blocks.filter(b => b.id !== id); });
+    }
+    if (e.key === 'Enter' && ui.selectedId) {
+      e.preventDefault();
+      ui.editing = { kind: 'block', id: ui.selectedId };
+      render();
+    }
+  });
+
+  document.addEventListener('focusout', e => {
+    if (e.target.matches && e.target.matches('[data-edit]')) {
+      // Defer so a click that caused the blur is handled first.
+      setTimeout(() => { if (ui.editing && !document.querySelector('[data-edit]:focus')) commitEditing(); }, 0);
+    }
+  });
+
+  document.addEventListener('dblclick', e => {
+    const blockEl = e.target.closest('.block:not(.ghost)');
+    const unpEl = e.target.closest('[data-unplaced]');
+    if (blockEl) ui.editing = { kind: 'block', id: blockEl.dataset.block };
+    else if (unpEl) ui.editing = { kind: 'unplaced', id: unpEl.dataset.unplaced };
+    else return;
+    render();
+  });
+
+  // ---- clicks: block tools, sidebar, header commands -----------------------
+
+  document.addEventListener('click', e => {
+    const act = e.target.closest('[data-action]');
+    if (act) {
+      const blockEl = act.closest('[data-block]');
+      const id = blockEl && blockEl.dataset.block;
+      switch (act.dataset.action) {
+        case 'delete':
+          ui.selectedId = null;
+          return commit(s => { s.blocks = s.blocks.filter(b => b.id !== id); });
+        case 'color':
+          return commit(() => { const b = findBlock(id); b.color = (b.color + 1) % M.PALETTE.length; });
+        case 'make-regular': {
+          const b = findBlock(id);
+          if (state.regulars.some(r => r.title.toLowerCase() === b.title.toLowerCase())) return toast(`“${b.title}” is already a regular`);
+          commit(s => s.regulars.push({ id: M.newId(), title: b.title || 'untitled', size: b.size, color: b.color, zone: zoneAt(b.start) }));
+          return toast(`Saved “${b.title || 'untitled'}” as a regular`);
+        }
+        case 'drop-unplaced': {
+          const uid = act.closest('[data-unplaced]').dataset.unplaced;
+          return commit(s => { s.unplaced = s.unplaced.filter(u => u.id !== uid); });
+        }
+      }
+      return;
+    }
+    const cmd = e.target.closest('[data-cmd]');
+    if (!cmd) return;
+    switch (cmd.dataset.cmd) {
+      case 'undo': return undo();
+      case 'redo': return redo();
+      case 'export': return exportPlan();
+      case 'import': return $('#import-file').click();
+      case 'settings': return openSettings(cmd);
+      case 'new-regular': return editRegular(null, cmd);
+    }
+  });
+
+  // ---- popovers ------------------------------------------------------------
+
+  let popover = null;
+  function openPopover(anchor, html, mount) {
+    closePopover();
+    const el = document.createElement('div');
+    el.className = 'popover';
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    const r = anchor.getBoundingClientRect();
+    const left = Math.min(window.innerWidth - el.offsetWidth - 12, Math.max(12, r.left));
+    const top = r.bottom + 8 + el.offsetHeight > window.innerHeight ? Math.max(12, r.top - el.offsetHeight - 8) : r.bottom + 8;
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+    popover = el;
+    mount(el);
+  }
+  function closePopover() {
+    if (!popover) return false;
+    popover.remove();
+    popover = null;
+    return true;
+  }
+  document.addEventListener('pointerdown', e => {
+    if (popover && !popover.contains(e.target) && !e.target.closest('[data-cmd="settings"], [data-cmd="new-regular"]')) closePopover();
+  }, true);
+
+  const SIZE_OPTS = [[1, 'a smidge'], [2, 'a bit'], [3, 'a good bit'], [4, 'a big chunk'], [6, 'loads']];
+
+  function editRegular(id, anchor) {
+    const existing = id && findRegular(id);
+    const draft = existing ? { ...existing } : { title: '', size: 2, color: 1, zone: 'morning' };
+    openPopover(anchor, `
+      <label>name</label>
+      <input class="field" data-f="title" value="${esc(draft.title)}" placeholder="e.g. Gym">
+      <label>roughly how much</label>
+      <div class="seg" data-f="size">${SIZE_OPTS.map(([n, w]) => `<button data-v="${n}">${w}</button>`).join('')}</div>
+      <label>usually in the</label>
+      <div class="seg" data-f="zone">${M.ZONES.map(z => `<button data-v="${z.id}">${z.label}</button>`).join('')}</div>
+      <label>colour</label>
+      <div class="flex gap-1.5" data-f="color">${M.PALETTE.map(([fill, ink], i) => `<button class="swatch" data-v="${i}" style="background:${fill}; box-shadow: inset 0 0 0 1px ${ink}33"></button>`).join('')}</div>
+      <div class="flex items-center gap-2 mt-4">
+        ${existing ? '<button class="btn danger" data-do="delete">Delete</button>' : ''}
+        <button class="btn ml-auto" data-do="cancel">Cancel</button>
+        <button class="btn primary" data-do="save">${existing ? 'Save' : 'Add'}</button>
+      </div>`, el => {
+      const sync = () => {
+        el.querySelectorAll('[data-f="size"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === draft.size));
+        el.querySelectorAll('[data-f="zone"] button').forEach(b => b.classList.toggle('on', b.dataset.v === draft.zone));
+        el.querySelectorAll('[data-f="color"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === draft.color));
+      };
+      sync();
+      const title = el.querySelector('[data-f="title"]');
+      title.focus();
+      const doSave = () => {
+        draft.title = title.value.trim();
+        if (!draft.title) { title.focus(); return; }
+        commit(s => {
+          if (existing) Object.assign(findRegular(id), draft);
+          else s.regulars.push({ ...draft, id: M.newId() });
+        });
+        closePopover();
+      };
+      title.addEventListener('keydown', e => { if (e.key === 'Enter') doSave(); });
+      el.addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        const f = b.parentElement.dataset.f;
+        if (f === 'size') draft.size = +b.dataset.v;
+        else if (f === 'zone') draft.zone = b.dataset.v;
+        else if (f === 'color') draft.color = +b.dataset.v;
+        else if (b.dataset.do === 'save') return doSave();
+        else if (b.dataset.do === 'cancel') return closePopover();
+        else if (b.dataset.do === 'delete') {
+          commit(s => { s.regulars = s.regulars.filter(r => r.id !== id); });
+          return closePopover();
+        }
+        sync();
+      });
+    });
+  }
+
+  function openSettings(anchor) {
+    if (closePopover()) return;
+    openPopover(anchor, `
+      <label>week starts on</label>
+      <div class="seg" data-f="weekStart">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
+      <label>days to show</label>
+      <div class="seg" data-f="visible">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
+      <label>stretch the day</label>
+      <div class="seg" data-f="zones">
+        <button data-v="early">early</button><button data-v="evening">evening</button>
+      </div>
+      <div class="flex items-center gap-2 mt-4 pt-3 border-t" style="border-color: var(--grid)">
+        <button class="btn danger" data-do="clear">Clear all blocks</button>
+        <button class="btn ml-auto" data-do="close">Done</button>
+      </div>`, el => {
+      const sync = () => {
+        el.querySelectorAll('[data-f="weekStart"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === state.settings.weekStart));
+        el.querySelectorAll('[data-f="visible"] button').forEach(b => b.classList.toggle('on', state.settings.visibleDays[+b.dataset.v]));
+        el.querySelectorAll('[data-f="zones"] button').forEach(b => b.classList.toggle('on', b.dataset.v === 'early' ? state.view.showEarly : state.view.showEvening));
+      };
+      sync();
+      el.addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        const f = b.parentElement.dataset.f;
+        if (f === 'weekStart') commit(s => { s.settings.weekStart = +b.dataset.v; });
+        else if (f === 'visible') {
+          const i = +b.dataset.v;
+          if (state.settings.visibleDays.filter(Boolean).length === 1 && state.settings.visibleDays[i]) return toast('Keep at least one day');
+          commit(s => { s.settings.visibleDays[i] = !s.settings.visibleDays[i]; });
+        } else if (f === 'zones') {
+          const shown = b.dataset.v === 'early' ? state.view.showEarly : state.view.showEvening;
+          pushUndo();
+          if (setZone(b.dataset.v, !shown)) save(); else undoStack.pop();
+        } else if (b.dataset.do === 'clear') {
+          if (!state.blocks.length) return toast('Already empty');
+          if (confirm('Clear every block from the week? (Regulars and unplaced stay. You can undo.)')) {
+            commit(s => { s.blocks = []; });
+            toast('Cleared. ⌘Z to undo');
+          }
+        } else if (b.dataset.do === 'close') return closePopover();
+        sync();
+      });
+    });
+  }
+
+  // ---- import / export -----------------------------------------------------
+
+  function exportPlan() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `schedule-ish-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  $('#import-file').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const next = M.normalizeState(JSON.parse(await file.text()));
+      if (!confirm(`Replace the current plan with “${file.name}”? (You can undo.)`)) return;
+      commit(() => { state = next; });
+      toast('Plan imported');
+    } catch (err) {
+      toast('That file doesn’t look like a schedule-ish plan');
+    }
+  });
+
+  // ---- misc ----------------------------------------------------------------
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  // Re-fit the day to the board whenever the board changes size. This also
+  // catches Tailwind's browser build styling the page after our first render.
+  let lastBodyH = 0;
+  new ResizeObserver(() => {
+    const h = $('#board-body').clientHeight;
+    if (h !== lastBodyH && !ui.drag) { lastBodyH = h; renderBoard(); }
+  }).observe($('#board-body'));
+  window.addEventListener('storage', e => {
+    // Another tab changed the plan: follow it.
+    if (e.key === STORAGE_KEY && e.newValue) { state = M.normalizeState(JSON.parse(e.newValue)); render(); }
+  });
+
+  render();
+})();
