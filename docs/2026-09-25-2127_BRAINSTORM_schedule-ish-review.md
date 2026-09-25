@@ -61,6 +61,14 @@ live week, ready to use again.
 - So review mode isn't purely "locked": dragging and drawing change meaning
   there. Resizing in review mode is still undecided.
 
+## Mockups
+
+- `schedule-ish/mockups/review-mode.html`: open it in a browser. It shows
+  the Plan / Review toggle, tap-to-cycle ratings, right-click for skipped
+  or counterproductive, keyboard shortcuts, tag chips with "+ tag", and a
+  "How was…?" line per day. It's a throwaway sketch, not wired to the app.
+  (The same thing shown in chat as a widget didn't render for Drew.)
+
 ## Open questions
 
 1. Ratings and tags on the board in plan mode: hidden, or faint?
@@ -76,9 +84,10 @@ live week, ready to use again.
 6. How ratings look on a block: the mockup used a tick badge plus a heavier
    outline as ratings rise, a dashed ghost with the name struck through for
    skipped, and a red dashed edge for counterproductive. Not confirmed.
-7. Mockup rendering: Drew said the first (interactive) mockup may not have
-   rendered for them. If needed, build it as a standalone HTML page to open
-   in a browser.
+7. Tapping cycles only the ✓ levels. In the mockup, skipped and
+   counterproductive are set by right-click (or the keyboard). Is
+   right-click the right place for them, or should they go at the end of
+   the tap cycle?
 
 ## Parked
 
@@ -96,3 +105,6 @@ live week, ready to use again.
 - **2026-09-25:** Second round. Option A (Close week) and review-mode drag
   and draw liked; not every block is rated; unreviewed days are "not
   reviewed"; tags only in review mode. Started this file.
+- **2026-09-25:** The in-chat rating widget never rendered for Drew, so it's
+  rebuilt as a standalone page (see Mockups), updated to match the decisions
+  so far.
