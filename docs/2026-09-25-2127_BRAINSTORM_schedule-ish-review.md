@@ -1,0 +1,98 @@
+# BRAINSTORM: schedule-ish review (how did the week actually go?)
+
+**Status:** brainstorming. Not a design yet; nothing built.
+**Started:** 2026-09-25 · **Kept by:** Claude, for Drew. Update this file
+every time the brainstorm moves, so nothing gets lost between sessions.
+
+The goal, in Drew's words: plan a week, live through it, then look back.
+How well did I stick to the intents, how much got done, and what did and
+didn't work. Keep it as simple as possible.
+
+---
+
+## Decided
+
+**Rating a block**
+- Scale: unrated → ✓ → ✓✓ → ✓✓✓, plus **counterproductive** and
+  **skipped** as two separate states.
+  - Skipped = "didn't do it". Counterproductive = "did it, and it made
+    things worse".
+- Setting it: **tap to cycle** (tap the block's corner: ✓ → ✓✓ → ✓✓✓) plus
+  **keyboard** (select a block, then 1 / 2 / 3, − counterproductive,
+  s skipped, 0 clear).
+- **Not every block gets rated.** Rating is optional; unrated blocks just
+  don't count.
+
+**Written feedback**
+- **Tag chips**, liked a lot. One tap per tag. You can add your own tags
+  (a "+ tag" chip), and your tags are shared across everything.
+- **Tags exist only in review mode**, not while planning.
+
+**Modes**
+- A **Plan / Review toggle** that you control. The app knows the day of the
+  week, but it never assumes which part of a day is in the past.
+- Also **"review this day"** from the day name, behind one extra step
+  (e.g. clicking a day name offers "Review Tuesday") so it doesn't clash
+  with day names being drop targets.
+
+**Days you don't review** count as **not reviewed**, not as skipped. Only
+an explicit skip is a skip.
+
+## Leaning towards (liked, details open)
+
+**Record vs reusable plan: option A, "Close week".** A week is both a
+reusable plan and a record. The board stays the live, reusable week. When
+you've finished reviewing, "Close week" saves a read-only snapshot (plan +
+ratings + tags + day notes) to a history, then clears the ratings from the
+live week, ready to use again.
+- Maybe add option C's reminder: the app knows the date, so the first time
+  you open it in a new calendar week it could ask "Last week has N
+  ratings. Close it and start fresh?"
+- Open: what the history looks like, whether closed weeks are named by
+  date, and whether a closed week can be reopened.
+
+**Plan vs actual through gestures in review mode** (liked):
+- **Drag a block in review mode** = "it actually happened here". It moves,
+  and a faint ghost stays where it was planned. The summary can count
+  drift ("3 blocks slid from morning to afternoon").
+- **Draw a new block in review mode** = "something unplanned happened".
+  It's styled differently (e.g. hatched) and can be counted as "what ate my
+  time".
+- So review mode isn't purely "locked": dragging and drawing change meaning
+  there. Resizing in review mode is still undecided.
+
+## Open questions
+
+1. Ratings and tags on the board in plan mode: hidden, or faint?
+2. What exactly does the "review this day" extra step look like: a small
+   menu on the day name, a hover link, or a double-click?
+3. The summary view (mocked 2026-09-25): which groupings matter? So far:
+   by activity (done / planned, average rating), by part of the day, and
+   top tags. Is it a panel, a page, or part of Close week?
+4. A day-level one-liner ("How was Tue?") and/or a weekly keep / drop /
+   try retro: were in the mockup, but not discussed yet.
+5. Starter tag list: flow, energised, interrupted, distracted, too long,
+   too short, wrong time, should repeat? Edit freely.
+6. How ratings look on a block: the mockup used a tick badge plus a heavier
+   outline as ratings rise, a dashed ghost with the name struck through for
+   skipped, and a red dashed edge for counterproductive. Not confirmed.
+7. Mockup rendering: Drew said the first (interactive) mockup may not have
+   rendered for them. If needed, build it as a standalone HTML page to open
+   in a browser.
+
+## Parked
+
+- A full separate "what actually happened" layer. The review-mode drag and
+  draw gestures probably cover most of it.
+- Per-block free text for reflection. Block notes stay for planning;
+  reflection uses tags (and maybe the day one-liner).
+
+## Log
+
+- **2026-09-25:** First round. Idea: ratings (cycle / strip / keyboard),
+  tags, modes, summary; two mockups shown in chat. Drew chose tap to
+  cycle + keyboard, separate skipped and counterproductive, tag chips, the
+  toggle plus day-click review, and "both" for record vs plan.
+- **2026-09-25:** Second round. Option A (Close week) and review-mode drag
+  and draw liked; not every block is rated; unreviewed days are "not
+  reviewed"; tags only in review mode. Started this file.
