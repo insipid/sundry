@@ -1,6 +1,6 @@
 # TASK: try the notes editor and decide what it needs
 
-**For:** Drew · **Status:** open · **Opened:** 2026-09-24
+**For:** Drew · **Status:** open (checked 2026-09-25: fine for now; come back later to go deeper) · **Opened:** 2026-09-24
 
 schedule-ish's block notes are a first cut, built so you can see them
 before deciding more. Try them on a real week, then tell Claude what to
