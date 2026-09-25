@@ -40,7 +40,10 @@
     .step-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--grid); pointer-events: none; }
     .band { position: absolute; left: 0; right: 0; background: var(--band); pointer-events: none; }
     .pin-left { position: sticky; left: 0; z-index: 25; background: var(--board); }
-    .day-head.drop-hot { background: #f3eee5; color: var(--ink); }
+    /* While a regular or unplaced item is being dragged, day names are drop targets. */
+    body.carrying .day-head { background: #f8f4ed; outline: 1.5px dashed var(--faint); outline-offset: -4px; }
+    body.carrying .day-head.drop-hot { background: #eee6d8; outline-color: var(--accent); color: var(--ink); }
+    .day-head.drop-hot::after { content: ' → ' attr(data-hint); font-size: 11px; font-weight: 500; color: var(--muted); }
 
     /* blocks */
     .block {

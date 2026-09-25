@@ -110,7 +110,7 @@
     const regulars = state.regulars.map(r => `
       <div class="chip" data-regular="${r.id}" style="${colorStyle(r.color)}" title="Drag onto a day · click to edit">
         <span class="truncate">${esc(r.title)}</span>
-        <span class="text-[11px] opacity-60">${r.zone}</span>
+        ${r.zone ? `<span class="text-[11px] opacity-60">${r.zone}</span>` : ''}
         ${pips(r.size)}
       </div>`).join('');
 
@@ -180,7 +180,7 @@
     $('#board-head').innerHTML = `
       <div class="grid border-b" style="${cols}; border-color: var(--grid)">
         <div class="pin-left"></div>
-        ${days.map(d => `<div class="day-head text-center py-2.5 text-sm font-semibold rounded-t-lg transition-colors" data-day="${d}"
+        ${days.map(d => `<div class="day-head text-center py-2.5 text-sm font-semibold rounded-t-lg transition-colors whitespace-nowrap overflow-hidden text-ellipsis" data-day="${d}"
             title="${M.DAY_LONG[d]} · drop a regular here to put it in its usual spot">${M.DAY_NAMES[d]}</div>`).join('')}
       </div>`;
 
@@ -382,7 +382,7 @@
     const d = ui.drag;
     if (!d) return;
     ui.drag = null;
-    document.body.classList.remove('dragging', 'resizing', 'creating', 'copying');
+    document.body.classList.remove('dragging', 'resizing', 'creating', 'copying', 'carrying');
     if (d.active) DRAGS[d.kind].end(d, e);
     else if (DRAGS[d.kind].click) DRAGS[d.kind].click(d, e);
   });
@@ -391,7 +391,7 @@
     const d = ui.drag;
     if (!d) return;
     ui.drag = null;
-    document.body.classList.remove('dragging', 'resizing', 'creating', 'copying');
+    document.body.classList.remove('dragging', 'resizing', 'creating', 'copying', 'carrying');
     if (d.floating) d.floating.remove();
     state = JSON.parse(d.snap);
     ui.ghost = null;
@@ -408,6 +408,7 @@
     else if (d.kind === 'create') body.add('creating');
     else if (d.kind !== 'boundary' || d.movable) body.add('resizing');
     if (d.kind === 'regular' || d.kind === 'unplaced') {
+      body.add('carrying'); // day names light up as drop targets
       const f = d.sourceEl.cloneNode(true);
       f.classList.add('floating');
       f.style.width = d.sourceEl.offsetWidth + 'px';
@@ -556,11 +557,10 @@
           return;
         }
         const headDay = headAt(e.clientX, e.clientY);
-        $$('.day-head').forEach(h => h.classList.toggle('drop-hot', +h.dataset.day === headDay));
         const col = headDay == null ? columnAt(e.clientX, e.clientY) : null;
         let ghost = null;
         if (headDay != null) {
-          ghost = { day: headDay, start: M.firstFreeGap(week().blocks, headDay, item.size, item.zone || 'morning', ui.range, ui.zones), size: item.size };
+          ghost = { day: headDay, start: M.firstFreeGap(week().blocks, headDay, item.size, item.zone || null, ui.range, ui.zones), size: item.size };
         } else if (col) {
           const c = M.clampBlock(stepAt(col.rect, e.clientY) - item.size / 2, item.size, ui.range);
           ghost = { day: col.day, ...c };
@@ -569,6 +569,13 @@
         ui.ghost = ghost && { ...ghost, color: item.color, title: item.title };
         d.floating.style.visibility = ghost ? 'hidden' : 'visible';
         if (JSON.stringify(ui.ghost) !== was) renderBoard();
+        // After any re-render (which rebuilds the header): the hovered day
+        // name says where the item will land.
+        $$('.day-head').forEach(h => {
+          const hot = +h.dataset.day === headDay;
+          h.classList.toggle('drop-hot', hot);
+          if (hot) h.dataset.hint = item.zone || 'first gap';
+        });
       },
       end(d) {
         d.floating.remove();
@@ -881,14 +888,14 @@
 
   function editRegular(id, anchor) {
     const existing = id && findRegular(id);
-    const draft = existing ? { ...existing, notes: cloneNotes(existing.notes) } : { title: '', size: 4, color: 1, zone: 'morning', notes: [] };
+    const draft = existing ? { ...existing, notes: cloneNotes(existing.notes) } : { title: '', size: 4, color: 1, zone: null, notes: [] };
     openPopover(anchor, `
       <label>name</label>
       <input class="field" data-f="title" value="${esc(draft.title)}" placeholder="e.g. Gym">
       <label>roughly how much</label>
       <div class="seg" data-f="size">${SIZE_OPTS.map(([n, w]) => `<button data-v="${n}">${w}</button>`).join('')}</div>
       <label>usually in the</label>
-      <div class="seg" data-f="zone">${M.ZONES.map(z => `<button data-v="${z.id}">${z.label}</button>`).join('')}</div>
+      <div class="seg" data-f="zone"><button data-v="" title="No usual spot: dropped on a day name, it takes the first free gap">none</button>${M.ZONES.map(z => `<button data-v="${z.id}">${z.label}</button>`).join('')}</div>
       <label>colour</label>
       <div class="flex gap-1.5" data-f="color">${M.PALETTE.map(([fill, ink], i) => `<button class="swatch" data-v="${i}" style="background:${fill}; box-shadow: inset 0 0 0 1px ${ink}33"></button>`).join('')}</div>
       <label>default notes</label>
@@ -900,7 +907,7 @@
       </div>`, el => {
       const sync = () => {
         el.querySelectorAll('[data-f="size"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === draft.size));
-        el.querySelectorAll('[data-f="zone"] button').forEach(b => b.classList.toggle('on', b.dataset.v === draft.zone));
+        el.querySelectorAll('[data-f="zone"] button').forEach(b => b.classList.toggle('on', (b.dataset.v || null) === draft.zone));
         el.querySelectorAll('[data-f="color"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === draft.color));
       };
       sync();
@@ -923,7 +930,7 @@
         if (!b) return;
         const f = b.parentElement.dataset.f;
         if (f === 'size') draft.size = +b.dataset.v;
-        else if (f === 'zone') draft.zone = b.dataset.v;
+        else if (f === 'zone') draft.zone = b.dataset.v || null;
         else if (f === 'color') draft.color = +b.dataset.v;
         else if (b.dataset.do === 'save') return doSave();
         else if (b.dataset.do === 'cancel') return closePopover();

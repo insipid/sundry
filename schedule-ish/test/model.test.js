@@ -411,3 +411,19 @@ test('moveItem moves an item to an insertion point (0..length) in the original l
   assert.deepEqual(M.moveItem(l, 0, 1), l); // just after itself
   assert.deepEqual(l, ['a', 'b', 'c']);     // input untouched
 });
+
+// ---- regulars without a usual zone ----
+
+test('firstFreeGap with no zone starts from the top of the visible day', () => {
+  const range = { start: 8, end: 32 };
+  assert.equal(M.firstFreeGap([], 0, 4, null, range), 8);
+  assert.equal(M.firstFreeGap([b('a', 0, 8, 6)], 0, 4, null, range), 14);
+  assert.equal(M.firstFreeGap([], 0, 4, null, { start: 0, end: 40 }), 0);
+});
+
+test('a regular\'s usual zone can be none (null); missing or unknown means none', () => {
+  const s = M.normalizeState({ regulars: [
+    { title: 'Gym', zone: 'morning' }, { title: 'Read', zone: null }, { title: 'Old' }, { title: 'Odd', zone: 'teatime' },
+  ] });
+  assert.deepEqual(s.regulars.map(r => r.zone), ['morning', null, null, null]);
+});

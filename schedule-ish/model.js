@@ -159,11 +159,12 @@
   }
 
   // Where to drop a `size`-step block on `day` when we only know its home
-  // zone: the first gap at or after the zone start, else anywhere in range,
-  // else the zone start anyway (overlapping is allowed, just untidy).
+  // zone (or none, null: the top of the visible day): the first gap at or
+  // after that, else anywhere in range, else there anyway (overlapping is
+  // allowed, just untidy).
   function firstFreeGap(blocks, day, size, zoneId, range, zones = ZONES) {
     const mine = blocks.filter(x => x.day === day);
-    const home = clampBlock(zoneStart(zoneId, zones), size, range).start;
+    const home = clampBlock(zoneId ? zoneStart(zoneId, zones) : range.start, size, range).start;
     const fits = s => !mine.some(x => overlaps({ start: s, size }, x));
     for (let s = home; s + size <= range.end; s++) if (fits(s)) return s;
     for (let s = range.start; s < home; s++) if (fits(s)) return s;
@@ -321,7 +322,7 @@
     const regulars = (Array.isArray(raw.regulars) ? raw.regulars : [])
       .filter(x => x && typeof x.title === 'string')
       .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, (x.size ? x.size * scale : 2 * STEPS_PER_LINE), FULL_RANGE).size, color: color(x.color),
-        zone: zone(x.zone) ? x.zone : 'morning', notes: normNotes(x.notes) }));
+        zone: ZONE_IDS.includes(x.zone) ? x.zone : null, notes: normNotes(x.notes) }));
 
     const unplaced = (Array.isArray(raw.unplaced) ? raw.unplaced : [])
       .filter(x => x && typeof x.title === 'string')
