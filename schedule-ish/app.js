@@ -895,7 +895,7 @@
       <label>roughly how much</label>
       <div class="seg" data-f="size">${SIZE_OPTS.map(([n, w]) => `<button data-v="${n}">${w}</button>`).join('')}</div>
       <label>usually in the</label>
-      <div class="seg" data-f="zone"><button data-v="" title="No usual spot: dropped on a day name, it takes the first free gap">none</button>${M.ZONES.map(z => `<button data-v="${z.id}">${z.label}</button>`).join('')}</div>
+      <div class="seg" data-f="zone"><button data-v="" title="No usual spot: dropped on a day name, it takes the first free gap">whenever</button>${M.ZONES.map(z => `<button data-v="${z.id}">${z.label}</button>`).join('')}</div>
       <label>colour</label>
       <div class="flex gap-1.5" data-f="color">${M.PALETTE.map(([fill, ink], i) => `<button class="swatch" data-v="${i}" style="background:${fill}; box-shadow: inset 0 0 0 1px ${ink}33"></button>`).join('')}</div>
       <label>default notes</label>

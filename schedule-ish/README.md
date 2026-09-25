@@ -85,11 +85,11 @@ Regulars can hold **default notes**, which each copy you drop starts with.
 
 **Regulars** (sidebar) are templates for things you do often: a name, a
 rough size, a colour, and optionally a usual zone ("usually in the …", or
-*none*). Dragging one onto the week drops a *copy*, and the regular stays
+*whenever*). Dragging one onto the week drops a *copy*, and the regular stays
 in the list.
 - Drop it **inside a day** to place it where you let go.
 - Drop it **on a day's name** to put it in the first free gap in its usual
-  zone, or, with *none*, the first free gap from the top of the day. While
+  zone, or, with *whenever*, the first free gap from the top of the day. While
   you drag, the day names are outlined as drop targets, and the one under
   the pointer says where it will land (e.g. *Tue → morning*). Unplaced items
   work the same way, using *first gap*.
