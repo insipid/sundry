@@ -99,9 +99,11 @@
     const [fill, ink] = M.PALETTE[c] || M.PALETTE[0];
     return `background:${fill};color:${ink};--ring:${ink};`;
   };
+  // One pip per grid line (two steps), like the size words.
   const pips = size => {
-    const n = Math.max(4, size);
-    return `<span class="pips">${Array.from({ length: n }, (_, i) => `<i class="${i < size ? '' : 'off'}"></i>`).join('')}</span>`;
+    const lines = Math.ceil(size / M.STEPS_PER_LINE);
+    const n = Math.max(4, lines);
+    return `<span class="pips">${Array.from({ length: n }, (_, i) => `<i class="${i < lines ? '' : 'off'}"></i>`).join('')}</span>`;
   };
 
   function renderSidebar() {
@@ -164,7 +166,7 @@
     const avail = $('#board-body').clientHeight - $('#board-head').offsetHeight - ADD_ROW_H * addRows - 2;
     // Fill the board exactly: the visible zones always use the full height.
     // (Only a very short window falls back to a minimum and scrolls.)
-    ui.stepPx = Math.max(18, avail / steps);
+    ui.stepPx = Math.max(9, avail / steps);
   }
 
   function renderBoard() {
@@ -201,9 +203,12 @@
     }).join('');
 
     const lines = [];
+    // Zone breaks always get a line; otherwise a faint line every
+    // STEPS_PER_LINE steps, so blocks can snap between the lines.
     for (let s = r0 + 1; s < r1; s++) {
       const isZone = ui.zones.some(z => z.start === s);
-      lines.push(`<div class="${isZone ? 'zone-line' : 'step-line'}" style="top:${(s - r0) * px}px"></div>`);
+      if (isZone) lines.push(`<div class="zone-line" style="top:${(s - r0) * px}px"></div>`);
+      else if (s % M.STEPS_PER_LINE === 0) lines.push(`<div class="step-line" style="top:${(s - r0) * px}px"></div>`);
     }
     const midday = M.zone('midday', ui.zones);
     const band = `<div class="band" style="top:${(midday.start - r0) * px}px; height:${midday.steps * px}px"></div>`;
@@ -253,7 +258,7 @@
       cls.push('lifted');
       if (ui.drag.toUnplaced) cls.push('to-unplaced');
     }
-    const roomy = h >= px * 2 - 4;
+    const roomy = h >= px * 2 * M.STEPS_PER_LINE - 4; // two grid lines or more
     const tiny = h < 26;
     return `<div class="${cls.join(' ')}" data-block="${b.id}"
         style="${colorStyle(b.color)} top:${top}px; height:${h}px; left:${left}; width:${width}; ${tiny ? 'padding-top:2px;padding-bottom:2px;' : ''}">
@@ -483,7 +488,7 @@
       },
       click(d) {
         if (d.deselectOnly) return;
-        createBlock(d.day, ...Object.values(M.clampBlock(d.anchor, 2, ui.range)));
+        createBlock(d.day, ...Object.values(M.clampBlock(d.anchor, 2 * M.STEPS_PER_LINE, ui.range)));
       },
     },
 
@@ -648,7 +653,7 @@
     if (t.id === 'unplaced-input' && e.key === 'Enter') {
       const title = t.value.trim();
       if (title) {
-        commit(s => s.unplaced.push({ id: M.newId(), title, size: 2, color: colorFor(title), notes: [] }));
+        commit(s => s.unplaced.push({ id: M.newId(), title, size: 2 * M.STEPS_PER_LINE, color: colorFor(title), notes: [] }));
         $('#unplaced-input').focus();
       }
       return;
@@ -872,11 +877,11 @@
     if (popover && !popover.contains(e.target) && !e.target.closest('[data-cmd="settings"], [data-cmd="new-regular"], [data-cmd="weeks"]')) closePopover();
   }, true);
 
-  const SIZE_OPTS = [[1, 'a smidge'], [2, 'a bit'], [3, 'a good bit'], [4, 'a big chunk'], [6, 'loads']];
+  const SIZE_OPTS = [[2, 'a smidge'], [4, 'a bit'], [6, 'a good bit'], [8, 'a big chunk'], [12, 'loads']];
 
   function editRegular(id, anchor) {
     const existing = id && findRegular(id);
-    const draft = existing ? { ...existing, notes: cloneNotes(existing.notes) } : { title: '', size: 2, color: 1, zone: 'morning', notes: [] };
+    const draft = existing ? { ...existing, notes: cloneNotes(existing.notes) } : { title: '', size: 4, color: 1, zone: 'morning', notes: [] };
     openPopover(anchor, `
       <label>name</label>
       <input class="field" data-f="title" value="${esc(draft.title)}" placeholder="e.g. Gym">

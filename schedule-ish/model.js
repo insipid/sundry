@@ -9,9 +9,11 @@
   // fixed; the breaks between zones can move (see moveBoundary).
   const ZONE_IDS = ['early', 'morning', 'midday', 'afternoon', 'evening'];
   const OPTIONAL = { early: true, evening: true };
-  // 12 core steps, 4 each for early and evening: an optional zone opened on
+  // 24 core steps, 8 each for early and evening: an optional zone opened on
   // its own takes a quarter of the day's height, both open take a fifth each.
-  const DEFAULT_ZONE_SIZES = { early: 4, morning: 5, midday: 2, afternoon: 5, evening: 4 };
+  // Steps are fine-grained; the board draws a line every STEPS_PER_LINE.
+  const DEFAULT_ZONE_SIZES = { early: 8, morning: 10, midday: 4, afternoon: 10, evening: 8 };
+  const STEPS_PER_LINE = 2;
   const TOTAL_STEPS = ZONE_IDS.reduce((n, id) => n + DEFAULT_ZONE_SIZES[id], 0);
   const FULL_RANGE = { start: 0, end: TOTAL_STEPS };
 
@@ -186,10 +188,12 @@
     return !blocks.some(x => x.start + x.size > z.start);
   }
 
+  // Words count grid lines (two steps each), rounding a half up.
   function sizeWord(size) {
-    if (size <= 1) return 'a smidge';
-    if (size === 2) return 'a bit';
-    if (size === 3) return 'a good bit';
+    const lines = Math.ceil(size / STEPS_PER_LINE);
+    if (lines <= 1) return 'a smidge';
+    if (lines === 2) return 'a bit';
+    if (lines === 3) return 'a good bit';
     return 'a big chunk';
   }
 
@@ -228,14 +232,14 @@
   function defaultState() {
     const week = { ...blankWeek('My week'), id: 'w-first' };
     return {
-      version: 3,
+      version: 4,
       settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false },
       weeks: [week],
       currentWeek: week.id,
       regulars: [
-        { id: 'r-gym', title: 'Gym', size: 3, color: 1, zone: 'morning', notes: [] },
-        { id: 'r-lunch', title: 'Lunch', size: 2, color: 4, zone: 'midday', notes: [] },
-        { id: 'r-deep', title: 'Deep work', size: 4, color: 0, zone: 'morning', notes: [] },
+        { id: 'r-gym', title: 'Gym', size: 6, color: 1, zone: 'morning', notes: [] },
+        { id: 'r-lunch', title: 'Lunch', size: 4, color: 4, zone: 'midday', notes: [] },
+        { id: 'r-deep', title: 'Deep work', size: 8, color: 0, zone: 'morning', notes: [] },
       ],
       unplaced: [],
     };
@@ -250,11 +254,16 @@
     .map(n => ({ text: n.text, check: n.check === true || n.check === false ? n.check : null }));
 
   // One week's board: view, zone sizes and blocks. `v1` maps a version-1
-  // (17-step) plan onto the current day.
-  function normalizeWeek(raw, v1 = false) {
+  // (17-step) plan onto the current day; `scale` multiplies everything for
+  // v2/v3 plans, which used a 20-step day (half today's resolution).
+  function normalizeWeek(raw, v1 = false, scale = 1) {
     let rawBlocks = (Array.isArray(raw.blocks) ? raw.blocks : [])
       .filter(x => x && int(x.day, 0, 6) && Number.isFinite(x.start) && Number.isFinite(x.size));
     let rz = raw.zones || {};
+    if (scale !== 1 && !v1) {
+      rawBlocks = rawBlocks.map(x => ({ ...x, start: x.start * scale, size: x.size * scale }));
+      rz = Object.fromEntries(Object.entries(rz).map(([k, n]) => [k, Number.isFinite(n) ? n * scale : n]));
+    }
     if (v1) {
       const oz = raw.zones || {};
       const oldOk = ZONE_IDS.every(k => int(oz[k], 1, V1_TOTAL)) && ZONE_IDS.reduce((n, k) => n + oz[k], 0) === V1_TOTAL;
@@ -298,26 +307,28 @@
       sidebarHidden: s.sidebarHidden === true,
     };
 
+    // Plans before v4 counted half as many steps; their sizes all double.
+    const scale = raw.version >= 1 && raw.version <= 3 ? 2 : 1;
     let weeks;
     if (Array.isArray(raw.weeks)) {
-      weeks = raw.weeks.filter(w => w && typeof w === 'object' && !Array.isArray(w)).map(w => normalizeWeek(w));
+      weeks = raw.weeks.filter(w => w && typeof w === 'object' && !Array.isArray(w)).map(w => normalizeWeek(w, false, scale));
     } else {
-      weeks = [normalizeWeek({ name: 'My week', view: raw.view, zones: raw.zones, blocks: raw.blocks }, raw.version === 1)];
+      weeks = [normalizeWeek({ name: 'My week', view: raw.view, zones: raw.zones, blocks: raw.blocks }, raw.version === 1, scale)];
     }
     if (!weeks.length) weeks = [blankWeek('My week')];
     const currentWeek = weeks.some(w => w.id === raw.currentWeek) ? raw.currentWeek : weeks[0].id;
 
     const regulars = (Array.isArray(raw.regulars) ? raw.regulars : [])
       .filter(x => x && typeof x.title === 'string')
-      .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, x.size || 2, FULL_RANGE).size, color: color(x.color),
+      .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, (x.size ? x.size * scale : 2 * STEPS_PER_LINE), FULL_RANGE).size, color: color(x.color),
         zone: zone(x.zone) ? x.zone : 'morning', notes: normNotes(x.notes) }));
 
     const unplaced = (Array.isArray(raw.unplaced) ? raw.unplaced : [])
       .filter(x => x && typeof x.title === 'string')
-      .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, x.size || 2, FULL_RANGE).size, color: color(x.color),
+      .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, (x.size ? x.size * scale : 2 * STEPS_PER_LINE), FULL_RANGE).size, color: color(x.color),
         notes: normNotes(x.notes) }));
 
-    return { version: 3, settings, weeks, currentWeek, regulars, unplaced };
+    return { version: 4, settings, weeks, currentWeek, regulars, unplaced };
   }
 
   // The print-out's notes page: blocks that have notes, in the board's day
@@ -339,7 +350,7 @@
   }
 
   const Model = {
-    ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, DAY_NAMES, DAY_LONG, PALETTE,
+    ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, STEPS_PER_LINE, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
     defaultState, normalizeState, blankWeek, copyWeek, nextCheck, notesForPrint, moveItem,
