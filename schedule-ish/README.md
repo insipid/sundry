@@ -39,8 +39,9 @@ on. The dropdown can:
 Days shown, regulars and the unplaced list are shared by all weeks.
 
 **The day** has no hours. It's split into soft zones: *morning*, *midday*
-(tinted, for lunch) and *afternoon*. Faint lines mark steps, and blocks snap
-to those steps. The visible zones always fill the board's full height.
+(tinted, for lunch) and *afternoon*. Faint lines mark the day off, and
+blocks snap to each line and halfway between lines, so they can be small
+and move smoothly. The visible zones always fill the board's full height.
 - **Move a break:** hover a zone name (*midday*, *afternoon*, …) until the
   cursor shows ↕, then drag. That moves where the zone starts, trading
   steps only with the zone above it. Every zone keeps at least one step, and

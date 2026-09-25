@@ -201,3 +201,24 @@ heading. There's no second page if nothing has notes.
 
 Open: the notes UI is a first cut meant to be tried. Richer lines
 (nesting, reordering) wait until it's clearer what's wanted.
+
+## Round 6 (2026-09-25): double resolution (plan version 4)
+
+The day is now 40 steps: early 8, morning 10, midday 4, afternoon 10,
+evening 8, so the shares are unchanged (a quarter or a fifth for an
+optional zone). The board still draws a faint line every
+`STEPS_PER_LINE` (2) steps, so it looks exactly as before, but blocks snap
+to the lines and halfway between them. The smallest block and the
+smallest move are both half what they were.
+
+Anything that described sizes in old steps now counts grid lines:
+`sizeWord` uses `ceil(size / 2)`, the sidebar pips show one pip per line,
+and the regular editor offers 2/4/6/8/12 steps. Default sizes (a click-
+created block, a new unplaced item, a new regular) are 4 steps, the same
+height as before. The minimum step height on screen is 9px.
+
+Migration: plans with `version` 1-3 have regular and unplaced sizes
+doubled. v2/v3 weeks double every zone size, block start and block size.
+v1 plans map straight onto the 40-step default layout, as before. So a
+plan looks identical after conversion; I checked this by comparing each
+block's fraction of the day before and after.
