@@ -5,6 +5,7 @@
   const STORAGE_KEY = 'schedule-ish:v1';
   const DRAG_THRESHOLD = 4;
   const ADD_ROW_H = 26;     // the "+ early" / "+ evening" rows
+  const DAYNOTE_H = 30;     // the "How was Tue?" row in review mode
   const PRINT_GRID_H = 600; // px the day is squeezed into on paper
 
   const $ = sel => document.querySelector(sel);
@@ -87,8 +88,32 @@
 
   // ---- rendering -----------------------------------------------------------
 
+  // Review mode: rate and tag what you planned. The plan itself is locked.
+  const reviewing = () => state.settings.mode === 'review';
+  const RATING_LABEL = { 1: '✓', 2: '✓✓', 3: '✓✓✓', skip: 'skipped', bad: '↘' };
+
+  function setMode(mode) {
+    if (state.settings.mode === mode) return;
+    commitEditing();
+    ui.ghost = null;
+    closePopover();
+    state.settings.mode = mode; // a view setting, so not an undo step
+    save();
+    render();
+  }
+
+  function setRating(id, rating) {
+    const b = findBlock(id);
+    if (!b || (b.rating ?? null) === rating) return;
+    ui.selectedId = id;
+    commit(() => { b.rating = rating; });
+  }
+
   function render() {
     $('#week-name').textContent = week().name;
+    document.body.classList.toggle('reviewing', reviewing());
+    $$('[data-cmd="mode"]').forEach(b => b.classList.toggle('on', b.dataset.mode === state.settings.mode));
+    renderReviewBar();
     placeSidebar();
     renderSidebar();
     renderBoard();
@@ -163,7 +188,8 @@
     const steps = ui.range.end - ui.range.start;
     if (ui.printing) { ui.stepPx = PRINT_GRID_H / steps; return; }
     const addRows = !week().view.showEarly + !week().view.showEvening;
-    const avail = $('#board-body').clientHeight - $('#board-head').offsetHeight - ADD_ROW_H * addRows - 2;
+    const avail = $('#board-body').clientHeight - $('#board-head').offsetHeight - ADD_ROW_H * addRows
+      - (reviewing() ? DAYNOTE_H : 0) - 2;
     // Fill the board exactly: the visible zones always use the full height.
     // (Only a very short window falls back to a minimum and scrolls.)
     ui.stepPx = Math.max(9, avail / steps);
@@ -173,6 +199,7 @@
     ui.zones = M.zonesFor(week().zones);
     ui.range = M.visibleRange(week().view, ui.zones);
     const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const today = M.todayIndex();
     const { start: r0, end: r1 } = ui.range;
     // min-width makes the grid as wide as its columns, so the sticky gutter can pin all the way.
     const cols = `grid-template-columns: var(--gutter) repeat(${days.length || 1}, minmax(72px, 1fr)); min-width: calc(var(--gutter) + ${(days.length || 1) * 72}px)`;
@@ -181,7 +208,7 @@
       <div class="grid border-b" style="${cols}; border-color: var(--grid)">
         <div class="pin-left"></div>
         ${days.map(d => `<div class="day-head text-center py-2.5 text-sm font-semibold rounded-t-lg transition-colors whitespace-nowrap overflow-hidden text-ellipsis" data-day="${d}"
-            title="${M.DAY_LONG[d]} · drop a regular here to put it in its usual spot">${M.DAY_NAMES[d]}</div>`).join('')}
+            title="${M.DAY_LONG[d]} · drop a regular here to put it in its usual spot">${M.DAY_NAMES[d]}${d === today ? '<span class="today-dot" title="Today"></span>' : ''}</div>`).join('')}
       </div>`;
 
     measureStep(); // after the header, whose height it subtracts
@@ -239,6 +266,10 @@
         <div class="relative pin-left" style="height:${height}px">${gutter}</div>
         ${columns}
       </div>
+      ${reviewing() ? `<div class="grid" style="${cols}; height:${DAYNOTE_H}px">
+        <div class="pin-left"></div>
+        ${days.map(d => `<input class="dayline" data-daynote="${d}" value="${esc(week().dayNotes[d] || '')}" placeholder="How was ${M.DAY_NAMES[d]}?">`).join('')}
+      </div>` : ''}
       ${week().view.showEvening ? '' : addRow('evening')}`;
   }
 
@@ -260,15 +291,21 @@
     }
     const roomy = h >= px * 2 * M.STEPS_PER_LINE - 4; // two grid lines or more
     const tiny = h < 26;
+    const rev = reviewing() && !isGhost;
+    const rating = b.rating ?? null;
+    if (rev) cls.push(rating === null ? 'unrated' : `r-${rating}`);
     return `<div class="${cls.join(' ')}" data-block="${b.id}"
         style="${colorStyle(b.color)} top:${top}px; height:${h}px; left:${left}; width:${width}; ${tiny ? 'padding-top:2px;padding-bottom:2px;' : ''}">
-      ${isGhost ? '' : '<div class="edge top" data-edge="top"></div><div class="edge bottom" data-edge="bottom"></div>'}
+      ${isGhost || rev ? '' : '<div class="edge top" data-edge="top"></div><div class="edge bottom" data-edge="bottom"></div>'}
       ${editing
         ? `<input data-edit value="${esc(b.title)}" placeholder="what’s this?">`
         : `<div class="title">${esc(b.title) || '<span style="opacity:.5">untitled</span>'}</div>
-           ${roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : ''}`}
+           ${rev && b.tags && b.tags.length && !tiny ? `<div class="tag-line">${b.tags.map(esc).join(' · ')}</div>`
+             : roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : ''}`}
+      ${rev ? `<button class="rate ${rating === null ? 'empty' : typeof rating === 'number' ? '' : 'word'}" data-rate="${b.id}"
+          title="Tap: ✓ → ✓✓ → ✓✓✓ · right-click for skipped or counterproductive">${rating === null ? 'rate' : RATING_LABEL[rating]}</button>` : ''}
       ${!isGhost && b.notes && b.notes.length ? '<span class="has-notes" title="Has notes (double-click)">⋯</span>' : ''}
-      ${isGhost ? '' : `<div class="tools ${roomy ? 'at-bottom' : ''}">
+      ${isGhost || rev ? '' : `<div class="tools ${roomy ? 'at-bottom' : ''}">
         <button class="tool" data-action="color" title="Change colour" style="color:inherit">●</button>
         <button class="tool" data-action="duplicate" title="Duplicate (or ⌥-drag)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="3"/><path d="M16 8V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h2"/></svg></button>
         <button class="tool" data-action="make-regular" title="Save as a regular">☆</button>
@@ -288,7 +325,28 @@
   // Selection changes don't re-render, so double-click lands on the same node.
   function select(id) {
     ui.selectedId = id;
+    ui.addingTag = false;
     $$('.block').forEach(el => el.classList.toggle('selected', el.dataset.block === id));
+    renderReviewBar();
+  }
+
+  // The tag chips along the bottom of the board, for the selected block.
+  function renderReviewBar() {
+    const bar = $('#review-bar');
+    if (!reviewing()) { bar.innerHTML = ''; bar.style.display = 'none'; return; }
+    bar.style.display = '';
+    const b = ui.selectedId && findBlock(ui.selectedId);
+    if (!b) {
+      bar.innerHTML = `<span class="review-hint">Select a block to rate or tag it. Tap its corner to cycle ✓ → ✓✓ → ✓✓✓;
+        right-click for skipped or counterproductive; or use keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>−</kbd> <kbd>s</kbd> <kbd>0</kbd>.</span>`;
+      return;
+    }
+    const mine = b.tags || [];
+    bar.innerHTML = `<span class="review-hint">Tags for <b>${esc(b.title || 'untitled')}</b>:</span>
+      ${state.tags.map(t => `<button class="tag-chip ${mine.includes(t) ? 'on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}
+      ${ui.addingTag ? `<span class="tag-chip add"><input id="new-tag" placeholder="new tag" autocomplete="off"></span>`
+        : '<button class="tag-chip add" data-cmd="add-tag">+ tag</button>'}`;
+    if (ui.addingTag) $('#new-tag').focus();
   }
 
   // ---- geometry ------------------------------------------------------------
@@ -325,6 +383,13 @@
     const unpEl = e.target.closest('[data-unplaced]');
     const colEl = e.target.closest('.day-col');
     const labelEl = e.target.closest('[data-zone-label]');
+
+    if (reviewing()) {
+      // The plan is locked while reviewing: a click selects, nothing drags.
+      if (blockEl) select(blockEl.dataset.block);
+      else if (e.target.closest('.day-col')) select(null);
+      return;
+    }
 
     if (blockEl) {
       const b = findBlock(blockEl.dataset.block);
@@ -402,7 +467,7 @@
     const body = document.body.classList;
     if (d.copy) {
       const b = findBlock(d.blockId);
-      week().blocks.push({ ...b, id: M.newId(), notes: cloneNotes(b.notes) });
+      week().blocks.push({ ...b, id: M.newId(), notes: cloneNotes(b.notes), rating: null, tags: [] });
       body.add('copying');
     } else if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
     else if (d.kind === 'create') body.add('creating');
@@ -590,7 +655,7 @@
         }
         if (!g || !item) return render();
         const id = consume ? item.id : M.newId();
-        week().blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color, notes: cloneNotes(item.notes) });
+        week().blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color, notes: cloneNotes(item.notes), rating: null, tags: [] });
         if (consume) state.unplaced = state.unplaced.filter(u => u !== item);
         ui.selectedId = id;
         settle(d);
@@ -613,7 +678,7 @@
   }
 
   function createBlock(day, start, size) {
-    const b = { id: M.newId(), day, start, size, title: '', color: 7, notes: [] };
+    const b = { id: M.newId(), day, start, size, title: '', color: 7, notes: [], rating: null, tags: [] };
     pushUndo();
     week().blocks.push(b);
     ui.selectedId = b.id;
@@ -652,6 +717,21 @@
 
   document.addEventListener('keydown', e => {
     const t = e.target;
+    if (t.id === 'new-tag') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const tag = t.value.trim().toLowerCase();
+        const b = ui.selectedId && findBlock(ui.selectedId);
+        ui.addingTag = false;
+        if (!tag || !b) return renderReviewBar();
+        commit(s => {
+          if (!s.tags.includes(tag)) s.tags.push(tag);
+          if (!(b.tags || []).includes(tag)) b.tags = [...(b.tags || []), tag];
+        });
+      } else if (e.key === 'Escape') { e.preventDefault(); ui.addingTag = false; renderReviewBar(); }
+      return;
+    }
+    if (t.matches && t.matches('.dayline') && e.key === 'Enter') { t.blur(); return; }
     if (t.matches && t.matches('[data-edit]')) {
       if (e.key === 'Enter') { e.preventDefault(); commitEditing(); }
       else if (e.key === 'Escape') { e.preventDefault(); commitEditing(true); }
@@ -675,6 +755,11 @@
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+    if (reviewing()) {
+      const keys = { '1': 1, '2': 2, '3': 3, '-': 'bad', '−': 'bad', s: 'skip', S: 'skip', '0': null };
+      if (!mod && ui.selectedId && e.key in keys) { e.preventDefault(); setRating(ui.selectedId, keys[e.key]); }
+      return; // no deleting or renaming while reviewing
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selectedId) {
       e.preventDefault();
       const id = ui.selectedId;
@@ -686,6 +771,38 @@
       ui.editing = { kind: 'block', id: ui.selectedId };
       render();
     }
+  });
+
+  // "How was Tue?": saved when you leave the field (one undo step).
+  document.addEventListener('change', e => {
+    if (!e.target.matches || !e.target.matches('[data-daynote]')) return;
+    const d = +e.target.dataset.daynote, v = e.target.value.trim();
+    if ((week().dayNotes[d] || '') !== v) commit(() => { week().dayNotes[d] = v; });
+  });
+
+  // Review mode: right-click a block for the ratings that aren't ticks.
+  document.addEventListener('contextmenu', e => {
+    if (!reviewing()) return;
+    const blockEl = e.target.closest('.block:not(.ghost)');
+    if (!blockEl) return;
+    e.preventDefault();
+    const id = blockEl.dataset.block;
+    select(id);
+    const at = { getBoundingClientRect: () => ({ left: e.clientX, right: e.clientX, top: e.clientY, bottom: e.clientY }) };
+    openPopover(at, `
+      <button class="menu-item" data-r="skip">Skipped: didn’t do it</button>
+      <button class="menu-item" data-r="bad">Counterproductive</button>
+      <div class="menu-sep"></div>
+      <button class="menu-item" data-r="">Clear rating</button>`, el => {
+      el.style.width = '220px';
+      el.style.padding = '6px';
+      el.addEventListener('click', ev => {
+        const item = ev.target.closest('[data-r]');
+        if (!item) return;
+        closePopover();
+        setRating(id, item.dataset.r || null);
+      });
+    });
   });
 
   document.addEventListener('focusout', e => {
@@ -805,6 +922,13 @@
   // ---- clicks: block tools, sidebar, header commands -----------------------
 
   document.addEventListener('click', e => {
+    const rate = e.target.closest('[data-rate]');
+    if (rate) return setRating(rate.dataset.rate, M.nextRating(findBlock(rate.dataset.rate).rating ?? null));
+    const chip = e.target.closest('[data-tag]');
+    if (chip && ui.selectedId) {
+      const b = findBlock(ui.selectedId), t = chip.dataset.tag, mine = b.tags || [];
+      return commit(() => { b.tags = mine.includes(t) ? mine.filter(x => x !== t) : [...mine, t]; });
+    }
     const act = e.target.closest('[data-action]');
     if (act) {
       const blockEl = act.closest('[data-block]');
@@ -817,7 +941,7 @@
           const b = findBlock(id);
           const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
           const spot = M.duplicateSpot(week().blocks, b, days, ui.range, ui.zones);
-          const copy = { ...b, id: M.newId(), ...spot, notes: cloneNotes(b.notes) };
+          const copy = { ...b, id: M.newId(), ...spot, notes: cloneNotes(b.notes), rating: null, tags: [] };
           ui.selectedId = copy.id;
           commit(() => week().blocks.push(copy));
           if (spot.day !== b.day) toast(`No room after it, so the copy went to ${M.DAY_LONG[spot.day]}`);
@@ -849,6 +973,8 @@
       case 'weeks': return openWeeks(cmd);
       case 'new-regular': return editRegular(null, cmd);
       case 'print': return window.print();
+      case 'mode': return setMode(cmd.dataset.mode);
+      case 'add-tag': ui.addingTag = true; return renderReviewBar();
       case 'toggle-sidebar': return commit(s => { s.settings.sidebarHidden = !s.settings.sidebarHidden; });
       case 'show-zone':
         pushUndo();
