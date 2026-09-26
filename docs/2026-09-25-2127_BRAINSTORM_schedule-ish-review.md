@@ -116,6 +116,28 @@ live week, ready to use again.
    visible "…" on the badge, the end of the tap cycle, or a long-press.
 8. Keyboard shortcuts: not tried yet (as of 2026-09-26).
 
+## Side ideas (not review, raised 2026-09-26)
+
+Feasibility only; nothing decided or built.
+- **Dark / light mode:** feasible and mostly mechanical. Move about 66
+  hard-coded colours in `index.html` into about 20 CSS variables; make the
+  eight block pastels (hard-coded in `model.js` `PALETTE`) variables too;
+  design dark pairs (a deep muted fill with light text); add a setting for
+  Auto / Light / Dark. Print stays light. Claude's view: worthwhile,
+  especially for evening reviews.
+- **Colour themes:** cheap once the variables exist (a theme is about 25
+  values). Two or three curated ones at most (e.g. Napkin, Graphite,
+  Blueprint), after v1. Optional.
+- **Richer PDF:** print CSS already gives a real vector PDF.
+  - Route A (cheap, recommended first): more print layouts: the week, the
+    week plus notes, a review report (ratings, tags, day notes, summary),
+    and a blank napkin to plan with a pen.
+  - Route B (heavier): a generated PDF (e.g. jsPDF) for one-click downloads,
+    identical across browsers, with multi-page layouts. It means a second
+    renderer to maintain.
+  - Links to review: Close week could offer "save this week's report" as a
+    keepsake PDF.
+
 ## Parked
 
 - A full separate "what actually happened" layer. The review-mode drag and
@@ -144,3 +166,5 @@ live week, ready to use again.
 - **2026-09-26:** Drew is going to play with review mode, think about Close
   week, the summary, and template vs single week, then come back to draft
   the run to v1.
+- **2026-09-26:** Drew asked about the feasibility of dark mode, themes and a
+  richer PDF; recorded under Side ideas. Nothing built.
