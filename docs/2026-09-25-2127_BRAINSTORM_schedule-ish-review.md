@@ -22,9 +22,13 @@ didn't work. Keep it as simple as possible.
   s skipped, 0 clear).
 - **Not every block gets rated.** Rating is optional; unrated blocks just
   don't count.
+- **Skipped and counterproductive live on right-click (plus keyboard), for
+  now.** Drew doesn't like things hidden behind right-click, but thinks it's
+  the better option for the moment. Revisit (see Open questions).
 
 **Written feedback**
-- **Tag chips**, liked a lot. One tap per tag. You can add your own tags
+- **Tag chips**, liked a lot (the chip row under the board in the mockup
+  was a hit). One tap per tag. You can add your own tags
   (a "+ tag" chip), and your tags are shared across everything.
 - **Tags exist only in review mode**, not while planning.
 
@@ -84,10 +88,10 @@ live week, ready to use again.
 6. How ratings look on a block: the mockup used a tick badge plus a heavier
    outline as ratings rise, a dashed ghost with the name struck through for
    skipped, and a red dashed edge for counterproductive. Not confirmed.
-7. Tapping cycles only the ✓ levels. In the mockup, skipped and
-   counterproductive are set by right-click (or the keyboard). Is
-   right-click the right place for them, or should they go at the end of
-   the tap cycle?
+7. Right-click for skipped and counterproductive is the stopgap (Drew
+   dislikes hidden interactions). Candidates for later: a small always-
+   visible "…" on the badge, the end of the tap cycle, or a long-press.
+8. Keyboard shortcuts: not tried yet (as of 2026-09-26).
 
 ## Parked
 
@@ -108,3 +112,6 @@ live week, ready to use again.
 - **2026-09-25:** The in-chat rating widget never rendered for Drew, so it's
   rebuilt as a standalone page (see Mockups), updated to match the decisions
   so far.
+- **2026-09-26:** Drew tried the standalone mockup and liked it: tap-to-cycle
+  ticks are good, and the tag chips are "really nice". Right-click accepted
+  for now, reluctantly. Keyboard not tried yet; still exploring the rest.
