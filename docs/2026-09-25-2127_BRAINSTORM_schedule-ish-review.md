@@ -116,6 +116,44 @@ live week, ready to use again.
    visible "…" on the badge, the end of the tap cycle, or a long-press.
 8. Keyboard shortcuts: not tried yet (as of 2026-09-26).
 
+## Notes model (v1-critical, raised 2026-09-26)
+
+Drew needs notes to track what each block's focus is, without the app
+becoming another to-do list. Question: should repeated blocks (e.g. from a
+regular) share notes across the week? This is a core decision for v1.
+See also the TASK doc `docs/2026-09-24-2236_TASK_review-notes-editor.md`.
+
+Today: each block has its own notes. A regular's default notes are copied
+into each dropped block, and the copies are independent.
+
+Underlying question: is the unit a slot of time, or a thing you're working
+on (a "thread" or "intent") that gets several slots?
+
+Options:
+1. Per-block notes (as now). Simple, but no continuity.
+2. Shared notes for every block with the same name in a week, linked
+   automatically. Good for projects; wrong for routines ("legs today" on
+   every Gym block).
+3. **Claude's recommendation: shared plus per-session.** A shared Focus list
+   for every block with that name this week ("Write proposal: 3 blocks this
+   week"), plus an optional small "This session" note per block. A regular's
+   default notes seed the Focus the first time it appears in a week.
+4. A weekly focus list (3–5 intents), with blocks as time given to an
+   intent. The cleanest intent model, but a bigger change; held in reserve.
+
+Guard-rails against becoming a to-do list: no dates, priorities or nesting;
+a soft limit of about five lines; ticks as progress hints (review could
+show "3 of 5 focus items"); at Close week, unticked focus items carry
+forward only if you choose.
+
+Questions for Drew:
+1. When you plan, do you think in slots of time or in things you're working
+   on that get several slots?
+2. Link blocks automatically by name, or only when they come from the same
+   regular?
+3. Do per-session notes matter, or is a shared focus enough?
+4. At Close week, should unfinished focus items carry into the next week?
+
 ## Side ideas (not review, raised 2026-09-26)
 
 Feasibility only; nothing decided or built.
@@ -168,3 +206,6 @@ Feasibility only; nothing decided or built.
   the run to v1.
 - **2026-09-26:** Drew asked about the feasibility of dark mode, themes and a
   richer PDF; recorded under Side ideas. Nothing built.
+- **2026-09-26:** Drew raised the notes model (per-block or shared across a
+  week's repeated blocks) as a v1-critical decision; options and questions
+  recorded under Notes model.
