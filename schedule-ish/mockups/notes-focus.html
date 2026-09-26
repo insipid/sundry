@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>schedule-ish · shared focus notes mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* A throwaway mockup for the notes-model brainstorm. Not wired to the app. */
+  :root { --paper:#fbfaf7; --ink:#3b3833; --muted:#948c80; --faint:#c9c1b4; --grid:#f1ede6; --zone:#e2dbcf; --band:#faf7f1; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Figtree, ui-sans-serif, system-ui, sans-serif; padding: 20px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; max-width: 760px; line-height: 1.5; }
+  .bar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .switch input { accent-color: #7a6f5f; }
+  .board { display: grid; grid-template-columns: 84px repeat(4, minmax(120px, 1fr)); background: #fff; border-radius: 16px;
+    box-shadow: 0 0 0 1px rgba(60,50,30,.07); overflow: hidden; max-width: 820px; }
+  .hd { text-align: center; font-weight: 600; font-size: 14px; padding: 10px 0; border-bottom: 1px solid var(--grid); }
+  .col { position: relative; height: 400px; border-left: 1px solid var(--grid); }
+  .gut { position: relative; height: 400px; }
+  .zl { position: absolute; right: 10px; font-size: 11.5px; color: var(--muted); }
+  .line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--zone); }
+  .band { position: absolute; left: 0; right: 0; background: var(--band); }
+  .blk { position: absolute; left: 4px; right: 4px; border-radius: 12px; padding: 7px 9px; font-size: 13px; cursor: pointer; overflow: hidden; }
+  .blk:hover { box-shadow: 0 2px 8px rgba(60,50,30,.12); }
+  .blk .t { font-weight: 600; }
+  .blk .next { font-size: 11.5px; margin-top: 3px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .blk .dots { position: absolute; right: 8px; bottom: 2px; font-size: 16px; opacity: .6; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(40,34,26,.18); display: none; place-items: start center; padding-top: 9vh; }
+  .overlay.open { display: grid; }
+  .dialog { width: min(460px, calc(100vw - 32px)); background: #fff; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 20px 50px rgba(60,50,30,.25), 0 0 0 1px rgba(60,50,30,.06); }
+  .dh { padding: 14px 16px 10px; }
+  .dh .title { font-size: 17px; font-weight: 700; }
+  .dh .where { font-size: 12px; margin-top: 3px; opacity: .8; }
+  .dh .where b { font-weight: 700; }
+  .sec { padding: 10px 16px 4px; }
+  .sec h3 { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .item { display: flex; align-items: center; gap: 6px; padding: 2px 0; border-radius: 8px; }
+  .item.dragging { opacity: .4; }
+  .item.over { box-shadow: 0 -2px 0 #7a6f5f; }
+  .grip { width: 14px; color: var(--faint); cursor: grab; font-size: 13px; text-align: center; user-select: none; }
+  .tick { width: 18px; height: 18px; border-radius: 99px; border: 1.5px solid var(--faint); background: #fff; flex: none; cursor: pointer; padding: 0; font-size: 11px; color: #fff; }
+  .tick:hover { border-color: var(--muted); }
+  .item input { flex: 1; min-width: 0; border: 0; outline: none; font: inherit; font-size: 14px; padding: 5px 2px; color: var(--ink); background: transparent; }
+  .pill { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: #f6e9c8; color: #8a6d24; flex: none; }
+  .done-toggle { border: 0; background: none; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; padding: 6px 0 2px; }
+  .done-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--faint); padding: 3px 0 3px 20px; }
+  .done-item .tick { background: #9fb6a3; border-color: #9fb6a3; }
+  .done-item span { text-decoration: line-through; }
+  .hint { font-size: 12px; color: var(--muted); padding: 4px 0 2px 20px; line-height: 1.5; }
+  .soft { font-size: 12px; color: #9a7a2c; padding: 4px 0 2px 20px; }
+  .session { width: 100%; border: 0; border-bottom: 1px dashed var(--zone); outline: none; font: inherit; font-size: 13.5px; padding: 6px 2px; color: var(--ink); }
+  .df { display: flex; align-items: center; padding: 12px 16px 14px; gap: 8px; }
+  .df .keys { font-size: 11.5px; color: var(--muted); }
+  .btn { font: inherit; font-size: 13px; font-weight: 500; padding: 6px 14px; border-radius: 9px; border: 0; background: var(--ink); color: #fff; margin-left: auto; cursor: pointer; }
+  .notes { max-width: 820px; color: var(--muted); font-size: 12.5px; line-height: 1.6; margin-top: 14px; }
+</style>
+</head>
+<body>
+<h1>Shared focus notes (mockup)</h1>
+<p class="sub">Click a block to open its notes. All three <b>Job applications</b> blocks share one focus list: tick
+something on Monday and it's ticked on Wednesday. <b>Gym</b> and <b>Lunch</b> just hold time, so they have nothing
+in them, and that's fine. Nothing here is saved.</p>
+
+<div class="bar">
+  <label class="switch"><input type="checkbox" id="shownext" checked> Show what's next on blocks</label>
+</div>
+
+<div class="board" id="board"></div>
+<div class="notes">
+  <b>In the dialog:</b> the top unticked line is what's <b>next</b>. Drag lines by the ⋮⋮ grip to change what comes
+  first. Tick a line and it folds away into "done this week". Enter starts a new line; Backspace on an empty line removes it.
+  "This session" is an optional line just for the block you opened.
+</div>
+
+<div class="overlay" id="overlay"><div class="dialog" id="dialog"></div></div>
+
+<script>
+const PAL = { blue: ['#dbe7f5', '#5b7ba6'], green: ['#dcefe2', '#4f8a64'], butter: ['#f6e9c8', '#9a7a2c'], lav: ['#ece2f5', '#7e5ea6'] };
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu'], H = 400, SOFT_LIMIT = 5;
+const blocks = [
+  { id: 1, d: 0, s: .03, h: .3, t: 'Job applications', c: 'blue' },
+  { id: 2, d: 2, s: .03, h: .3, t: 'Job applications', c: 'blue' },
+  { id: 3, d: 3, s: .6, h: .26, t: 'Job applications', c: 'blue' },
+  { id: 4, d: 1, s: .03, h: .24, t: 'Gym', c: 'green' },
+  { id: 5, d: 3, s: .03, h: .24, t: 'Gym', c: 'green' },
+  { id: 6, d: 0, s: .43, h: .14, t: 'Lunch', c: 'butter' },
+  { id: 7, d: 1, s: .6, h: .3, t: 'Portfolio site', c: 'lav' },
+];
+// Shared focus, one list per name, for the whole week.
+const focus = {
+  'Job applications': [
+    { text: 'Tailor CV for the Acme role', done: false },
+    { text: 'Follow up with Sam about the referral', done: false },
+    { text: 'Shortlist three more roles', done: false },
+    { text: 'Update LinkedIn headline', done: true },
+  ],
+  'Portfolio site': [{ text: 'Case study: the planner app', done: false }],
+};
+const session = { 2: 'Just the Acme application today' };
+let open = null, showDone = false;
+
+const list = t => (focus[t] = focus[t] || []);
+const nextOf = t => list(t).find(x => !x.done && x.text.trim());
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function renderBoard() {
+  const showNext = document.getElementById('shownext').checked;
+  let h = '<div class="hd"></div>' + DAYS.map(d => `<div class="hd">${d}</div>`).join('');
+  h += '<div class="gut">' + [['morning', 0], ['midday', .42], ['afternoon', .58]].map(([n, a]) => `<div class="zl" style="top:${a * H + 5}px">${n}</div>`).join('') + '</div>';
+  DAYS.forEach((d, i) => {
+    h += `<div class="col"><div class="band" style="top:${.42 * H}px;height:${.16 * H}px"></div><div class="line" style="top:${.42 * H}px"></div><div class="line" style="top:${.58 * H}px"></div>`;
+    for (const b of blocks.filter(x => x.d === i)) {
+      const [fill, ink] = PAL[b.c];
+      const nx = nextOf(b.t);
+      const has = list(b.t).some(x => x.text.trim()) || session[b.id];
+      h += `<div class="blk" data-id="${b.id}" style="top:${b.s * H}px;height:${b.h * H - 4}px;background:${fill};color:${ink}">
+        <div class="t">${b.t}</div>
+        ${showNext && nx ? `<div class="next">→ ${esc(nx.text)}</div>` : ''}
+        ${!showNext && has ? '<span class="dots">⋯</span>' : ''}
+      </div>`;
+    }
+    h += '</div>';
+  });
+  document.getElementById('board').innerHTML = h;
+}
+
+function renderDialog(focusIndex) {
+  const b = blocks.find(x => x.id === open);
+  const [fill, ink] = PAL[b.c];
+  const items = list(b.t);
+  const siblings = blocks.filter(x => x.t === b.t);
+  const openItems = items.filter(x => !x.done), doneItems = items.filter(x => x.done);
+  if (!openItems.length) items.push({ text: '', done: false });
+  const live = items.filter(x => !x.done);
+  const firstReal = live.find(x => x.text.trim());
+  document.getElementById('dialog').innerHTML = `
+    <div class="dh" style="background:${fill};color:${ink}">
+      <div class="title">${b.t}</div>
+      <div class="where">${siblings.length > 1
+        ? `Shared by <b>${siblings.length} blocks</b> this week: ${siblings.map(x => x.id === b.id ? `<b>${DAYS[x.d]}</b>` : DAYS[x.d]).join(' · ')}`
+        : `${DAYS[b.d]} · one block this week`}</div>
+    </div>
+    <div class="sec">
+      <h3>Focus this week</h3>
+      <div id="items">${live.map(x => {
+        const i = items.indexOf(x);
+        return `<div class="item" draggable="true" data-i="${i}">
+          <span class="grip" title="Drag to change what's next">⋮⋮</span>
+          <button class="tick" data-tick="${i}" title="Done"></button>
+          <input data-i="${i}" value="${esc(x.text)}" placeholder="${live.length === 1 ? "What's first? (optional)" : ''}">
+          ${x === firstReal ? '<span class="pill">next</span>' : ''}
+        </div>`; }).join('')}</div>
+      ${!items.some(x => x.text.trim()) ? `<div class="hint">Nothing to track? That's fine. Some blocks just hold the time.</div>` : ''}
+      ${live.filter(x => x.text.trim()).length > SOFT_LIMIT ? `<div class="soft">That's a lot for one intent. Keep it broad?</div>` : ''}
+      ${doneItems.length ? `<button class="done-toggle" id="donetoggle">${showDone ? '▾' : '▸'} Done this week (${doneItems.length})</button>
+        ${showDone ? doneItems.map(x => `<div class="done-item"><button class="tick" data-untick="${items.indexOf(x)}" title="Not done after all">✓</button><span>${esc(x.text)}</span></div>`).join('') : ''}` : ''}
+    </div>
+    <div class="sec">
+      <h3>This session · ${DAYS[b.d]}</h3>
+      <input class="session" id="session" value="${esc(session[b.id] || '')}" placeholder="Anything just for this block? (optional)">
+    </div>
+    <div class="df"><span class="keys">Enter: new line · drag ⋮⋮ to reorder</span><button class="btn" id="done">Done</button></div>`;
+  if (focusIndex != null) {
+    const input = document.querySelector(`#items input[data-i="${focusIndex}"]`);
+    if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+  }
+}
+
+function openDialog(id) {
+  open = id; showDone = false;
+  document.getElementById('overlay').classList.add('open');
+  const b = blocks.find(x => x.id === id);
+  const firstOpen = list(b.t).findIndex(x => !x.done);
+  renderDialog(firstOpen === -1 ? list(b.t).length : firstOpen);
+}
+function closeDialog() {
+  const b = blocks.find(x => x.id === open);
+  focus[b.t] = list(b.t).filter(x => x.text.trim());
+  open = null;
+  document.getElementById('overlay').classList.remove('open');
+  renderBoard();
+}
+
+document.getElementById('board').addEventListener('click', e => { const bl = e.target.closest('.blk'); if (bl) openDialog(+bl.dataset.id); });
+document.getElementById('shownext').addEventListener('change', renderBoard);
+document.getElementById('overlay').addEventListener('mousedown', e => { if (e.target.id === 'overlay') closeDialog(); });
+
+const dlg = document.getElementById('dialog');
+dlg.addEventListener('input', e => {
+  const b = blocks.find(x => x.id === open);
+  if (e.target.dataset.i != null) list(b.t)[+e.target.dataset.i].text = e.target.value;
+  if (e.target.id === 'session') session[b.id] = e.target.value;
+});
+dlg.addEventListener('click', e => {
+  const b = blocks.find(x => x.id === open), items = list(b.t);
+  if (e.target.id === 'done') return closeDialog();
+  if (e.target.id === 'donetoggle') { showDone = !showDone; return renderDialog(); }
+  if (e.target.dataset.tick != null) { const it = items[+e.target.dataset.tick]; if (it.text.trim()) it.done = true; return renderDialog(); }
+  if (e.target.dataset.untick != null) { items[+e.target.dataset.untick].done = false; return renderDialog(); }
+});
+dlg.addEventListener('keydown', e => {
+  if (e.key === 'Escape') return closeDialog();
+  const i = e.target.dataset.i; if (i == null) return;
+  const b = blocks.find(x => x.id === open), items = list(b.t);
+  if (e.key === 'Enter') { e.preventDefault(); items.splice(+i + 1, 0, { text: '', done: false }); renderDialog(+i + 1); }
+  else if (e.key === 'Backspace' && e.target.value === '' && items.filter(x => !x.done).length > 1) {
+    e.preventDefault(); items.splice(+i, 1);
+    const prev = items.slice(0, +i).map((x, k) => [x, k]).filter(([x]) => !x.done).pop();
+    renderDialog(prev ? prev[1] : null);
+  }
+});
+// Drag lines to reorder: the top unticked line is what's next.
+let dragFrom = null;
+dlg.addEventListener('dragstart', e => { const it = e.target.closest('.item'); if (!it) return; dragFrom = +it.dataset.i; it.classList.add('dragging'); });
+dlg.addEventListener('dragover', e => { const it = e.target.closest('.item'); if (!it) return; e.preventDefault();
+  dlg.querySelectorAll('.item').forEach(x => x.classList.toggle('over', x === it)); });
+dlg.addEventListener('drop', e => {
+  const it = e.target.closest('.item'); if (!it || dragFrom == null) return; e.preventDefault();
+  const b = blocks.find(x => x.id === open), items = list(b.t);
+  // Dragging up lands before the target line, dragging down lands after it.
+  const to = +it.dataset.i, [moved] = items.splice(dragFrom, 1);
+  items.splice(to, 0, moved);
+  dragFrom = null; renderDialog();
+});
+dlg.addEventListener('dragend', () => { dragFrom = null; dlg.querySelectorAll('.item').forEach(x => x.classList.remove('dragging', 'over')); });
+
+renderBoard();
+</script>
+</body>
+</html>

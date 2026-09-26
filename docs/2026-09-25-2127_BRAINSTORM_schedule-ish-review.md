@@ -89,6 +89,12 @@ live week, ready to use again.
 
 ## Mockups
 
+- `schedule-ish/mockups/notes-focus.html`: shared focus notes. Click a
+  block. The Job applications blocks share one focus list (tick on Monday
+  and it's ticked on Wednesday); the top unticked line is "next" and can
+  show on the block; drag lines to reorder; ticked lines fold into "done
+  this week"; plus an optional "this session" line; Gym and Lunch are empty
+  time-holders.
 - `schedule-ish/mockups/review-mode.html`: open it in a browser. It shows
   the Plan / Review toggle, tap-to-cycle ratings, right-click for skipped
   or counterproductive, keyboard shortcuts, tag chips with "+ tag", and a
@@ -122,6 +128,25 @@ Drew needs notes to track what each block's focus is, without the app
 becoming another to-do list. Question: should repeated blocks (e.g. from a
 regular) share notes across the week? This is a core decision for v1.
 See also the TASK doc `docs/2026-09-24-2236_TASK_review-notes-editor.md`.
+
+**Drew's framing (2026-09-26):** the app is a focus aid. Broad intents go
+on a calendar (a technique from Drew's occupational therapist, previously
+done on paper). A block is time given to a broad focus that serves an end
+goal ("job applications"), not a task. The details live elsewhere; here
+Drew only wants a light "what's first / what's next" pointer to keep
+moving. Not every block is the same: focus blocks carry a thread through
+the week, and time-holders (gym, lunch) need nothing.
+
+What follows for the design:
+- no setting for block kinds: a block with no focus lines just holds time;
+- the list is a "what's next" pointer, not a task list: the top unticked
+  line is next, reordering changes what's next, and ticked lines fold away;
+- the focus is shared across the week by name, so the thread carries over
+  from Monday to Wednesday.
+
+Mockup: `schedule-ish/mockups/notes-focus.html` (option 3 below, shaped by
+the points above). It has a "show what's next on blocks" switch, as an
+alternative to the plain ⋯ marker.
 
 Today: each block has its own notes. A regular's default notes are copied
 into each dropped block, and the copies are independent.
@@ -209,3 +234,6 @@ Feasibility only; nothing decided or built.
 - **2026-09-26:** Drew raised the notes model (per-block or shared across a
   week's repeated blocks) as a v1-critical decision; options and questions
   recorded under Notes model.
+- **2026-09-26:** Drew described the app's purpose (a focus aid for broad
+  intents, from an OT technique; blocks are not tasks; gym and lunch just
+  hold time). Built the shared-focus notes mockup (see Mockups).
