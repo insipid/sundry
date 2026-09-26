@@ -102,6 +102,22 @@ somewhere. Type one in and press Enter. Dragging it onto the week *moves* it
 there. Dragging a block from the week back onto this list takes it off the
 week.
 
+**Review** (the *Plan / Review* switch next to the week name) is for looking
+back at how the week went. The plan is locked while you review: nothing
+moves, resizes or gets deleted, and a click just selects.
+- **Rate a block:** tap the badge in its corner to cycle **✓ → ✓✓ → ✓✓✓** and
+  back to unrated. **Right-click** a block for *skipped* (didn't do it) or
+  *counterproductive*. Or select a block and press **1 / 2 / 3**, **−**
+  (counterproductive), **s** (skipped) or **0** (clear). Rating is optional;
+  unrated blocks just look a little faded.
+- **Tag it:** the bar along the bottom shows tag chips for the selected block
+  (*flow*, *interrupted*, *wrong time*, …). Tap to toggle. **+ tag** adds
+  your own to the shared list. Tags show under the block's name.
+- **How was Tue?:** a one-line note per day, in a row under the grid.
+- Today's day name has a small dot.
+- Plan mode hides all of this. New blocks, duplicates and copies of a week
+  start unrated.
+
 **PDF** is a shortcut for the browser's print (⌘P does the same). It opens
 the print dialog with the week on one landscape page. The week's name is at
 the top, the sidebar and buttons are hidden, and the colours are kept. If

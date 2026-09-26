@@ -222,3 +222,40 @@ doubled. v2/v3 weeks double every zone size, block start and block size.
 v1 plans map straight onto the 40-step default layout, as before. So a
 plan looks identical after conversion; I checked this by comparing each
 block's fraction of the day before and after.
+
+## Round 7 (2026-09-26): review mode, first cut
+
+This builds the part of the review brainstorm
+(`docs/2026-09-25-2127_BRAINSTORM_schedule-ish-review.md`) that Drew signed
+off via the mockup (`schedule-ish/mockups/review-mode.html`).
+
+- **Data (still plan version 4, additive):** `block.rating` (1 | 2 | 3 |
+  'skip' | 'bad' | null) and `block.tags` (strings); `week.dayNotes` (7
+  strings); the global `state.tags` list (starter set: flow, energised,
+  interrupted, distracted, too long, too short, wrong time, should repeat);
+  and `settings.mode` ('plan' | 'review').
+- **Mode:** a Plan / Review switch in the header. It's a view setting, so it
+  isn't an undo step. Review locks the plan: no move, resize, draw, sidebar
+  drag, zone-break drag, delete or inline rename. Clicks only select. The
+  notes dialog still opens on double-click, and early/evening can still be
+  toggled.
+- **Rating:** tapping the corner badge walks only the ticks (`nextRating`);
+  a skipped or counterproductive block restarts at ✓. Skipped and
+  counterproductive are on right-click (a stopgap: Drew dislikes hidden
+  interactions) and on the keys 1 2 3 − s 0.
+- **Look:** unrated blocks at 62% opacity; a 1-3px inner outline in the
+  block's ink for ✓ to ✓✓✓; skipped blocks as a dashed, struck-through
+  ghost; counterproductive blocks with a red dashed edge; selection as an
+  outline.
+- **Tags:** a bar under the board for the selected block, with "+ tag" (it
+  goes into the shared list, lower-cased). Tags replace the size word under
+  the block's name in review mode.
+- **Day notes:** an input row under the grid, saved on change, one undo
+  step each.
+- **Today:** `todayIndex()` (Monday = 0) puts a dot on today's day name.
+- **Copies start unrated:** duplicate, ⌥-drag, regular drops, new blocks
+  and `copyWeek` (which also clears day notes).
+
+Not built yet: Close week and its history, drag and draw meaning
+plan-vs-actual in review mode, the summary view, and "review this day"
+from the day name.

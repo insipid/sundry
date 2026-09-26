@@ -1,6 +1,6 @@
 # BRAINSTORM: schedule-ish review (how did the week actually go?)
 
-**Status:** brainstorming. Not a design yet; nothing built.
+**Status:** brainstorming, with a first cut built on 2026-09-26 (see Built).
 **Started:** 2026-09-25 · **Kept by:** Claude, for Drew. Update this file
 every time the brainstorm moves, so nothing gets lost between sessions.
 
@@ -9,6 +9,24 @@ How well did I stick to the intents, how much got done, and what did and
 didn't work. Keep it as simple as possible.
 
 ---
+
+## Built (2026-09-26)
+
+The mockup's feature set is now in the app, in review mode:
+- the Plan / Review toggle, saved as a setting;
+- tap-to-cycle ✓ ratings, right-click for skipped or counterproductive, and
+  the keys 1 2 3 − s 0;
+- tag chips in a bar under the board, with "+ tag";
+- a "How was Tue?" line per day;
+- the today dot.
+
+Choices made while building (open to change): review locks the plan
+completely; plan mode hides all review marks; new blocks, duplicates and
+copied weeks start unrated. Details are in the design doc's round 7.
+
+Still not built: Close week and its history, review-mode drag and draw
+(plan vs actual), the summary view, and "review this day" from the day
+name.
 
 ## Decided
 
@@ -75,7 +93,8 @@ live week, ready to use again.
 
 ## Open questions
 
-1. Ratings and tags on the board in plan mode: hidden, or faint?
+1. Ratings and tags on the board in plan mode: hidden, or faint? (Built as
+   hidden for now.)
 2. What exactly does the "review this day" extra step look like: a small
    menu on the day name, a hover link, or a double-click?
 3. The summary view (mocked 2026-09-25): which groupings matter? So far:
@@ -115,3 +134,6 @@ live week, ready to use again.
 - **2026-09-26:** Drew tried the standalone mockup and liked it: tap-to-cycle
   ticks are good, and the tag chips are "really nice". Right-click accepted
   for now, reluctantly. Keyboard not tried yet; still exploring the rest.
+- **2026-09-26:** Drew: "back-of-a-napkin planning" is the strapline. Drew
+  asked to build the mockup into the app, so the first cut of review mode is
+  built (see Built). Next: Drew reviews what's close to a version 1.
