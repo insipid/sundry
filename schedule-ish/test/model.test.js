@@ -427,3 +427,59 @@ test('a regular\'s usual zone can be none (null); missing or unknown means none'
   ] });
   assert.deepEqual(s.regulars.map(r => r.zone), ['morning', null, null, null]);
 });
+
+// ---- review mode: ratings, tags, day notes ----
+
+test('tapping cycles ✓ → ✓✓ → ✓✓✓ → unrated; skipped/counterproductive restart at ✓', () => {
+  assert.equal(M.nextRating(null), 1);
+  assert.equal(M.nextRating(1), 2);
+  assert.equal(M.nextRating(2), 3);
+  assert.equal(M.nextRating(3), null);
+  assert.equal(M.nextRating('skip'), 1);
+  assert.equal(M.nextRating('bad'), 1);
+});
+
+test('ratings, tags and day notes are kept, and junk is repaired', () => {
+  const s = M.normalizeState({
+    weeks: [{ id: 'w', name: 'W', dayNotes: ['good', 3, 'meh'], blocks: [
+      { ...b('a', 0, 8, 4), rating: 2, tags: ['flow', 'flow', '', 7, 'late'] },
+      { ...b('b', 0, 14, 4), rating: 'skip' },
+      { ...b('c', 1, 8, 4), rating: 'bad' },
+      { ...b('d', 1, 14, 4), rating: 9, tags: 'nope' },
+    ] }],
+    currentWeek: 'w',
+  });
+  const w = wk(s);
+  assert.deepEqual(w.blocks.map(x => x.rating), [2, 'skip', 'bad', null]);
+  assert.deepEqual(w.blocks[0].tags, ['flow', 'late']);
+  assert.deepEqual(w.blocks[3].tags, []);
+  assert.deepEqual(w.dayNotes, ['good', '', 'meh', '', '', '', '']);
+});
+
+test('the tag list is shared, starts with a starter set, and is cleaned up', () => {
+  assert.ok(M.defaultState().tags.includes('flow'));
+  assert.ok(M.normalizeState({}).tags.includes('interrupted'));
+  assert.deepEqual(M.normalizeState({ tags: ['Flow', 'flow', '  gym  ', '', 3] }).tags, ['flow', 'gym']);
+});
+
+test('plan/review mode is a setting, defaulting to plan', () => {
+  assert.equal(M.defaultState().settings.mode, 'plan');
+  assert.equal(M.normalizeState({ settings: { mode: 'review' } }).settings.mode, 'review');
+  assert.equal(M.normalizeState({ settings: { mode: 'party' } }).settings.mode, 'plan');
+});
+
+test('a copied week starts unreviewed: no ratings, tags or day notes', () => {
+  const src = { ...M.blankWeek('Normal'), dayNotes: ['x', '', '', '', '', '', ''],
+    blocks: [{ ...b('a', 0, 8, 4), notes: [], rating: 3, tags: ['flow'] }] };
+  const copy = M.copyWeek(src, 'Next');
+  assert.equal(copy.blocks[0].rating, null);
+  assert.deepEqual(copy.blocks[0].tags, []);
+  assert.deepEqual(copy.dayNotes, ['', '', '', '', '', '', '']);
+  assert.equal(src.blocks[0].rating, 3);
+});
+
+test('todayIndex counts Monday as 0', () => {
+  assert.equal(M.todayIndex(new Date(2026, 8, 28)), 0); // Mon 28 Sep 2026
+  assert.equal(M.todayIndex(new Date(2026, 8, 26)), 5); // Sat
+  assert.equal(M.todayIndex(new Date(2026, 8, 27)), 6); // Sun
+});

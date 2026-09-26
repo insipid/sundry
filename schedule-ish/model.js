@@ -217,16 +217,29 @@
 
   const defaultView = () => ({ showEarly: false, showEvening: false });
 
+  // Review: a block's rating is 1-3 ticks, 'skip' (didn't do it) or 'bad'
+  // (counterproductive); null = unrated. Tapping only walks the ticks.
+  const RATINGS = [1, 2, 3, 'skip', 'bad'];
+  const nextRating = r => (r === 1 ? 2 : r === 2 ? 3 : r === 3 ? null : 1);
+  const STARTER_TAGS = ['flow', 'energised', 'interrupted', 'distracted', 'too long', 'too short', 'wrong time', 'should repeat'];
+  const normTags = v => [...new Set((Array.isArray(v) ? v : [])
+    .filter(t => typeof t === 'string').map(t => t.trim().toLowerCase()).filter(Boolean))];
+  const blankDayNotes = () => Array(7).fill('');
+  // Monday = 0, like the board's days.
+  const todayIndex = (date = new Date()) => (date.getDay() + 6) % 7;
+
   function blankWeek(name = 'New week') {
-    return { id: newId(), name, view: defaultView(), zones: { ...DEFAULT_ZONE_SIZES }, blocks: [] };
+    return { id: newId(), name, view: defaultView(), zones: { ...DEFAULT_ZONE_SIZES }, blocks: [], dayNotes: blankDayNotes() };
   }
 
-  // A deep copy with fresh ids, notes and ticks included.
+  // A deep copy with fresh ids, notes and note ticks included. The copy
+  // starts unreviewed: no ratings, tags or day notes.
   function copyWeek(week, name) {
     const copy = JSON.parse(JSON.stringify(week));
     copy.id = newId();
     copy.name = name;
-    for (const x of copy.blocks) x.id = newId();
+    copy.dayNotes = blankDayNotes();
+    for (const x of copy.blocks) { x.id = newId(); x.rating = null; x.tags = []; }
     return copy;
   }
 
@@ -234,7 +247,7 @@
     const week = { ...blankWeek('My week'), id: 'w-first' };
     return {
       version: 4,
-      settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false },
+      settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false, mode: 'plan' },
       weeks: [week],
       currentWeek: week.id,
       regulars: [
@@ -243,6 +256,7 @@
         { id: 'r-deep', title: 'Deep work', size: 8, color: 0, zone: 'morning', notes: [] },
       ],
       unplaced: [],
+      tags: [...STARTER_TAGS],
     };
   }
 
@@ -279,6 +293,7 @@
     const blocks = rawBlocks.map(x => ({
       id: idOr(x.id), day: x.day, ...clampBlock(x.start, x.size, FULL_RANGE),
       title: str(x.title), color: color(x.color), notes: normNotes(x.notes),
+      rating: RATINGS.includes(x.rating) ? x.rating : null, tags: normTags(x.tags),
     }));
 
     const zonesOk = ZONE_IDS.every(k => int(rz[k], 1, TOTAL_STEPS)) && ZONE_IDS.reduce((n, k) => n + rz[k], 0) === TOTAL_STEPS;
@@ -290,7 +305,8 @@
       showEarly: Boolean(v.showEarly) || !canHide('early', blocks, layout),
       showEvening: Boolean(v.showEvening) || !canHide('evening', blocks, layout),
     };
-    return { id: idOr(raw.id), name: str(raw.name).trim() || 'Untitled week', view, zones, blocks };
+    const dayNotes = blankDayNotes().map((_, i) => str(Array.isArray(raw.dayNotes) ? raw.dayNotes[i] : ''));
+    return { id: idOr(raw.id), name: str(raw.name).trim() || 'Untitled week', view, zones, blocks, dayNotes };
   }
 
   // Validate/repair anything loaded from storage or an import file.
@@ -306,6 +322,7 @@
       visibleDays: vd,
       sidebar: s.sidebar === 'right' ? 'right' : 'left',
       sidebarHidden: s.sidebarHidden === true,
+      mode: s.mode === 'review' ? 'review' : 'plan',
     };
 
     // Plans before v4 counted half as many steps; their sizes all double.
@@ -329,7 +346,8 @@
       .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, (x.size ? x.size * scale : 2 * STEPS_PER_LINE), FULL_RANGE).size, color: color(x.color),
         notes: normNotes(x.notes) }));
 
-    return { version: 4, settings, weeks, currentWeek, regulars, unplaced };
+    const tags = Array.isArray(raw.tags) ? normTags(raw.tags) : [...STARTER_TAGS];
+    return { version: 4, settings, weeks, currentWeek, regulars, unplaced, tags };
   }
 
   // The print-out's notes page: blocks that have notes, in the board's day
@@ -354,7 +372,7 @@
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, STEPS_PER_LINE, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
-    defaultState, normalizeState, blankWeek, copyWeek, nextCheck, notesForPrint, moveItem,
+    defaultState, normalizeState, blankWeek, copyWeek, nextCheck, notesForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;
   else root.Model = Model;
