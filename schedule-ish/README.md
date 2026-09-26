@@ -1,6 +1,6 @@
 # schedule-ish
 
-Planning on the back of a napkin. Rough out chunks of time ("a good bit of gym in the
+Back-of-a-napkin planning. Rough out chunks of time ("a good bit of gym in the
 morning, a big chunk of writing after lunch") with no clock times. It's
 meant to show roughly where your focus goes, not to be a timetable.
 
