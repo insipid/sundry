@@ -72,6 +72,10 @@ live week, ready to use again.
   ratings. Close it and start fresh?"
 - Open: what the history looks like, whether closed weeks are named by
   date, and whether a closed week can be reopened.
+- **Still undecided (2026-09-26):** reusable template or single week? Drew
+  wants it to be both, and to be able to do *whichever you want, easily*.
+  Close week and the summary view both depend on this, so it's the main
+  question for the run to v1.
 
 **Plan vs actual through gestures in review mode** (liked):
 - **Drag a block in review mode** = "it actually happened here". It moves,
@@ -137,3 +141,6 @@ live week, ready to use again.
 - **2026-09-26:** Drew: "back-of-a-napkin planning" is the strapline. Drew
   asked to build the mockup into the app, so the first cut of review mode is
   built (see Built). Next: Drew reviews what's close to a version 1.
+- **2026-09-26:** Drew is going to play with review mode, think about Close
+  week, the summary, and template vs single week, then come back to draft
+  the run to v1.
