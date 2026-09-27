@@ -169,9 +169,9 @@
       </section>
 
       <section id="unplaced-drop" class="rounded-xl -mx-2 px-2 py-2 transition-colors">
-        <h2 class="text-xs font-semibold tracking-wide mb-2" style="color:var(--muted)">UNPLACED</h2>
+        <h2 class="text-xs font-semibold tracking-wide mb-2" style="color:var(--muted)">ONE-OFFS</h2>
         <div id="unplaced-list" class="relative flex flex-col gap-1.5">${unplaced}</div>
-        <input id="unplaced-input" class="field mt-2 !text-[13px]" placeholder="Something to fit in…" autocomplete="off">
+        <input id="unplaced-input" class="field mt-2 !text-[13px]" placeholder="Something just for this week…" autocomplete="off">
       </section>
 
       <section class="mt-auto text-[11.5px] leading-relaxed" style="color:var(--muted)">
@@ -606,7 +606,7 @@
           week().blocks = week().blocks.filter(x => x !== b);
           state.unplaced.push({ id: b.id, title: b.title || 'untitled', size: b.size, color: b.color, session: b.session || '' });
           ui.selectedId = null;
-          toast('Moved to unplaced');
+          toast('Moved to one-offs');
         }
         settle(d);
       },
@@ -1462,7 +1462,7 @@
         if (b.dataset.do === 'export') return exportPlan();
         if (b.dataset.do === 'import') return $('#import-file').click();
         if (!week().blocks.length && !week().unplanned.length) return toast('Already empty');
-        if (confirm('Clear every block from this week? (Regulars and unplaced stay. You can undo.)')) {
+        if (confirm('Clear every block from this week? (Regulars and one-offs stay. You can undo.)')) {
           ui.selectedId = null;
           commit(() => { week().blocks = []; week().unplanned = []; });
           toast('Cleared. ⌘Z to undo');

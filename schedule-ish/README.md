@@ -36,7 +36,7 @@ on. The dropdown can:
 - **rename** or **delete** this week (deleting asks first, and ⌘Z brings it
   back).
 
-Days shown, regulars and the unplaced list are shared by all weeks.
+Days shown, regulars and one-offs are shared by all weeks.
 
 **The day** has no hours. It's split into soft zones: *morning*, *noon-ish*
 (tinted, the middle of the day) and *afternoon*. Faint lines mark the day off, and
@@ -104,14 +104,14 @@ in the list.
 - Drop it **on a day's name** to put it in the first free gap in its usual
   zone, or, with *whenever*, the first free gap from the top of the day. While
   you drag, the day names are outlined as drop targets, and the one under
-  the pointer says where it will land (e.g. *Tue → morning*). Unplaced items
+  the pointer says where it will land (e.g. *Tue → morning*). One-offs
   work the same way, as *whenever*.
 - Click a regular to edit or delete it; **+ regular** makes a new one.
 - **Reorder** regulars by dragging one up or down within the list. A line
-  shows where it will land. The unplaced list reorders the same way.
+  shows where it will land. One-offs reorder the same way.
 
-**Unplaced** (sidebar) is a list of one-off things you'd like to fit in
-somewhere. Type one in and press Enter. Dragging it onto the week *moves* it
+**One-offs** (sidebar) are the extras for this week: things you want to
+add that aren't regulars. Type one in and press Enter. Dragging it onto the week *moves* it
 there. Dragging a block from the week back onto this list takes it off the
 week.
 
@@ -165,7 +165,7 @@ origin. That means opening the file directly and serving it over
 `localhost` give you separate plans.
 
 The **⋯** menu in the header has **Export** (downloads everything, meaning all
-weeks, regulars and unplaced, as JSON), **Import** (loads one back and
+weeks, regulars and one-offs, as JSON), **Import** (loads one back and
 replaces the current plan; undoable) and **Clear this week's blocks**.
 
 ## Code
