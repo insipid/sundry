@@ -72,7 +72,18 @@
 
   const cloneLines = lines => (lines || []).map(n => ({ ...n }));
 
-  const findBlock = id => week().blocks.find(b => b.id === id);
+  // Planned blocks, then (review only) blocks that happened unplanned.
+  const findBlock = id => week().blocks.find(b => b.id === id) || week().unplanned.find(b => b.id === id);
+  const isUnplanned = b => !!b && week().unplanned.includes(b);
+  function removeBlock(b) {
+    week().blocks = week().blocks.filter(x => x !== b);
+    week().unplanned = week().unplanned.filter(x => x !== b);
+  }
+  // A moved or resized block that ended up back where it was planned is
+  // just "as planned" again.
+  function tidyActual(b) {
+    if (b && b.actual && b.actual.day === b.day && b.actual.start === b.start && b.actual.size === b.size) b.actual = null;
+  }
   const findRegular = id => state.regulars.find(r => r.id === id);
   const findUnplaced = id => state.unplaced.find(u => u.id === id);
 
@@ -196,6 +207,18 @@
   }
 
   function renderBoard() {
+    // A redraw mid-edit (e.g. the board refitting because the tag bar grew)
+    // mustn't lose what's being typed into a block's name.
+    const live = document.querySelector('#board-grid [data-edit]');
+    const keep = live && document.activeElement === live ? { value: live.value, at: live.selectionStart } : null;
+    drawBoard();
+    if (keep) {
+      const input = document.querySelector('#board-grid [data-edit]');
+      if (input) { input.value = keep.value; input.focus(); input.setSelectionRange(keep.at, keep.at); }
+    }
+  }
+
+  function drawBoard() {
     ui.zones = M.zonesFor(week().zones);
     ui.range = M.visibleRange(week().view, ui.zones);
     const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
@@ -240,13 +263,31 @@
     const midday = M.zone('midday', ui.zones);
     const band = `<div class="band" style="top:${(midday.start - r0) * px}px; height:${midday.steps * px}px"></div>`;
 
+    const rev = reviewing();
     const columns = days.map(d => {
-      const blocks = week().blocks.filter(b => b.day === d);
-      const layout = M.layoutDay(blocks);
       const ghost = ui.ghost && ui.ghost.day === d ? blockHtml({ ...ui.ghost, id: '_ghost', title: ui.ghost.title || '' }, { col: 0, cols: 1 }, true) : '';
+      let body;
+      if (rev) {
+        // Review: each block where it actually happened (or as planned),
+        // unplanned blocks too, and a faint ghost wherever the plan was.
+        const shown = [
+          ...week().blocks.map(b => ({ b, pos: M.effectivePos(b) })),
+          ...week().unplanned.map(b => ({ b, pos: { day: b.day, start: b.start, size: b.size }, unplanned: true })),
+        ].filter(x => x.pos.day === d);
+        const layout = M.layoutDay(shown.map(x => ({ id: x.b.id, start: x.pos.start, size: x.pos.size })));
+        const ghosts = week().blocks.filter(b => b.actual && b.day === d).map(planGhostHtml).join('');
+        body = ghosts + shown.map(x => blockHtml({ ...x.b, ...x.pos }, layout[x.b.id], false, { unplanned: x.unplanned })).join('');
+      } else {
+        // Plan: the plan, plus unplanned blocks from review shown faintly so
+        // mismatches are visible while planning.
+        const blocks = week().blocks.filter(b => b.day === d);
+        const layout = M.layoutDay(blocks);
+        body = week().unplanned.filter(b => b.day === d).map(b => blockHtml(b, { col: 0, cols: 1 }, false, { unplanned: true, faint: true })).join('')
+          + blocks.map(b => blockHtml(b, layout[b.id])).join('');
+      }
       return `<div class="day-col relative" data-day="${d}" style="height:${height}px">
         ${band}${lines.join('')}
-        ${blocks.map(b => blockHtml(b, layout[b.id])).join('')}
+        ${body}
         ${ghost}
       </div>`;
     }).join('');
@@ -273,7 +314,15 @@
       ${week().view.showEvening ? '' : addRow('evening')}`;
   }
 
-  function blockHtml(b, lay, isGhost = false) {
+  // Where a moved or resized block was planned (review mode only).
+  function planGhostHtml(b) {
+    const px = ui.stepPx;
+    const [, ink] = M.PALETTE[b.color] || M.PALETTE[0];
+    return `<div class="plan-ghost" style="--ring:${ink}; top:${(b.start - ui.range.start) * px + 1.5}px; height:${b.size * px - 3}px"
+      title="Planned here"></div>`;
+  }
+
+  function blockHtml(b, lay, isGhost = false, extra = {}) {
     const px = ui.stepPx;
     const top = (b.start - ui.range.start) * px + 1.5;
     const h = b.size * px - 3;
@@ -291,17 +340,20 @@
     }
     const roomy = h >= px * 2 * M.STEPS_PER_LINE - 4; // two grid lines or more
     const tiny = h < 26;
-    const rev = reviewing() && !isGhost;
+    const faint = !!extra.faint; // an unplanned block, seen from plan mode
+    const rev = reviewing() && !isGhost && !faint;
+    if (extra.unplanned) cls.push('unplanned');
+    if (faint) cls.push('faint-unplanned');
     // Focus: the shared "what's next" for this name, unless it just holds time.
     const holder = !isGhost && isTimeHolder(b.title);
-    const next = isGhost || holder ? null : M.nextFocus(week(), b.title);
+    const next = isGhost || holder || extra.unplanned ? null : M.nextFocus(week(), b.title);
     const shownNext = !rev && !tiny && state.settings.showNext ? next : null;
     const hasNotes = !isGhost && (!!next || !!(b.session && b.session.trim()) || (rev && !!(b.review && b.review.trim())));
     const rating = b.rating ?? null;
     if (rev) cls.push(rating === null ? 'unrated' : `r-${rating}`);
     return `<div class="${cls.join(' ')}" data-block="${b.id}"
         style="${colorStyle(b.color)} top:${top}px; height:${h}px; left:${left}; width:${width}; ${tiny ? 'padding-top:2px;padding-bottom:2px;' : ''}">
-      ${isGhost || rev ? '' : '<div class="edge top" data-edge="top"></div><div class="edge bottom" data-edge="bottom"></div>'}
+      ${isGhost || faint ? '' : '<div class="edge top" data-edge="top"></div><div class="edge bottom" data-edge="bottom"></div>'}
       ${editing
         ? `<input data-edit value="${esc(b.title)}" placeholder="what’s this?">`
         : `<div class="title">${esc(b.title) || '<span style="opacity:.5">untitled</span>'}</div>
@@ -311,7 +363,7 @@
       ${rev ? `<button class="rate ${rating === null ? 'empty' : typeof rating === 'number' ? '' : 'word'}" data-rate="${b.id}"
           title="Tap: ✓ → ✓✓ → ✓✓✓ · right-click for skipped or counterproductive">${rating === null ? 'rate' : RATING_LABEL[rating]}</button>` : ''}
       ${hasNotes && !shownNext ? '<span class="has-notes" title="Has notes (double-click)">⋯</span>' : ''}
-      ${isGhost || rev ? '' : `<div class="tools ${roomy ? 'at-bottom' : ''}">
+      ${isGhost || rev || faint ? '' : `<div class="tools ${roomy ? 'at-bottom' : ''}">
         <button class="tool" data-action="color" title="Change colour" style="color:inherit">●</button>
         <button class="tool" data-action="duplicate" title="Duplicate (or ⌥-drag)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="3"/><path d="M16 8V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h2"/></svg></button>
         <button class="tool" data-action="make-regular" title="Save as a regular">☆</button>
@@ -391,9 +443,23 @@
     const labelEl = e.target.closest('[data-zone-label]');
 
     if (reviewing()) {
-      // The plan is locked while reviewing: a click selects, nothing drags.
-      if (blockEl) select(blockEl.dataset.block);
-      else if (e.target.closest('.day-col')) select(null);
+      // Review: moving or resizing records what actually happened (the plan
+      // is untouched); drawing on empty space adds an unplanned block. A
+      // plain click just selects.
+      if (blockEl) {
+        const b = findBlock(blockEl.dataset.block);
+        if (!b) return;
+        select(b.id);
+        const edge = e.target.closest('[data-edge]');
+        const pos = M.effectivePos(b);
+        const rect = blockEl.closest('.day-col').getBoundingClientRect();
+        beginDrag(e, { kind: edge ? 'resize-' + edge.dataset.edge : 'move', blockId: b.id, review: true,
+          grab: stepAt(rect, e.clientY) - pos.start, orig: pos });
+      } else if (colEl) {
+        select(null);
+        const rect = colEl.getBoundingClientRect();
+        beginDrag(e, { kind: 'create', day: +colEl.dataset.day, anchor: Math.floor(stepAt(rect, e.clientY)), review: true, deselectOnly: true });
+      }
       return;
     }
 
@@ -473,7 +539,7 @@
     const body = document.body.classList;
     if (d.copy) {
       const b = findBlock(d.blockId);
-      week().blocks.push({ ...b, id: M.newId(), session: '', rating: null, tags: [], review: '' });
+      week().blocks.push({ ...b, id: M.newId(), session: '', rating: null, tags: [], review: '', actual: null });
       body.add('copying');
     } else if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
     else if (d.kind === 'create') body.add('creating');
@@ -495,20 +561,29 @@
     render();
   }
 
+  // What a drag changes: the block itself in plan mode (and for unplanned
+  // blocks); in review mode, the record of where it actually happened.
+  function dragTarget(d, b) {
+    if (!d.review || isUnplanned(b)) return b;
+    if (!b.actual) b.actual = { day: b.day, start: b.start, size: b.size };
+    return b.actual;
+  }
+
   const DRAGS = {
     move: {
       move(d, e) {
-        const b = findBlock(d.blockId);
-        d.toUnplaced = overUnplaced(e.clientX, e.clientY);
+        const b = findBlock(d.blockId), p = dragTarget(d, b);
+        d.toUnplaced = !d.review && overUnplaced(e.clientX, e.clientY);
         $('#unplaced-drop').classList.toggle('drop-hot', d.toUnplaced);
         const col = columnAt(e.clientX, e.clientY, true);
         if (col) {
-          b.day = col.day;
-          Object.assign(b, M.clampBlock(stepAt(col.rect, e.clientY) - d.grab, b.size, ui.range));
+          p.day = col.day;
+          Object.assign(p, M.clampBlock(stepAt(col.rect, e.clientY) - d.grab, p.size, ui.range));
         }
         renderBoard();
       },
       end(d) {
+        if (d.review) { tidyActual(findBlock(d.blockId)); return settle(d); }
         if (d.toUnplaced) {
           const b = findBlock(d.blockId);
           week().blocks = week().blocks.filter(x => x !== b);
@@ -522,25 +597,25 @@
 
     'resize-top': {
       move(d, e) {
-        const b = findBlock(d.blockId);
-        const col = $(`.day-col[data-day="${b.day}"]`).getBoundingClientRect();
+        const p = dragTarget(d, findBlock(d.blockId));
+        const col = $(`.day-col[data-day="${p.day}"]`).getBoundingClientRect();
         const end = d.orig.start + d.orig.size;
         const start = Math.max(ui.range.start, Math.min(end - 1, Math.round(stepAt(col, e.clientY))));
-        b.start = start; b.size = end - start;
+        p.start = start; p.size = end - start;
         renderBoard();
       },
-      end: settle,
+      end(d) { if (d.review) tidyActual(findBlock(d.blockId)); settle(d); },
     },
 
     'resize-bottom': {
       move(d, e) {
-        const b = findBlock(d.blockId);
-        const col = $(`.day-col[data-day="${b.day}"]`).getBoundingClientRect();
-        const end = Math.min(ui.range.end, Math.max(b.start + 1, Math.round(stepAt(col, e.clientY))));
-        b.size = end - b.start;
+        const p = dragTarget(d, findBlock(d.blockId));
+        const col = $(`.day-col[data-day="${p.day}"]`).getBoundingClientRect();
+        const end = Math.min(ui.range.end, Math.max(p.start + 1, Math.round(stepAt(col, e.clientY))));
+        p.size = end - p.start;
         renderBoard();
       },
-      end: settle,
+      end(d) { if (d.review) tidyActual(findBlock(d.blockId)); settle(d); },
     },
 
     create: {
@@ -556,7 +631,7 @@
         const g = ui.ghost;
         ui.ghost = null;
         if (!g) return render();
-        createBlock(d.day, g.start, g.size);
+        createBlock(d.day, g.start, g.size, !!d.review);
       },
       click(d) {
         if (d.deselectOnly) return;
@@ -683,7 +758,8 @@
 
   function setZone(zoneId, show) {
     const key = zoneId === 'early' ? 'showEarly' : 'showEvening';
-    if (!show && !M.canHide(zoneId, week().blocks, ui.zones)) {
+    const occupied = [...week().blocks, ...week().blocks.filter(b => b.actual).map(b => b.actual), ...week().unplanned];
+    if (!show && !M.canHide(zoneId, occupied, ui.zones)) {
       toast(`Move the ${zoneId} blocks out first`);
       return false;
     }
@@ -692,10 +768,11 @@
     return true;
   }
 
-  function createBlock(day, start, size) {
+  function createBlock(day, start, size, unplanned = false) {
     const b = { id: M.newId(), day, start, size, title: '', color: 7, session: '', rating: null, tags: [], review: '' };
     pushUndo();
-    week().blocks.push(b);
+    if (unplanned) week().unplanned.push(b);
+    else { b.actual = null; week().blocks.push(b); }
     ui.selectedId = b.id;
     ui.editing = { kind: 'block', id: b.id, isNew: true };
     save();
@@ -715,7 +792,7 @@
       if (!b) return render();
       if (ed.isNew && (cancel || !value)) {
         // An abandoned new block just disappears, along with its undo step.
-        week().blocks = week().blocks.filter(x => x !== b);
+        removeBlock(b);
         undoStack.pop();
       } else if (!cancel && value !== b.title) {
         if (!ed.isNew) pushUndo();
@@ -773,7 +850,13 @@
     if (reviewing()) {
       const keys = { '1': 1, '2': 2, '3': 3, '-': 'bad', '−': 'bad', s: 'skip', S: 'skip', '0': null };
       if (!mod && ui.selectedId && e.key in keys) { e.preventDefault(); setRating(ui.selectedId, keys[e.key]); }
-      return; // no deleting or renaming while reviewing
+      const sel = ui.selectedId && findBlock(ui.selectedId);
+      if ((e.key === 'Delete' || e.key === 'Backspace') && isUnplanned(sel)) {
+        e.preventDefault();
+        ui.selectedId = null;
+        commit(() => removeBlock(sel));
+      }
+      return; // planned blocks can't be deleted or renamed while reviewing
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selectedId) {
       e.preventDefault();
@@ -803,18 +886,22 @@
     e.preventDefault();
     const id = blockEl.dataset.block;
     select(id);
+    const b = findBlock(id), unplanned = isUnplanned(b);
     const at = { getBoundingClientRect: () => ({ left: e.clientX, right: e.clientX, top: e.clientY, bottom: e.clientY }) };
     openPopover(at, `
-      <button class="menu-item" data-r="skip">Skipped: didn’t do it</button>
+      ${unplanned ? '' : '<button class="menu-item" data-r="skip">Skipped: didn’t do it</button>'}
       <button class="menu-item" data-r="bad">Counterproductive</button>
-      <div class="menu-sep"></div>
-      <button class="menu-item" data-r="">Clear rating</button>`, el => {
+      <button class="menu-item" data-r="">Clear rating</button>
+      ${b.actual ? '<div class="menu-sep"></div><button class="menu-item" data-act="unmove">Back to plan</button>' : ''}
+      ${unplanned ? '<div class="menu-sep"></div><button class="menu-item danger" data-act="delete">Delete (unplanned)</button>' : ''}`, el => {
       el.style.width = '220px';
       el.style.padding = '6px';
       el.addEventListener('click', ev => {
-        const item = ev.target.closest('[data-r]');
+        const item = ev.target.closest('[data-r], [data-act]');
         if (!item) return;
         closePopover();
+        if (item.dataset.act === 'unmove') return commit(() => { b.actual = null; });
+        if (item.dataset.act === 'delete') { ui.selectedId = null; return commit(() => removeBlock(b)); }
         setRating(id, item.dataset.r || null);
       });
     });
@@ -1043,7 +1130,7 @@
       <div class="dialog" role="dialog" aria-label="Review this block">
         <div class="dialog-head" style="background:${fill}; color:${ink}">
           <div class="dialog-title">${esc(b.title || 'untitled')}</div>
-          <div class="text-xs opacity-80 mt-0.5">${M.DAY_LONG[b.day]} · ${M.zoneLabel(M.zoneAt(b.start, ui.zones))} · ${M.sizeWord(b.size)}${shared > 1 ? ` · focus shared by ${shared} blocks` : ''}</div>
+          <div class="text-xs opacity-80 mt-0.5">${isUnplanned(b) ? 'Unplanned · ' : b.actual ? 'Moved from the plan · ' : ''}${M.DAY_LONG[M.effectivePos(b).day]} · ${M.zoneLabel(M.zoneAt(M.effectivePos(b).start, ui.zones))} · ${M.sizeWord(M.effectivePos(b).size)}${shared > 1 ? ` · focus shared by ${shared} blocks` : ''}</div>
         </div>
         <div class="dialog-body">
           ${items.length ? `<div class="dialog-sec"><h3>Focus this week <span class="ro">(as planned)</span></h3>
@@ -1051,7 +1138,7 @@
             ${done.map(x => `<div class="ro-item done">✓ ${esc(x.text)}</div>`).join('')}</div>` : ''}
           ${b.session && b.session.trim() ? `<div class="dialog-sec"><h3>${holder ? 'Note' : 'This session'} <span class="ro">(as planned)</span></h3>
             <div class="ro-item">${esc(b.session)}</div></div>` : ''}
-          <div class="dialog-sec"><h3>Review · ${M.DAY_LONG[b.day]}</h3>
+          <div class="dialog-sec"><h3>Review · ${M.DAY_LONG[M.effectivePos(b).day]}</h3>
             <textarea class="session-box review-box" rows="3" placeholder="How did this block go?">${esc(b.review || '')}</textarea></div>
         </div>
         <div class="flex items-center px-4 pb-4 pt-1">
@@ -1100,7 +1187,7 @@
           const b = findBlock(id);
           const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
           const spot = M.duplicateSpot(week().blocks, b, days, ui.range, ui.zones);
-          const copy = { ...b, id: M.newId(), ...spot, session: '', rating: null, tags: [], review: '' };
+          const copy = { ...b, id: M.newId(), ...spot, session: '', rating: null, tags: [], review: '', actual: null };
           ui.selectedId = copy.id;
           commit(() => week().blocks.push(copy));
           if (spot.day !== b.day) toast(`No room after it, so the copy went to ${M.DAY_LONG[spot.day]}`);
