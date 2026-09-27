@@ -101,7 +101,7 @@
 
   // Review mode: rate and tag what you planned. The plan itself is locked.
   const reviewing = () => state.settings.mode === 'review';
-  const RATING_LABEL = { 1: '✓', 2: '✓✓', 3: '✓✓✓', skip: 'skipped', bad: '↘' };
+  const RATING_LABEL = { 1: '✓', 2: '✓✓', 3: '✓✓✓', skip: 'didn’t happen', bad: '↘' };
 
   function setMode(mode) {
     if (state.settings.mode === mode) return;

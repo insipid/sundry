@@ -193,7 +193,9 @@
     body.reviewing .block.r-2 { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ring) 45%, transparent); }
     body.reviewing .block.r-3 { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--ring) 45%, transparent); }
     body.reviewing .block.r-skip { background: transparent !important; border: 1.5px dashed var(--faint); color: var(--muted) !important; }
-    body.reviewing .block.r-skip .title { text-decoration: line-through; padding-right: 58px; } /* room for the word "skipped" */
+    body.reviewing .block.r-skip .title { text-decoration: line-through; }
+    /* "didn't happen" is long: it sits in the bottom corner so the struck-through name stays readable */
+    body.reviewing .block.r-skip .rate { top: auto; bottom: 4px; font-size: 11px; }
     body.reviewing .block.r-bad { border: 1.5px dashed #b85c5c; }
     body.reviewing .block.selected { outline: 2px solid var(--ring); outline-offset: 1px; }
     .block .rate { position: absolute; top: 4px; right: 5px; min-width: 24px; height: 20px; padding: 0 5px; border-radius: 7px; border: 0;

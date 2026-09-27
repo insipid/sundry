@@ -128,11 +128,11 @@ back at how the week went. Nothing you do in review changes the plan.
   right-click. In plan mode it shows
   faintly, so you can see where reality didn't match the plan.
 - Planned blocks can't be deleted or renamed while reviewing. Mark them
-  *skipped* instead.
+  *didn't happen* instead.
 - **Rate a block:** tap the badge in its corner to cycle **✓ → ✓✓ → ✓✓✓** and
   back to unrated. **Right-click** a block for *didn't happen* or
   *counterproductive*. Or select a block and press **1 / 2 / 3**, **−**
-  (counterproductive), **s** (skipped) or **0** (clear). Rating is optional;
+  (counterproductive), **s** (didn't happen) or **0** (clear). Rating is optional;
   unrated blocks just look a little faded.
 - **Tag it:** the bar along the bottom shows tag chips for the selected block
   (*flow*, *interrupted*, *wrong time*, …). Tap to toggle. **+ tag** adds
