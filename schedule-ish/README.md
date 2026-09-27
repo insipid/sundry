@@ -129,7 +129,7 @@ back at how the week went. Nothing you do in review changes the plan.
   faintly, so you can see where reality didn't match the plan.
 - Planned blocks can't be deleted or renamed while reviewing. Mark them
   *didn't happen* instead.
-- **Rate a block:** tap the badge in its corner to cycle **✓ → ✓✓ → ✓✓✓** and
+- **Rate a block:** hover it and tap the **✓?** in its corner to cycle **✓ → ✓✓ → ✓✓✓** and
   back to unrated. **Right-click** a block for *didn't happen* or
   *unproductive*. Or select a block and press **1 / 2 / 3**, **−**
   (unproductive), **s** (didn't happen) or **0** (clear). Rating is optional;

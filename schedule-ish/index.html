@@ -203,6 +203,11 @@
     .block .rate:hover { background: #fff; }
     .block .rate.word, .block .rate.empty { letter-spacing: 0; font-weight: 500; }
     .block .rate.empty { color: var(--muted); }
+    /* an unused ✓? only shows on hover (or when selected); touch screens always show it */
+    @media (hover: hover) {
+      .block .rate.empty { opacity: 0; transition: opacity .12s; }
+      .block:hover .rate.empty, .block.selected .rate.empty, .block .rate.empty:focus-visible { opacity: 1; }
+    }
     .block .tag-line { font-size: 11px; opacity: .8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dayline { width: 100%; min-width: 0; border: 0; border-top: 1px dashed var(--zone-line); border-left: 1px solid var(--grid); padding: 0 8px;
       font: inherit; font-size: 12px; background: #fdfcf9; color: var(--ink); outline: none; }
