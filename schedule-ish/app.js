@@ -70,7 +70,7 @@
   // The week on the board. Settings, regulars and unplaced are global.
   function week() { return state.weeks.find(w => w.id === state.currentWeek); }
 
-  const cloneNotes = notes => (notes || []).map(n => ({ ...n }));
+  const cloneLines = lines => (lines || []).map(n => ({ ...n }));
 
   const findBlock = id => week().blocks.find(b => b.id === id);
   const findRegular = id => state.regulars.find(r => r.id === id);
@@ -165,7 +165,7 @@
 
       <section class="mt-auto text-[11.5px] leading-relaxed" style="color:var(--muted)">
         <p><b class="font-semibold">Drag down</b> in a day to rough out a chunk, or click for a default one.</p>
-        <p>Drag edges to resize. Double-click to rename. <b class="font-semibold">⌥-drag</b> to copy. Drop a regular on a <b class="font-semibold">day name</b> to put it in its usual spot.</p>
+        <p>Drag edges to resize. <b class="font-semibold">Double-click</b> for its focus notes. <b class="font-semibold">⌥-drag</b> to copy. Drop a regular on a <b class="font-semibold">day name</b> to put it in its usual spot.</p>
         <p>Drag a <b class="font-semibold">zone name</b> (midday, afternoon…) to move where it starts. <b class="font-semibold">+ early / + evening</b> add the ends of the day; click the word to tuck it away.</p>
       </section>`;
   }
@@ -292,6 +292,11 @@
     const roomy = h >= px * 2 * M.STEPS_PER_LINE - 4; // two grid lines or more
     const tiny = h < 26;
     const rev = reviewing() && !isGhost;
+    // Focus: the shared "what's next" for this name, unless it just holds time.
+    const holder = !isGhost && isTimeHolder(b.title);
+    const next = isGhost || holder ? null : M.nextFocus(week(), b.title);
+    const shownNext = !rev && !tiny && state.settings.showNext ? next : null;
+    const hasNotes = !isGhost && (!!next || !!(b.session && b.session.trim()));
     const rating = b.rating ?? null;
     if (rev) cls.push(rating === null ? 'unrated' : `r-${rating}`);
     return `<div class="${cls.join(' ')}" data-block="${b.id}"
@@ -301,10 +306,11 @@
         ? `<input data-edit value="${esc(b.title)}" placeholder="what’s this?">`
         : `<div class="title">${esc(b.title) || '<span style="opacity:.5">untitled</span>'}</div>
            ${rev && b.tags && b.tags.length && !tiny ? `<div class="tag-line">${b.tags.map(esc).join(' · ')}</div>`
+             : shownNext ? `<div class="next-line">→ ${esc(shownNext)}</div>`
              : roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : ''}`}
       ${rev ? `<button class="rate ${rating === null ? 'empty' : typeof rating === 'number' ? '' : 'word'}" data-rate="${b.id}"
           title="Tap: ✓ → ✓✓ → ✓✓✓ · right-click for skipped or counterproductive">${rating === null ? 'rate' : RATING_LABEL[rating]}</button>` : ''}
-      ${!isGhost && b.notes && b.notes.length ? '<span class="has-notes" title="Has notes (double-click)">⋯</span>' : ''}
+      ${hasNotes && !shownNext ? '<span class="has-notes" title="Has notes (double-click)">⋯</span>' : ''}
       ${isGhost || rev ? '' : `<div class="tools ${roomy ? 'at-bottom' : ''}">
         <button class="tool" data-action="color" title="Change colour" style="color:inherit">●</button>
         <button class="tool" data-action="duplicate" title="Duplicate (or ⌥-drag)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="3"/><path d="M16 8V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h2"/></svg></button>
@@ -467,7 +473,7 @@
     const body = document.body.classList;
     if (d.copy) {
       const b = findBlock(d.blockId);
-      week().blocks.push({ ...b, id: M.newId(), notes: cloneNotes(b.notes), rating: null, tags: [] });
+      week().blocks.push({ ...b, id: M.newId(), session: '', rating: null, tags: [] });
       body.add('copying');
     } else if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
     else if (d.kind === 'create') body.add('creating');
@@ -506,7 +512,7 @@
         if (d.toUnplaced) {
           const b = findBlock(d.blockId);
           week().blocks = week().blocks.filter(x => x !== b);
-          state.unplaced.push({ id: b.id, title: b.title || 'untitled', size: b.size, color: b.color, notes: b.notes });
+          state.unplaced.push({ id: b.id, title: b.title || 'untitled', size: b.size, color: b.color, session: b.session || '' });
           ui.selectedId = null;
           toast('Moved to unplaced');
         }
@@ -655,7 +661,13 @@
         }
         if (!g || !item) return render();
         const id = consume ? item.id : M.newId();
-        week().blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color, notes: cloneNotes(item.notes), rating: null, tags: [] });
+        week().blocks.push({ id, day: g.day, start: g.start, size: g.size, title: item.title, color: item.color,
+          session: consume ? item.session || '' : '', rating: null, tags: [] });
+        // A regular's starting lines seed this week's focus for its name, once.
+        const key = M.threadKey(item.title);
+        if (!consume && item.notes && item.notes.length && !(week().focus[key] || []).length && !isTimeHolder(item.title)) {
+          week().focus[key] = cloneLines(item.notes);
+        }
         if (consume) state.unplaced = state.unplaced.filter(u => u !== item);
         ui.selectedId = id;
         settle(d);
@@ -678,7 +690,7 @@
   }
 
   function createBlock(day, start, size) {
-    const b = { id: M.newId(), day, start, size, title: '', color: 7, notes: [], rating: null, tags: [] };
+    const b = { id: M.newId(), day, start, size, title: '', color: 7, session: '', rating: null, tags: [] };
     pushUndo();
     week().blocks.push(b);
     ui.selectedId = b.id;
@@ -704,8 +716,8 @@
         undoStack.pop();
       } else if (!cancel && value !== b.title) {
         if (!ed.isNew) pushUndo();
-        if (ed.isNew) b.color = colorFor(value); // before the title, so it can't match itself
-        b.title = value;
+        if (ed.isNew) { b.color = colorFor(value); b.title = value; } // colour first, so it can't match itself
+        else renameBlock(b, value);
       }
     } else if (ed.kind === 'unplaced') {
       const u = findUnplaced(ed.id);
@@ -740,7 +752,7 @@
     if (t.id === 'unplaced-input' && e.key === 'Enter') {
       const title = t.value.trim();
       if (title) {
-        commit(s => s.unplaced.push({ id: M.newId(), title, size: 2 * M.STEPS_PER_LINE, color: colorFor(title), notes: [] }));
+        commit(s => s.unplaced.push({ id: M.newId(), title, size: 2 * M.STEPS_PER_LINE, color: colorFor(title), session: '' }));
         $('#unplaced-input').focus();
       }
       return;
@@ -821,101 +833,192 @@
     render();
   });
 
-  // ---- notes ---------------------------------------------------------------
-  // A tiny outliner: each line is an input. Enter starts a new line (a tick
-  // box if you were on one), Backspace on an empty line removes it, and the
-  // mark at the front cycles • → ☐ → ☑. Empty lines are dropped on close.
+  // ---- focus notes -----------------------------------------------------------
+  // Every block with the same name this week shares one short focus list;
+  // the top open line is what's next. It's a pointer to keep moving, not a
+  // to-do list. Each block also has an optional one-line session note.
+  // Names on the time-holder list just hold time: one free text box, no
+  // focus list.
 
-  const MARKS = { null: '•', false: '☐', true: '☑' };
-  const cleanNotes = notes => notes.filter(n => n.text.trim()).map(n => ({ text: n.text.trim(), check: n.check }));
+  const SOFT_LIMIT = 5; // open lines before a gentle "keep it broad?"
+  const cleanFocus = items => items.filter(x => x.text.trim()).map(x => ({ text: x.text.trim(), done: !!x.done }));
+  const isTimeHolder = title => state.timeHolders.includes(M.threadKey(title));
+  const focusOf = title => (week().focus[M.threadKey(title)] || []);
 
-  function mountNotes(host, notes) {
-    if (!notes.length) notes.push({ text: '', check: null });
-    const draw = (focusAt, caretEnd = true) => {
-      host.innerHTML = `<ul class="notes">${notes.map((n, i) => `
-        <li class="note ${n.check === true ? 'done' : ''}">
-          <button class="note-mark" data-i="${i}" title="Bullet → to-do → done">${MARKS[n.check]}</button>
-          <input class="note-text" data-i="${i}" value="${esc(n.text)}" placeholder="${i === 0 && notes.length === 1 ? 'Notes… (Enter for a new line)' : ''}">
-        </li>`).join('')}</ul>`;
-      if (focusAt != null) {
-        const input = host.querySelectorAll('.note-text')[focusAt];
-        if (input) { input.focus(); const at = caretEnd ? input.value.length : 0; input.setSelectionRange(at, at); }
-      }
-    };
-    host.addEventListener('input', e => {
-      if (e.target.matches('.note-text')) notes[+e.target.dataset.i].text = e.target.value;
-    });
-    host.addEventListener('click', e => {
-      const mark = e.target.closest('.note-mark');
-      if (!mark) return;
-      const i = +mark.dataset.i;
-      notes[i].check = M.nextCheck(notes[i].check);
-      draw(i);
-    });
-    host.addEventListener('keydown', e => {
-      if (!e.target.matches('.note-text')) return;
-      const i = +e.target.dataset.i;
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        notes.splice(i + 1, 0, { text: '', check: notes[i].check === null ? null : false });
-        draw(i + 1);
-      } else if (e.key === 'Backspace' && e.target.value === '' && notes.length > 1) {
-        e.preventDefault();
-        notes.splice(i, 1);
-        draw(Math.max(0, i - 1));
-      } else if (e.key === 'ArrowUp' && i > 0) { e.preventDefault(); draw(i - 1); }
-      else if (e.key === 'ArrowDown' && i < notes.length - 1) { e.preventDefault(); draw(i + 1); }
-    });
-    draw(null);
-    return { focusEnd: () => draw(notes.length - 1) };
+  // A block's name changed: if it was the last block of its old name, its
+  // focus follows it (unless the new name already has one).
+  function renameBlock(b, title) {
+    const from = M.threadKey(b.title), to = M.threadKey(title);
+    b.title = title;
+    if (from === to || !from) return;
+    const f = week().focus;
+    const others = week().blocks.some(x => x !== b && M.threadKey(x.title) === from);
+    if (!others && f[from] && f[from].length && !(f[to] && f[to].length)) { f[to] = f[from]; delete f[from]; }
   }
 
-  // Double-click a block: its title and notes, with the cursor in the notes.
+  // The focus list editor: one input per line, drag the grip to reorder,
+  // tick to fold a line into "done". With ticks off (a regular's starting
+  // lines) it's just an ordered list.
+  function mountFocus(host, items, { ticks = true, emptyHint = '' } = {}) {
+    let showDone = false, dragFrom = null;
+    const draw = focusAt => {
+      if (!items.some(x => !x.done)) items.push({ text: '', done: false });
+      const open = items.filter(x => !x.done), done = items.filter(x => x.done);
+      const next = ticks && open.find(x => x.text.trim());
+      const filled = open.filter(x => x.text.trim()).length;
+      host.innerHTML = `
+        <div class="focus-list">${open.map(x => {
+          const i = items.indexOf(x);
+          return `<div class="fitem" draggable="true" data-i="${i}">
+            <span class="grip" title="Drag to change what comes first">⋮⋮</span>
+            ${ticks ? `<button class="ftick" data-tick="${i}" title="Done"></button>` : ''}
+            <input class="ftext" data-i="${i}" value="${esc(x.text)}" placeholder="${open.length === 1 ? (ticks ? 'What’s first? (optional)' : 'A line to start each week with (optional)') : ''}">
+            ${x === next ? '<span class="next-pill">next</span>' : ''}
+          </div>`; }).join('')}</div>
+        ${emptyHint && !filled && !done.length ? `<div class="fhint">${emptyHint}</div>` : ''}
+        ${filled > SOFT_LIMIT ? '<div class="fsoft">That’s a lot for one intent. Keep it broad?</div>' : ''}
+        ${ticks && done.length ? `<button class="done-toggle" data-done-toggle>${showDone ? '▾' : '▸'} Done this week (${done.length})</button>
+          ${showDone ? done.map(x => `<div class="done-item"><button class="ftick on" data-untick="${items.indexOf(x)}" title="Not done after all">✓</button><span>${esc(x.text)}</span></div>`).join('') : ''}` : ''}`;
+      if (focusAt != null) {
+        const input = host.querySelector(`.ftext[data-i="${focusAt}"]`);
+        if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+      }
+    };
+    host.addEventListener('input', e => { if (e.target.matches('.ftext')) items[+e.target.dataset.i].text = e.target.value; });
+    host.addEventListener('click', e => {
+      const t = e.target.closest('[data-tick], [data-untick], [data-done-toggle]');
+      if (!t) return;
+      if (t.dataset.tick != null) { const it = items[+t.dataset.tick]; if (it.text.trim()) it.done = true; }
+      else if (t.dataset.untick != null) items[+t.dataset.untick].done = false;
+      else showDone = !showDone;
+      draw();
+    });
+    host.addEventListener('keydown', e => {
+      if (!e.target.matches('.ftext')) return;
+      const i = +e.target.dataset.i;
+      const openIdx = items.map((x, k) => (x.done ? -1 : k)).filter(k => k >= 0);
+      const pos = openIdx.indexOf(i);
+      if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        items.splice(i + 1, 0, { text: '', done: false });
+        draw(i + 1);
+      } else if (e.key === 'Backspace' && e.target.value === '' && openIdx.length > 1) {
+        e.preventDefault();
+        items.splice(i, 1);
+        const prev = openIdx[pos - 1];
+        draw(prev != null ? prev : null);
+      } else if (e.key === 'ArrowUp' && pos > 0) { e.preventDefault(); draw(openIdx[pos - 1]); }
+      else if (e.key === 'ArrowDown' && pos < openIdx.length - 1) { e.preventDefault(); draw(openIdx[pos + 1]); }
+    });
+    // Drag lines to reorder: up lands before the target, down after it.
+    host.addEventListener('dragstart', e => { const it = e.target.closest('.fitem'); if (!it) return; dragFrom = +it.dataset.i; it.classList.add('dragging'); });
+    host.addEventListener('dragover', e => { const it = e.target.closest('.fitem'); if (!it || dragFrom == null) return; e.preventDefault();
+      host.querySelectorAll('.fitem').forEach(x => x.classList.toggle('over', x === it)); });
+    host.addEventListener('drop', e => {
+      const it = e.target.closest('.fitem'); if (!it || dragFrom == null) return; e.preventDefault();
+      const [moved] = items.splice(dragFrom, 1);
+      items.splice(+it.dataset.i, 0, moved);
+      dragFrom = null; draw();
+    });
+    host.addEventListener('dragend', () => { dragFrom = null; host.querySelectorAll('.fitem').forEach(x => x.classList.remove('dragging', 'over')); });
+    draw(null);
+    const firstOpen = () => items.findIndex(x => !x.done);
+    return { focusFirst: () => draw(firstOpen()) };
+  }
+
+  // Double-click a block: its focus (shared with same-named blocks this
+  // week) and its session line, with the cursor in the focus list.
   function openBlockDialog(id) {
     const b = findBlock(id);
     if (!b) return;
     closePopover();
     select(id);
     const before = snapshot();
-    const notes = cloneNotes(b.notes);
+    const key = M.threadKey(b.title);
+    const items = focusOf(b.title).map(x => ({ ...x }));
+    let holder = isTimeHolder(b.title);
+    let session = b.session || '';
+    const siblings = week().blocks.filter(x => M.threadKey(x.title) === key)
+      .sort((x, y) => M.orderedDays(state.settings.weekStart, state.settings.visibleDays).indexOf(x.day) - M.orderedDays(state.settings.weekStart, state.settings.visibleDays).indexOf(y.day) || x.start - y.start);
     const [fill, ink] = M.PALETTE[b.color] || M.PALETTE[0];
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
     overlay.innerHTML = `
       <div class="dialog" role="dialog" aria-label="Block notes">
         <div class="dialog-head" style="background:${fill}; color:${ink}">
-          <input class="dialog-title" value="${esc(b.title)}" placeholder="untitled">
-          <div class="text-xs opacity-70">${M.DAY_LONG[b.day]} · ${M.zoneAt(b.start, ui.zones)} · ${M.sizeWord(b.size)}</div>
+          <div class="flex items-start gap-2">
+            <input class="dialog-title" value="${esc(b.title)}" placeholder="untitled">
+            <button class="holder-btn" data-do="holder"></button>
+          </div>
+          <div class="text-xs opacity-80 mt-0.5">${siblings.length > 1
+            ? `Shared by <b>${siblings.length} blocks</b> this week: ${siblings.map(x => x === b ? `<b>${M.DAY_NAMES[x.day]}</b>` : M.DAY_NAMES[x.day]).join(' · ')}`
+            : `${M.DAY_LONG[b.day]} · ${M.zoneAt(b.start, ui.zones)} · ${M.sizeWord(b.size)}`}</div>
         </div>
         <div class="dialog-body"></div>
-        <div class="flex items-center px-4 pb-4">
-          <span class="text-[11.5px]" style="color:var(--muted)">Enter: new line · click • for a tick box</span>
+        <div class="flex items-center px-4 pb-4 pt-1">
+          <span class="text-[11.5px] keys" style="color:var(--muted)"></span>
           <button class="btn primary ml-auto" data-do="done">Done</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
-    const editor = mountNotes(overlay.querySelector('.dialog-body'), notes);
-    editor.focusEnd();
+    const body = overlay.querySelector('.dialog-body');
+    let editor = null;
+
+    const drawBody = () => {
+      overlay.querySelector('[data-do="holder"]').textContent = holder ? '◉ just holding time' : '○ just holding time';
+      overlay.querySelector('[data-do="holder"]').title = holder
+        ? `“${b.title || 'untitled'}” just holds time. Click to give it a focus list again.`
+        : `Nothing to track for “${b.title || 'untitled'}”? Mark it as just holding time (for every block with this name).`;
+      overlay.querySelector('.keys').textContent = holder ? 'Esc or ⌘Enter to close' : 'Enter: new line · drag ⋮⋮ to reorder · Esc to close';
+      if (holder) {
+        body.innerHTML = `<div class="dialog-sec"><textarea class="session-box" rows="3" placeholder="Anything about this one? (optional)">${esc(session)}</textarea></div>`;
+        const box = body.querySelector('.session-box');
+        box.addEventListener('input', () => { session = box.value; });
+        box.focus();
+        editor = null;
+        return;
+      }
+      body.innerHTML = `
+        <div class="dialog-sec"><h3>Focus this week</h3><div class="focus-host"></div></div>
+        <div class="dialog-sec"><h3>This session · ${M.DAY_LONG[b.day]}</h3>
+          <input class="session-line" value="${esc(session)}" placeholder="Anything just for this block? (optional)"></div>`;
+      body.querySelector('.session-line').addEventListener('input', e => { session = e.target.value; });
+      editor = mountFocus(body.querySelector('.focus-host'), items, { emptyHint: 'Nothing to track? That’s fine. Some blocks just hold the time.' });
+      editor.focusFirst();
+    };
+    drawBody();
 
     const close = () => {
       overlay.remove();
       const title = overlay.querySelector('.dialog-title').value.trim();
-      const next = cleanNotes(notes);
-      const changed = JSON.stringify(next) !== JSON.stringify(b.notes || []) || (title && title !== b.title);
+      const focus = cleanFocus(items);
+      const was = { focus: JSON.stringify(focusOf(b.title)), holder: isTimeHolder(b.title), session: b.session || '', title: b.title };
+      const changed = JSON.stringify(focus) !== was.focus || holder !== was.holder || session.trim() !== was.session || (title && title !== was.title);
       if (changed) {
         pushUndo(before);
-        b.notes = next;
-        if (title) b.title = title;
+        if (focus.length) week().focus[key] = focus; else delete week().focus[key];
+        state.timeHolders = state.timeHolders.filter(k => k !== key);
+        if (holder) state.timeHolders.push(key);
+        b.session = session.trim();
+        if (title && title !== b.title) renameBlock(b, title);
         save();
       }
       render();
     };
     overlay.addEventListener('pointerdown', e => { if (e.target === overlay) close(); });
-    overlay.querySelector('[data-do="done"]').addEventListener('click', close);
+    overlay.addEventListener('click', e => {
+      const d = e.target.closest('[data-do]');
+      if (!d) return;
+      if (d.dataset.do === 'done') close();
+      else if (d.dataset.do === 'holder') { holder = !holder; drawBody(); }
+    });
     overlay.addEventListener('keydown', e => {
       e.stopPropagation(); // keep ⌫, ⌘Z etc. away from the board underneath
       if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); close(); }
-      else if (e.key === 'Enter' && e.target.matches('.dialog-title')) { e.preventDefault(); editor.focusEnd(); }
+      else if (e.key === 'Enter' && e.target.matches('.dialog-title, .session-line')) {
+        e.preventDefault();
+        if (editor && e.target.matches('.dialog-title')) editor.focusFirst(); else e.target.blur();
+      }
     });
   }
 
@@ -941,7 +1044,7 @@
           const b = findBlock(id);
           const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
           const spot = M.duplicateSpot(week().blocks, b, days, ui.range, ui.zones);
-          const copy = { ...b, id: M.newId(), ...spot, notes: cloneNotes(b.notes), rating: null, tags: [] };
+          const copy = { ...b, id: M.newId(), ...spot, session: '', rating: null, tags: [] };
           ui.selectedId = copy.id;
           commit(() => week().blocks.push(copy));
           if (spot.day !== b.day) toast(`No room after it, so the copy went to ${M.DAY_LONG[spot.day]}`);
@@ -952,7 +1055,8 @@
         case 'make-regular': {
           const b = findBlock(id);
           if (state.regulars.some(r => r.title.toLowerCase() === b.title.toLowerCase())) return toast(`“${b.title}” is already a regular`);
-          commit(s => s.regulars.push({ id: M.newId(), title: b.title || 'untitled', size: b.size, color: b.color, zone: M.zoneAt(b.start, ui.zones), notes: cloneNotes(b.notes) }));
+          commit(s => s.regulars.push({ id: M.newId(), title: b.title || 'untitled', size: b.size, color: b.color, zone: M.zoneAt(b.start, ui.zones),
+            notes: focusOf(b.title).filter(x => !x.done).map(x => ({ text: x.text, done: false })) }));
           return toast(`Saved “${b.title || 'untitled'}” as a regular`);
         }
         case 'drop-unplaced': {
@@ -1014,7 +1118,7 @@
 
   function editRegular(id, anchor) {
     const existing = id && findRegular(id);
-    const draft = existing ? { ...existing, notes: cloneNotes(existing.notes) } : { title: '', size: 4, color: 1, zone: null, notes: [] };
+    const draft = existing ? { ...existing, notes: cloneLines(existing.notes) } : { title: '', size: 4, color: 1, zone: null, notes: [] };
     openPopover(anchor, `
       <label>name</label>
       <input class="field" data-f="title" value="${esc(draft.title)}" placeholder="e.g. Gym">
@@ -1024,7 +1128,7 @@
       <div class="seg" data-f="zone"><button data-v="" title="No usual spot: dropped on a day name, it takes the first free gap">whenever</button>${M.ZONES.map(z => `<button data-v="${z.id}">${z.label}</button>`).join('')}</div>
       <label>colour</label>
       <div class="flex gap-1.5" data-f="color">${M.PALETTE.map(([fill, ink], i) => `<button class="swatch" data-v="${i}" style="background:${fill}; box-shadow: inset 0 0 0 1px ${ink}33"></button>`).join('')}</div>
-      <label>default notes</label>
+      <label>starts each week’s focus with</label>
       <div data-f="notes" class="-mx-1"></div>
       <div class="flex items-center gap-2 mt-4">
         ${existing ? '<button class="btn danger" data-do="delete">Delete</button>' : ''}
@@ -1037,11 +1141,11 @@
         el.querySelectorAll('[data-f="color"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === draft.color));
       };
       sync();
-      mountNotes(el.querySelector('[data-f="notes"]'), draft.notes);
+      mountFocus(el.querySelector('[data-f="notes"]'), draft.notes, { ticks: false });
       const title = el.querySelector('[data-f="title"]');
       title.focus();
       const doSave = () => {
-        draft.notes = cleanNotes(draft.notes);
+        draft.notes = cleanFocus(draft.notes).map(x => ({ text: x.text, done: false }));
         draft.title = title.value.trim();
         if (!draft.title) { title.focus(); return; }
         commit(s => {
@@ -1150,6 +1254,8 @@
       <div class="seg" data-f="weekStart">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
       <label>days to show</label>
       <div class="seg" data-f="visible">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
+      <label>show what’s next on blocks</label>
+      <div class="seg" data-f="shownext"><button data-v="on">on</button><button data-v="off">off</button></div>
       <label>sidebar</label>
       <div class="seg" data-f="sidebar">
         <button data-v="left">left</button><button data-v="right">right</button><button data-v="hidden">hidden</button>
@@ -1165,6 +1271,7 @@
       const sync = () => {
         el.querySelectorAll('[data-f="weekStart"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === state.settings.weekStart));
         el.querySelectorAll('[data-f="visible"] button').forEach(b => b.classList.toggle('on', state.settings.visibleDays[+b.dataset.v]));
+        el.querySelectorAll('[data-f="shownext"] button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'on') === state.settings.showNext));
         const sb = state.settings.sidebarHidden ? 'hidden' : state.settings.sidebar;
         el.querySelectorAll('[data-f="sidebar"] button').forEach(b => b.classList.toggle('on', b.dataset.v === sb));
         el.querySelectorAll('[data-f="zones"] button').forEach(b => b.classList.toggle('on', b.dataset.v === 'early' ? week().view.showEarly : week().view.showEvening));
@@ -1179,6 +1286,9 @@
           const i = +b.dataset.v;
           if (state.settings.visibleDays.filter(Boolean).length === 1 && state.settings.visibleDays[i]) return toast('Keep at least one day');
           commit(s => { s.settings.visibleDays[i] = !s.settings.visibleDays[i]; });
+        } else if (f === 'shownext') {
+          state.settings.showNext = b.dataset.v === 'on'; // a view setting, not an undo step
+          save(); render();
         } else if (f === 'sidebar') {
           const v = b.dataset.v;
           commit(s => {
@@ -1238,15 +1348,19 @@
   }
 
   // On paper the day is squeezed to fit one landscape page.
-  // Page 2: every block's notes, listed by day and name (not a calendar).
+  // Page 2: each name's focus and session notes, in board order (not a
+  // calendar). Time-holders only show their session notes.
   function renderPrintNotes() {
     const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
-    const items = M.notesForPrint(week(), days);
-    $('#print-notes').innerHTML = items.length ? `
+    const threads = M.focusForPrint(week(), days)
+      .map(t => (isTimeHolder(t.title) ? { ...t, items: [] } : t))
+      .filter(t => t.items.length || t.sessions.length);
+    $('#print-notes').innerHTML = threads.length ? `
       <h2>Notes · ${esc(week().name)}</h2>
-      ${items.map(it => `
-        <h3>${M.DAY_LONG[it.day]} · ${esc(it.title || 'untitled')}</h3>
-        <ul>${it.notes.map(n => `<li class="${n.check === true ? 'done' : ''}">${MARKS[n.check]} ${esc(n.text)}</li>`).join('')}</ul>`).join('')}` : '';
+      ${threads.map(t => `
+        <h3>${esc(t.title || 'untitled')} <span class="pdays">${t.days.map(d => M.DAY_NAMES[d]).join(' · ')}</span></h3>
+        ${t.items.length ? `<ul>${t.items.map(x => `<li class="${x.done ? 'done' : ''}">${x.done ? '✓' : '○'} ${esc(x.text)}</li>`).join('')}</ul>` : ''}
+        ${t.sessions.map(x => `<p class="psess"><b>${M.DAY_NAMES[x.day]}:</b> ${esc(x.text)}</p>`).join('')}`).join('')}` : '';
   }
   window.addEventListener('beforeprint', () => { ui.printing = true; renderBoard(); renderPrintNotes(); });
   window.addEventListener('afterprint', () => { ui.printing = false; renderBoard(); });

@@ -84,14 +84,33 @@
     .dialog-title { width: 100%; font: inherit; font-size: 17px; font-weight: 700; color: inherit; background: transparent;
       border: 0; outline: none; padding: 0; }
     .dialog-body { padding: 10px 12px 8px; max-height: 50vh; overflow-y: auto; }
-    .notes { list-style: none; margin: 0; padding: 0; }
-    .note { display: flex; align-items: center; gap: 4px; }
-    .note-mark { width: 22px; height: 26px; flex: none; border: 0; background: transparent; color: var(--muted);
-      font-size: 14px; border-radius: 6px; }
-    .note-mark:hover { background: #f3efe8; color: var(--ink); }
-    .note-text { flex: 1; min-width: 0; font: inherit; font-size: 14px; color: var(--ink); border: 0; outline: none;
-      background: transparent; padding: 4px 2px; }
-    .note.done .note-text { color: var(--faint); text-decoration: line-through; }
+    .dialog-sec { padding: 4px 0 6px; }
+    .dialog-sec h3 { margin: 4px 4px 6px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+    .holder-btn { flex: none; margin-top: 3px; border: 0; background: rgba(255,255,255,.6); color: inherit; font: inherit; font-size: 11.5px;
+      padding: 2px 9px; border-radius: 99px; opacity: .85; white-space: nowrap; }
+    .holder-btn:hover { background: #fff; opacity: 1; }
+    .fitem { display: flex; align-items: center; gap: 6px; border-radius: 8px; }
+    .fitem.dragging { opacity: .4; }
+    .fitem.over { box-shadow: 0 -2px 0 var(--accent); }
+    .grip { width: 14px; flex: none; color: var(--faint); cursor: grab; font-size: 12px; text-align: center; user-select: none; }
+    .ftick { width: 18px; height: 18px; flex: none; border-radius: 99px; border: 1.5px solid var(--faint); background: #fff; padding: 0;
+      font-size: 11px; line-height: 1; color: #fff; }
+    .ftick:hover { border-color: var(--muted); }
+    .ftick.on { background: #9fb6a3; border-color: #9fb6a3; }
+    .ftext { flex: 1; min-width: 0; border: 0; outline: none; font: inherit; font-size: 14px; padding: 5px 2px; color: var(--ink); background: transparent; }
+    .next-pill { flex: none; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: #f6e9c8; color: #8a6d24; }
+    .fhint, .fsoft { font-size: 12px; padding: 4px 0 2px 20px; line-height: 1.5; }
+    .fhint { color: var(--muted); }
+    .fsoft { color: #9a7a2c; }
+    .done-toggle { border: 0; background: none; font: inherit; font-size: 12px; color: var(--muted); padding: 6px 0 2px 4px; }
+    .done-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--faint); padding: 3px 0 3px 20px; }
+    .done-item span { text-decoration: line-through; }
+    .session-line { width: 100%; border: 0; border-bottom: 1px dashed var(--zone-line); outline: none; font: inherit; font-size: 13.5px;
+      padding: 6px 4px; color: var(--ink); background: transparent; }
+    .session-box { width: 100%; border: 1px solid #e4ded3; border-radius: 10px; outline: none; font: inherit; font-size: 14px; padding: 8px 10px;
+      color: var(--ink); resize: vertical; }
+    .session-box:focus { border-color: var(--faint); }
+    .block .next-line { font-size: 11.5px; margin-top: 2px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     /* sidebar chips */
     .chip { border-radius: 10px; padding: 7px 10px; font-size: 13px; font-weight: 500; cursor: grab;
@@ -212,6 +231,8 @@
     #print-notes ul { list-style: none; margin: 0; padding: 0 0 0 2px; }
     #print-notes li { margin: 2px 0; }
     #print-notes li.done { color: #8a8378; text-decoration: line-through; }
+    #print-notes .pdays { font-weight: 400; font-size: 12px; color: #8a8378; margin-left: 6px; }
+    #print-notes .psess { margin: 4px 0 0 2px; }
   </style>
 </head>
 <body>
