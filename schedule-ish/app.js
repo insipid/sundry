@@ -673,7 +673,10 @@
         settle(d);
       },
       click(d) {
-        if (!consume) editRegular(d.sourceId, d.sourceEl);
+        if (consume) return;
+        // Pressing the pill whose editor was open just closes it (a toggle).
+        if (closedFor === 'regular:' + d.sourceId) { closedFor = null; return; }
+        editRegular(d.sourceId, d.sourceEl);
       },
     };
   }
@@ -1090,8 +1093,12 @@
   // ---- popovers ------------------------------------------------------------
 
   let popover = null;
-  function openPopover(anchor, html, mount) {
+  // Which sidebar pill the open popover belongs to (e.g. 'regular:<id>'),
+  // so pressing the same pill again closes it instead of reopening it.
+  let popoverFor = null, closedFor = null;
+  function openPopover(anchor, html, mount, forKey = null) {
     closePopover();
+    popoverFor = forKey;
     const el = document.createElement('div');
     el.className = 'popover';
     el.innerHTML = html;
@@ -1108,9 +1115,12 @@
     if (!popover) return false;
     popover.remove();
     popover = null;
+    popoverFor = null;
     return true;
   }
   document.addEventListener('pointerdown', e => {
+    const pill = e.target.closest('[data-regular]');
+    closedFor = pill && popoverFor === 'regular:' + pill.dataset.regular ? popoverFor : null;
     if (popover && !popover.contains(e.target) && !e.target.closest('[data-cmd="settings"], [data-cmd="new-regular"], [data-cmd="weeks"]')) closePopover();
   }, true);
 
@@ -1170,7 +1180,7 @@
         }
         sync();
       });
-    });
+    }, id ? 'regular:' + id : null);
   }
 
   // ---- weeks: the header dropdown -------------------------------------------
