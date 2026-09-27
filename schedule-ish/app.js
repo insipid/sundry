@@ -363,7 +363,7 @@
              : shownNext ? `<div class="next-line">→ ${esc(shownNext)}</div>`
              : roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : ''}`}
       ${rev ? `<button class="rate ${rating === null ? 'empty' : typeof rating === 'number' ? '' : 'word'}" data-rate="${b.id}"
-          title="Tap to rate">${rating === null ? 'rate' : RATING_LABEL[rating]}</button>` : ''}
+          title="How did it go?">${rating === null ? '✓?' : RATING_LABEL[rating]}</button>` : ''}
       ${hasNotes && !shownNext ? '<span class="has-notes" title="Has notes (double-click)">⋯</span>' : ''}
       ${rev && extra.unplanned ? `<div class="tools ${roomy ? 'at-bottom' : ''}">
         <button class="tool" data-action="delete" title="Delete this unplanned block (⌫)">×</button></div>` : ''}
@@ -401,7 +401,7 @@
     const b = ui.selectedId && findBlock(ui.selectedId);
     if (!b) {
       bar.innerHTML = `<span class="review-hint">Select a block to rate or tag it. Tap its corner to cycle ✓ → ✓✓ → ✓✓✓;
-        right-click for didn’t happen or counterproductive; or use keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>−</kbd> <kbd>s</kbd> <kbd>0</kbd>.
+        right-click for didn’t happen or unproductive; or use keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>−</kbd> <kbd>s</kbd> <kbd>0</kbd>.
         Arrow keys move between blocks; <kbd>Enter</kbd> opens one.</span>`;
       return;
     }
@@ -921,7 +921,7 @@
     const at = { getBoundingClientRect: () => ({ left: e.clientX, right: e.clientX, top: e.clientY, bottom: e.clientY }) };
     openPopover(at, `
       ${unplanned ? '' : '<button class="menu-item" data-r="skip">Didn’t happen</button>'}
-      <button class="menu-item" data-r="bad">Counterproductive</button>
+      <button class="menu-item" data-r="bad">Unproductive</button>
       <button class="menu-item" data-r="">Clear rating</button>
       ${b.actual ? '<div class="menu-sep"></div><button class="menu-item" data-act="unmove">Back to plan</button>' : ''}
       ${unplanned ? '<div class="menu-sep"></div><button class="menu-item danger" data-act="delete">Delete (unplanned)</button>' : ''}`, el => {

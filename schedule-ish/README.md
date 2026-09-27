@@ -131,8 +131,8 @@ back at how the week went. Nothing you do in review changes the plan.
   *didn't happen* instead.
 - **Rate a block:** tap the badge in its corner to cycle **✓ → ✓✓ → ✓✓✓** and
   back to unrated. **Right-click** a block for *didn't happen* or
-  *counterproductive*. Or select a block and press **1 / 2 / 3**, **−**
-  (counterproductive), **s** (didn't happen) or **0** (clear). Rating is optional;
+  *unproductive*. Or select a block and press **1 / 2 / 3**, **−**
+  (unproductive), **s** (didn't happen) or **0** (clear). Rating is optional;
   unrated blocks just look a little faded.
 - **Tag it:** the bar along the bottom shows tag chips for the selected block
   (*flow*, *interrupted*, *wrong time*, …). Tap to toggle. **+ tag** adds

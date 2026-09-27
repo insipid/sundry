@@ -230,7 +230,7 @@
   const defaultView = () => ({ showEarly: false, showEvening: false });
 
   // Review: a block's rating is 1-3 ticks, 'skip' (didn't do it) or 'bad'
-  // (counterproductive); null = unrated. Tapping only walks the ticks.
+  // (unproductive); null = unrated. Tapping only walks the ticks.
   const RATINGS = [1, 2, 3, 'skip', 'bad'];
   const nextRating = r => (r === 1 ? 2 : r === 2 ? 3 : r === 3 ? null : 1);
   const STARTER_TAGS = ['flow', 'energised', 'interrupted', 'distracted', 'too long', 'too short', 'wrong time', 'should repeat'];
