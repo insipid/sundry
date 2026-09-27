@@ -104,7 +104,7 @@ test('sizeWord gives rough words, not durations (two steps to a word-step)', () 
 
 test('defaultState is valid and seeds a couple of regulars', () => {
   const s = M.defaultState();
-  assert.equal(s.version, 4);
+  assert.equal(s.version, 5);
   assert.equal(wk(s).blocks.length, 0);
   assert.ok(s.regulars.length >= 1);
   assert.deepEqual(M.normalizeState(JSON.parse(JSON.stringify(s))), s);
@@ -189,7 +189,7 @@ test('v1 plans move onto the 40-step day, keeping each block in its zone', () =>
     zones: { early: 3, morning: 4, midday: 2, afternoon: 4, evening: 4 },
     blocks: [b('am', 0, 3, 4), b('lunch', 0, 7, 2), b('pm', 0, 9, 2), b('eve', 0, 13, 2), b('dawn', 0, 0, 3)],
   });
-  assert.equal(s.version, 4);
+  assert.equal(s.version, 5);
   assert.deepEqual(wk(s).zones, M.DEFAULT_ZONE_SIZES);
   const at = id => { const x = wk(s).blocks.find(y => y.id === id); return [x.start, x.size]; };
   assert.deepEqual(at('am'), [8, 10]);   // the whole morning
@@ -305,7 +305,7 @@ test('a v2 plan becomes a single week called "My week", at double resolution', (
     zones: { early: 3, morning: 6, midday: 2, afternoon: 5, evening: 4 },
     blocks: [b('a', 1, 5, 2)], regulars: [{ title: 'Gym', size: 3 }], unplaced: [],
   });
-  assert.equal(s.version, 4);
+  assert.equal(s.version, 5);
   assert.equal(s.weeks.length, 1);
   assert.equal(wk(s).name, 'My week');
   assert.deepEqual(wk(s).view, { showEarly: true, showEvening: false });
@@ -342,7 +342,7 @@ test('v3 plans (20-step day) double every position and size', () => {
     regulars: [{ title: 'Gym', size: 3, zone: 'morning' }],
     unplaced: [{ title: 'Tidy', size: 1 }],
   });
-  assert.equal(s.version, 4);
+  assert.equal(s.version, 5);
   assert.deepEqual(wk(s).zones, { early: 8, morning: 12, midday: 2, afternoon: 10, evening: 8 });
   assert.deepEqual(wk(s).blocks.map(x => [x.id, x.start, x.size]), [['a', 8, 10], ['eve', 36, 4]]);
   assert.equal(s.regulars[0].size, 6);
@@ -351,54 +351,11 @@ test('v3 plans (20-step day) double every position and size', () => {
   assert.deepEqual(M.normalizeState(JSON.parse(JSON.stringify(s))), s);
 });
 
-test('blankWeek and copyWeek make fresh weeks; copies are deep, with new ids', () => {
-  const blank = M.blankWeek('Holiday');
-  assert.equal(blank.name, 'Holiday');
-  assert.deepEqual(blank.blocks, []);
-  assert.deepEqual(blank.zones, M.DEFAULT_ZONE_SIZES);
-  const src = { ...M.blankWeek('Normal'), blocks: [{ ...b('a', 0, 5, 2), notes: [{ text: 'legs', check: false }] }] };
-  const copy = M.copyWeek(src, 'Normal copy');
-  assert.equal(copy.name, 'Normal copy');
-  assert.notEqual(copy.id, src.id);
-  assert.notEqual(copy.blocks[0].id, 'a');
-  assert.deepEqual(copy.blocks[0].notes, [{ text: 'legs', check: false }]);
-  copy.blocks[0].notes[0].check = true;
-  assert.equal(src.blocks[0].notes[0].check, false);
-});
 
 // ---- notes ----
 
-test('notes are normalised on blocks, regulars and unplaced items', () => {
-  const s = M.normalizeState({
-    blocks: [{ ...b('a', 0, 5, 2), notes: [{ text: 'one' }, { text: 'two', check: true }, { text: 3 }, 'x'] }, b('bare', 0, 8, 1)],
-    regulars: [{ title: 'Gym', notes: [{ text: 'stretch', check: false }] }],
-    unplaced: [{ title: 'Tidy', notes: 'nope' }],
-  });
-  assert.deepEqual(wk(s).blocks[0].notes, [{ text: 'one', check: null }, { text: 'two', check: true }]);
-  assert.deepEqual(wk(s).blocks[1].notes, []);
-  assert.deepEqual(s.regulars[0].notes, [{ text: 'stretch', check: false }]);
-  assert.deepEqual(s.unplaced[0].notes, []);
-});
 
-test('nextCheck cycles a note: bullet → to-do → done → bullet', () => {
-  assert.equal(M.nextCheck(null), false);
-  assert.equal(M.nextCheck(false), true);
-  assert.equal(M.nextCheck(true), null);
-});
 
-test('notesForPrint lists noted blocks by visible day order, then top to bottom', () => {
-  const n = t => [{ text: t, check: null }];
-  const week = { blocks: [
-    { ...b('late', 0, 12, 1), title: 'Late', notes: n('x') },
-    { ...b('early', 0, 5, 1), title: 'Early', notes: n('y') },
-    { ...b('sun', 6, 5, 1), title: 'Sun thing', notes: n('z') },
-    { ...b('none', 0, 7, 1), title: 'No notes', notes: [] },
-    { ...b('hidden', 3, 5, 1), title: 'Hidden day', notes: n('w') },
-  ] };
-  const out = M.notesForPrint(week, [6, 0, 1]);
-  assert.deepEqual(out.map(x => [x.day, x.title]), [[6, 'Sun thing'], [0, 'Early'], [0, 'Late']]);
-  assert.deepEqual(out[0].notes, n('z'));
-});
 
 // ---- reordering the sidebar ----
 
@@ -468,18 +425,99 @@ test('plan/review mode is a setting, defaulting to plan', () => {
   assert.equal(M.normalizeState({ settings: { mode: 'party' } }).settings.mode, 'plan');
 });
 
-test('a copied week starts unreviewed: no ratings, tags or day notes', () => {
-  const src = { ...M.blankWeek('Normal'), dayNotes: ['x', '', '', '', '', '', ''],
-    blocks: [{ ...b('a', 0, 8, 4), notes: [], rating: 3, tags: ['flow'] }] };
-  const copy = M.copyWeek(src, 'Next');
-  assert.equal(copy.blocks[0].rating, null);
-  assert.deepEqual(copy.blocks[0].tags, []);
-  assert.deepEqual(copy.dayNotes, ['', '', '', '', '', '', '']);
-  assert.equal(src.blocks[0].rating, 3);
-});
 
 test('todayIndex counts Monday as 0', () => {
   assert.equal(M.todayIndex(new Date(2026, 8, 28)), 0); // Mon 28 Sep 2026
   assert.equal(M.todayIndex(new Date(2026, 8, 26)), 5); // Sat
   assert.equal(M.todayIndex(new Date(2026, 8, 27)), 6); // Sun
+});
+
+// ---- shared focus notes (v5) ----
+
+const item = (text, done = false) => ({ text, done });
+
+test('threadKey links blocks by name, ignoring case and spacing', () => {
+  assert.equal(M.threadKey('  Job Applications '), 'job applications');
+  assert.equal(M.threadKey(''), '');
+});
+
+test('a week keeps one focus list per name; junk is dropped', () => {
+  const s = M.normalizeState({ version: 5, weeks: [{ id: 'w', name: 'W', blocks: [],
+    focus: { 'Job applications': [item('Tailor CV'), item('Old thing', true), { text: 3 }, 'x'], '': [item('orphan')] } }],
+    currentWeek: 'w' });
+  assert.deepEqual(wk(s).focus, { 'job applications': [item('Tailor CV'), item('Old thing', true)] });
+});
+
+test('old per-block notes become the week\'s shared focus, merged by name', () => {
+  const s = M.normalizeState({ version: 4, weeks: [{ id: 'w', name: 'W', blocks: [
+    { ...b('a', 0, 8, 4), title: 'Job applications', notes: [{ text: 'Tailor CV', check: null }, { text: 'LinkedIn', check: true }] },
+    { ...b('c', 2, 8, 4), title: 'job applications', notes: [{ text: 'Tailor CV', check: null }, { text: 'Call Sam', check: false }] },
+    { ...b('g', 1, 8, 4), title: 'Gym', notes: [] },
+  ] }], currentWeek: 'w' });
+  assert.deepEqual(wk(s).focus, { 'job applications': [item('Tailor CV'), item('LinkedIn', true), item('Call Sam')] });
+  assert.equal(wk(s).blocks[0].notes, undefined);
+  assert.deepEqual(wk(s).blocks.map(x => x.session), ['', '', '']);
+});
+
+test('blocks keep a per-session line; regulars keep focus seed lines; unplaced keep a session line', () => {
+  const s = M.normalizeState({
+    weeks: [{ id: 'w', name: 'W', blocks: [{ ...b('a', 0, 8, 4), session: 'just Acme' }] }], currentWeek: 'w',
+    regulars: [{ title: 'Gym', notes: [{ text: 'stretch', check: true }, { text: '' }] }],
+    unplaced: [{ title: 'Tidy', notes: [{ text: 'garage', check: null }, { text: 'shed', check: false }] }, { title: 'Call', session: 'mum' }],
+  });
+  assert.equal(wk(s).blocks[0].session, 'just Acme');
+  assert.deepEqual(s.regulars[0].notes, [item('stretch')]);
+  assert.deepEqual(s.unplaced.map(u => u.session), ['garage; shed', 'mum']);
+});
+
+test('time-holders are a shared list of names', () => {
+  assert.deepEqual(M.defaultState().timeHolders, []);
+  assert.deepEqual(M.normalizeState({ timeHolders: ['Gym', 'gym', ' Lunch ', '', 4] }).timeHolders, ['gym', 'lunch']);
+});
+
+test('show-what\'s-next is a setting, on by default', () => {
+  assert.equal(M.defaultState().settings.showNext, true);
+  assert.equal(M.normalizeState({ settings: { showNext: false } }).settings.showNext, false);
+  assert.equal(M.normalizeState({}).settings.showNext, true);
+});
+
+test('nextFocus is the top open line for a name', () => {
+  const week = { focus: { 'job applications': [item('Done one', true), item('  '), item('Call Sam'), item('Later')] } };
+  assert.equal(M.nextFocus(week, 'Job applications'), 'Call Sam');
+  assert.equal(M.nextFocus(week, 'Gym'), null);
+});
+
+test('blankWeek and copyWeek: copies are deep, carry open focus only, and start unreviewed', () => {
+  const blank = M.blankWeek('Holiday');
+  assert.deepEqual([blank.name, blank.blocks, blank.focus], ['Holiday', [], {}]);
+  const src = { ...M.blankWeek('Normal'), dayNotes: ['x', '', '', '', '', '', ''],
+    focus: { 'job applications': [item('Call Sam'), item('LinkedIn', true)] },
+    blocks: [{ ...b('a', 0, 8, 4), title: 'Job applications', session: 'just Acme', rating: 3, tags: ['flow'] }] };
+  const copy = M.copyWeek(src, 'Next');
+  assert.equal(copy.name, 'Next');
+  assert.notEqual(copy.id, src.id);
+  assert.notEqual(copy.blocks[0].id, 'a');
+  assert.deepEqual(copy.focus, { 'job applications': [item('Call Sam')] });
+  assert.deepEqual([copy.blocks[0].session, copy.blocks[0].rating, copy.blocks[0].tags], ['', null, []]);
+  assert.deepEqual(copy.dayNotes, ['', '', '', '', '', '', '']);
+  copy.focus['job applications'][0].done = true;
+  assert.equal(src.focus['job applications'][0].done, false);
+});
+
+test('focusForPrint lists each thread once, in board order, with its days and session lines', () => {
+  const week = {
+    focus: { 'job applications': [item('Call Sam'), item('LinkedIn', true)], 'gym': [] },
+    blocks: [
+      { ...b('w', 2, 8, 4), title: 'Job applications', session: 'just Acme' },
+      { ...b('m', 0, 8, 4), title: 'Job applications', session: '' },
+      { ...b('g', 1, 8, 4), title: 'Gym', session: 'legs' },
+      { ...b('l', 0, 18, 4), title: 'Lunch', session: '' },
+      { ...b('h', 3, 8, 4), title: 'Hidden', session: 'not shown' },
+    ],
+  };
+  const out = M.focusForPrint(week, [0, 1, 2]);
+  assert.deepEqual(out.map(t => [t.title, t.days]), [['Job applications', [0, 2]], ['Gym', [1]]]);
+  assert.deepEqual(out[0].items, [item('Call Sam'), item('LinkedIn', true)]);
+  assert.deepEqual(out[0].sessions, [{ day: 2, text: 'just Acme' }]);
+  assert.deepEqual(out[1].sessions, [{ day: 1, text: 'legs' }]);
 });

@@ -211,9 +211,16 @@
   let idCounter = 0;
   const newId = () => Date.now().toString(36) + (idCounter++).toString(36) + Math.random().toString(36).slice(2, 6);
 
-  // Notes are a short list of lines. `check` is null for a plain bullet,
-  // false for an open tick box, true for a ticked one.
-  const nextCheck = c => (c === null ? false : c === false ? true : null);
+  // Focus notes: every block with the same name in a week shares one short
+  // list of lines ({ text, done }). The top open line is what's next. It is
+  // a pointer to keep moving, not a to-do list. Each block can also carry
+  // its own one-line `session` note. Names on the `timeHolders` list just
+  // hold time: no focus list, only the session line.
+  const threadKey = title => String(title || '').trim().toLowerCase();
+  const nextFocus = (week, title) => {
+    const hit = ((week.focus || {})[threadKey(title)] || []).find(x => !x.done && x.text.trim());
+    return hit ? hit.text : null;
+  };
 
   const defaultView = () => ({ showEarly: false, showEvening: false });
 
@@ -229,25 +236,26 @@
   const todayIndex = (date = new Date()) => (date.getDay() + 6) % 7;
 
   function blankWeek(name = 'New week') {
-    return { id: newId(), name, view: defaultView(), zones: { ...DEFAULT_ZONE_SIZES }, blocks: [], dayNotes: blankDayNotes() };
+    return { id: newId(), name, view: defaultView(), zones: { ...DEFAULT_ZONE_SIZES }, blocks: [], dayNotes: blankDayNotes(), focus: {} };
   }
 
-  // A deep copy with fresh ids, notes and note ticks included. The copy
-  // starts unreviewed: no ratings, tags or day notes.
+  // A deep copy with fresh ids. Open focus lines carry over; done lines,
+  // session notes, ratings, tags and day notes start fresh.
   function copyWeek(week, name) {
     const copy = JSON.parse(JSON.stringify(week));
     copy.id = newId();
     copy.name = name;
     copy.dayNotes = blankDayNotes();
-    for (const x of copy.blocks) { x.id = newId(); x.rating = null; x.tags = []; }
+    copy.focus = Object.fromEntries(Object.entries(copy.focus || {}).map(([k, items]) => [k, items.filter(x => !x.done)]));
+    for (const x of copy.blocks) { x.id = newId(); x.rating = null; x.tags = []; x.session = ''; }
     return copy;
   }
 
   function defaultState() {
     const week = { ...blankWeek('My week'), id: 'w-first' };
     return {
-      version: 4,
-      settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false, mode: 'plan' },
+      version: 5,
+      settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false, mode: 'plan', showNext: true },
       weeks: [week],
       currentWeek: week.id,
       regulars: [
@@ -257,6 +265,7 @@
       ],
       unplaced: [],
       tags: [...STARTER_TAGS],
+      timeHolders: [],
     };
   }
 
@@ -264,9 +273,11 @@
   const str = v => (typeof v === 'string' ? v : '');
   const color = v => (int(v, 0, PALETTE.length - 1) ? v : 0);
   const idOr = v => (typeof v === 'string' && v ? v : newId());
-  const normNotes = v => (Array.isArray(v) ? v : [])
-    .filter(n => n && typeof n.text === 'string')
-    .map(n => ({ text: n.text, check: n.check === true || n.check === false ? n.check : null }));
+  // Focus lines. Also reads the older notes shape ({ text, check }), where a
+  // ticked line (check: true) counts as done.
+  const normFocus = v => (Array.isArray(v) ? v : [])
+    .filter(n => n && typeof n.text === 'string' && n.text.trim())
+    .map(n => ({ text: n.text, done: n.done === true || n.check === true }));
 
   // One week's board: view, zone sizes and blocks. `v1` maps a version-1
   // (17-step) plan onto the current day; `scale` multiplies everything for
@@ -292,9 +303,23 @@
     }
     const blocks = rawBlocks.map(x => ({
       id: idOr(x.id), day: x.day, ...clampBlock(x.start, x.size, FULL_RANGE),
-      title: str(x.title), color: color(x.color), notes: normNotes(x.notes),
+      title: str(x.title), color: color(x.color), session: str(x.session),
       rating: RATINGS.includes(x.rating) ? x.rating : null, tags: normTags(x.tags),
     }));
+
+    // Shared focus per name. Older plans kept notes on each block: merge them
+    // by name, dropping repeated lines.
+    const focus = {};
+    const add = (key, items) => {
+      if (!key || !items.length) return;
+      const list = (focus[key] = focus[key] || []);
+      for (const it of items) if (!list.some(x => x.text.trim() === it.text.trim())) list.push(it);
+    };
+    if (raw.focus && typeof raw.focus === 'object' && !Array.isArray(raw.focus)) {
+      for (const [k, items] of Object.entries(raw.focus)) add(threadKey(k), normFocus(items));
+    } else {
+      for (const x of rawBlocks) add(threadKey(x.title), normFocus(x.notes));
+    }
 
     const zonesOk = ZONE_IDS.every(k => int(rz[k], 1, TOTAL_STEPS)) && ZONE_IDS.reduce((n, k) => n + rz[k], 0) === TOTAL_STEPS;
     const zones = zonesOk ? Object.fromEntries(ZONE_IDS.map(k => [k, rz[k]])) : { ...DEFAULT_ZONE_SIZES };
@@ -306,7 +331,7 @@
       showEvening: Boolean(v.showEvening) || !canHide('evening', blocks, layout),
     };
     const dayNotes = blankDayNotes().map((_, i) => str(Array.isArray(raw.dayNotes) ? raw.dayNotes[i] : ''));
-    return { id: idOr(raw.id), name: str(raw.name).trim() || 'Untitled week', view, zones, blocks, dayNotes };
+    return { id: idOr(raw.id), name: str(raw.name).trim() || 'Untitled week', view, zones, blocks, dayNotes, focus };
   }
 
   // Validate/repair anything loaded from storage or an import file.
@@ -323,6 +348,7 @@
       sidebar: s.sidebar === 'right' ? 'right' : 'left',
       sidebarHidden: s.sidebarHidden === true,
       mode: s.mode === 'review' ? 'review' : 'plan',
+      showNext: s.showNext !== false,
     };
 
     // Plans before v4 counted half as many steps; their sizes all double.
@@ -331,7 +357,7 @@
     if (Array.isArray(raw.weeks)) {
       weeks = raw.weeks.filter(w => w && typeof w === 'object' && !Array.isArray(w)).map(w => normalizeWeek(w, false, scale));
     } else {
-      weeks = [normalizeWeek({ name: 'My week', view: raw.view, zones: raw.zones, blocks: raw.blocks }, raw.version === 1, scale)];
+      weeks = [normalizeWeek({ name: 'My week', view: raw.view, zones: raw.zones, blocks: raw.blocks, focus: raw.focus }, raw.version === 1, scale)];
     }
     if (!weeks.length) weeks = [blankWeek('My week')];
     const currentWeek = weeks.some(w => w.id === raw.currentWeek) ? raw.currentWeek : weeks[0].id;
@@ -339,24 +365,38 @@
     const regulars = (Array.isArray(raw.regulars) ? raw.regulars : [])
       .filter(x => x && typeof x.title === 'string')
       .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, (x.size ? x.size * scale : 2 * STEPS_PER_LINE), FULL_RANGE).size, color: color(x.color),
-        zone: ZONE_IDS.includes(x.zone) ? x.zone : null, notes: normNotes(x.notes) }));
+        zone: ZONE_IDS.includes(x.zone) ? x.zone : null,
+        notes: normFocus(x.notes).map(n => ({ text: n.text, done: false })) })); // lines to seed a week's focus
 
     const unplaced = (Array.isArray(raw.unplaced) ? raw.unplaced : [])
       .filter(x => x && typeof x.title === 'string')
       .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, (x.size ? x.size * scale : 2 * STEPS_PER_LINE), FULL_RANGE).size, color: color(x.color),
-        notes: normNotes(x.notes) }));
+        // older unplaced items carried note lines: keep them as one session line
+        session: str(x.session) || normFocus(x.notes).map(n => n.text.trim()).join('; ') }));
 
     const tags = Array.isArray(raw.tags) ? normTags(raw.tags) : [...STARTER_TAGS];
-    return { version: 4, settings, weeks, currentWeek, regulars, unplaced, tags };
+    const timeHolders = normTags(raw.timeHolders);
+    return { version: 5, settings, weeks, currentWeek, regulars, unplaced, tags, timeHolders };
   }
 
-  // The print-out's notes page: blocks that have notes, in the board's day
-  // order, top to bottom within a day. Hidden days are left out.
-  function notesForPrint(week, days) {
-    return week.blocks
-      .filter(x => x.notes && x.notes.length && days.includes(x.day))
-      .sort((a, c) => days.indexOf(a.day) - days.indexOf(c.day) || a.start - c.start)
-      .map(x => ({ day: x.day, title: x.title, notes: x.notes }));
+  // The print-out's notes page: each name once, in board order (first
+  // appearance, by visible day then top to bottom), with the days it's on,
+  // its focus lines, and any per-block session lines. Names with nothing
+  // written, and hidden days, are left out.
+  function focusForPrint(week, days) {
+    const blocks = week.blocks.filter(x => days.includes(x.day))
+      .sort((a, c) => days.indexOf(a.day) - days.indexOf(c.day) || a.start - c.start);
+    const threads = new Map();
+    for (const x of blocks) {
+      const key = threadKey(x.title);
+      if (!threads.has(key)) threads.set(key, { title: x.title, days: [], items: (week.focus || {})[key] || [], sessions: [] });
+      const t = threads.get(key);
+      if (!t.days.includes(x.day)) t.days.push(x.day);
+      if (x.session && x.session.trim()) t.sessions.push({ day: x.day, text: x.session.trim() });
+    }
+    return [...threads.values()]
+      .map(t => ({ ...t, days: t.days.sort((a, c) => days.indexOf(a) - days.indexOf(c)) }))
+      .filter(t => t.items.length || t.sessions.length);
   }
 
   // Move list[from] to insertion point `to` (0..length, counted in the
@@ -372,7 +412,8 @@
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, STEPS_PER_LINE, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
-    defaultState, normalizeState, blankWeek, copyWeek, nextCheck, notesForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
+    defaultState, normalizeState, blankWeek, copyWeek, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
+    threadKey, nextFocus,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;
   else root.Model = Model;
