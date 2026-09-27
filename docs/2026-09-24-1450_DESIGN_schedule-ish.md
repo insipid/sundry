@@ -259,3 +259,34 @@ off via the mockup (`schedule-ish/mockups/review-mode.html`).
 Not built yet: Close week and its history, drag and draw meaning
 plan-vs-actual in review mode, the summary view, and "review this day"
 from the day name.
+
+## Round 8 (2026-09-27): shared focus notes (plan version 5)
+
+Built from the notes-focus mockup (`schedule-ish/mockups/notes-focus.html`)
+and Drew's framing: blocks are broad intents, notes are a light "what's
+next", never a to-do list, and some blocks just hold time.
+
+- **Data:** `week.focus` maps a thread key (`threadKey`: trimmed,
+  lower-cased title) to `[{ text, done }]`. `block.session` is an optional
+  per-block line. `state.timeHolders` is a global list of thread keys that
+  just hold time. `settings.showNext` defaults to on. Regular `notes` are now
+  the lines that seed a week's focus. Unplaced items carry a `session` line.
+- **Migration:** v4 per-block notes merge into the week's focus by name
+  (repeated lines dropped; ticked lines count as done). Older unplaced
+  notes fold into one session line.
+- **Dialog:** a focus list (top open line = "next"; drag to reorder; tick
+  folds into "done this week"; soft hint past five open lines), then a "This
+  session" line. The "just holding time" toggle swaps both for one free-text
+  box (the block's session), for every block of that name. All changes
+  apply on close as one undo step.
+- **Board:** with show-next on, "→ next" replaces the size word; otherwise ⋯
+  marks blocks with focus or session text. Time-holders never show next.
+- **Names are the link:** renaming the last block of a name moves its focus
+  to the new name (unless that name already has one). Duplicates share the
+  focus automatically and start with an empty session line.
+- **Copies:** `copyWeek` keeps open focus lines only, and clears session
+  lines. Dropping a regular seeds its lines into this week's focus only if
+  that name has none yet.
+- **Print:** `focusForPrint` gives one entry per name in board order, with
+  days, focus lines (done struck through) and session lines. Time-holders
+  show session lines only.

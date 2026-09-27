@@ -122,7 +122,17 @@ live week, ready to use again.
    visible "…" on the badge, the end of the tap cycle, or a long-press.
 8. Keyboard shortcuts: not tried yet (as of 2026-09-26).
 
-## Notes model (v1-critical, raised 2026-09-26)
+## Notes model (v1-critical, raised 2026-09-26): DECIDED and built 2026-09-27
+
+Drew played with the notes-focus mockup and chose it ("functionality that
+I want"), plus a way to mark blocks as just holding time. Built as the
+design doc's round 8: shared focus per name per week, "next" pill,
+reorder, done fold, a session line, a "just holding time" toggle (global
+by name, which swaps in a single free-text box), and "show what's next on
+blocks" in Settings. Choices made while building: time-holders are global
+by name; the free text is per block; "new from this week" keeps open lines
+only. Question 4 below (carrying unfinished items at Close week) is still
+open.
 
 Drew needs notes to track what each block's focus is, without the app
 becoming another to-do list. Question: should repeated blocks (e.g. from a
@@ -237,3 +247,5 @@ Feasibility only; nothing decided or built.
 - **2026-09-26:** Drew described the app's purpose (a focus aid for broad
   intents, from an OT technique; blocks are not tasks; gym and lunch just
   hold time). Built the shared-focus notes mockup (see Mockups).
+- **2026-09-27:** Drew chose the shared-focus notes and asked for a
+  time-holder toggle and a Settings switch for "what's next": built.

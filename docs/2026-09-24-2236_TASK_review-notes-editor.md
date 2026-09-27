@@ -1,6 +1,11 @@
 # TASK: try the notes editor and decide what it needs
 
-**For:** Drew · **Status:** open (checked 2026-09-25: fine for now; come back later to go deeper) · **Opened:** 2026-09-24
+**For:** Drew · **Status:** superseded 2026-09-27 · **Opened:** 2026-09-24
+
+> **Superseded:** the notes editor this TASK describes has been replaced by
+> shared focus notes (design doc round 8). The questions below were answered
+> by the notes-focus mockup that Drew chose. Kept for history; a new TASK
+> can follow once Drew has lived with focus notes for a while.
 
 schedule-ish's block notes are a first cut, built so you can see them
 before deciding more. Try them on a real week, then tell Claude what to

@@ -63,8 +63,8 @@ and move smoothly. The visible zones always fill the board's full height.
   Type a name and press Enter. Escape (or leaving it blank) throws it away.
 - **Drag** a block to move it, including to another day.
 - **Drag its top or bottom edge** to resize it.
-- **Double-click** to open its **notes** (the title is editable there too).
-  Select a block and press Enter for a quick inline rename.
+- **Double-click** to open its **focus notes** (the title is editable there
+  too). Select a block and press Enter for a quick inline rename.
 - Hover for tools: ● change colour, ⧉ duplicate, ☆ save as a regular,
   × delete. Delete or Backspace also removes the selected block.
 - **Duplicate** puts the copy straight after the original. If there's no
@@ -75,13 +75,23 @@ and move smoothly. The visible zones always fill the board's full height.
   *a good bit* or *a big chunk* rather than durations.
 - Blocks with the same name get the same colour.
 
-**Notes** are a short list of lines. Type, and press Enter for the next line.
-Backspace on an empty line removes it. Click a line's **•** to turn it into
-a tick box **☐**, then **☑**, then back. A new line after a tick box is a
-tick box too. Escape, ⌘Enter or *Done* closes the dialog. A block with notes
-shows **⋯** on the board; the text itself stays in the dialog. Notes travel
-with duplicates, copies of the week, and trips to the unplaced list.
-Regulars can hold **default notes**, which each copy you drop starts with.
+**Focus notes.** Blocks are broad intents, not tasks, so notes are just a
+light "what's next" to keep you moving, not a to-do list.
+- Every block with the **same name this week shares one focus list**. The
+  dialog says so: "Shared by 3 blocks this week: Mon · Wed · Thu".
+- The top open line is **next** (a small pill). Drag lines by the ⋮⋮ grip to
+  change what comes first. Tick a line and it folds into "done this week".
+  Past five open lines, a gentle hint asks whether it's still broad.
+- **This session** is an optional line for just the block you opened.
+- **Just holding time:** some blocks (gym, lunch) need nothing. The small
+  "just holding time" button in the dialog marks that name as a time-holder
+  everywhere: its dialog becomes a single free-text box per block. Click it
+  again to undo.
+- **Show what's next on blocks** (Settings, on by default) puts "→ next"
+  under each block's name. With it off, blocks with notes show ⋯ instead.
+- Renaming the last block of a name takes its focus along. Regulars can
+  hold lines that **start each week's focus** the first time you drop them
+  into a week. "New from this week" carries over open lines only.
 
 **Regulars** (sidebar) are templates for things you do often: a name, a
 rough size, a colour, and optionally a usual zone ("usually …", or
@@ -121,14 +131,14 @@ moves, resizes or gets deleted, and a click just selects.
 **PDF** is a shortcut for the browser's print (⌘P does the same). It opens
 the print dialog with the week on one landscape page. The week's name is at
 the top, the sidebar and buttons are hidden, and the colours are kept. If
-any blocks have notes, a **second page** lists them under "Day · name"
-headings. Choose "Save as PDF" as the destination, or print it.
+anything has notes, a **second page** lists each name once, with its days,
+its focus lines and any session notes. Choose "Save as PDF" as the destination, or print it.
 
 **Sidebar**: the header button next to undo shows or hides it. Settings
 can put it on the left or the right.
 
-**Settings** set the first day of the week, which days to show, the sidebar
-side, and the optional zones. You can also clear all blocks there. **Undo/redo**:
+**Settings** set the first day of the week, which days to show, whether
+blocks show what's next, the sidebar side, and the optional zones. You can also clear all blocks there. **Undo/redo**:
 ⌘Z / ⇧⌘Z (Ctrl on other platforms), or the header buttons.
 
 ## Saving
