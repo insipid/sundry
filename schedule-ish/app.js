@@ -193,6 +193,8 @@
     main.style.paddingRight = !sidebarHidden && sidebar === 'right' ? '12px' : '20px';
     $('#sidebar').style.display = sidebarHidden ? 'none' : '';
     $('[data-cmd="toggle-sidebar"]').classList.toggle('on', !sidebarHidden);
+    // The button's panel line sits on the same side as the sidebar.
+    $('[data-cmd="toggle-sidebar"] path').setAttribute('d', sidebar === 'right' ? 'M15 4v16' : 'M9 4v16');
   }
 
   function measureStep() {
@@ -361,7 +363,7 @@
              : shownNext ? `<div class="next-line">→ ${esc(shownNext)}</div>`
              : roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : ''}`}
       ${rev ? `<button class="rate ${rating === null ? 'empty' : typeof rating === 'number' ? '' : 'word'}" data-rate="${b.id}"
-          title="Tap: ✓ → ✓✓ → ✓✓✓ · right-click for skipped or counterproductive">${rating === null ? 'rate' : RATING_LABEL[rating]}</button>` : ''}
+          title="Tap to rate">${rating === null ? 'rate' : RATING_LABEL[rating]}</button>` : ''}
       ${hasNotes && !shownNext ? '<span class="has-notes" title="Has notes (double-click)">⋯</span>' : ''}
       ${rev && extra.unplanned ? `<div class="tools ${roomy ? 'at-bottom' : ''}">
         <button class="tool" data-action="delete" title="Delete this unplanned block (⌫)">×</button></div>` : ''}
@@ -399,7 +401,8 @@
     const b = ui.selectedId && findBlock(ui.selectedId);
     if (!b) {
       bar.innerHTML = `<span class="review-hint">Select a block to rate or tag it. Tap its corner to cycle ✓ → ✓✓ → ✓✓✓;
-        right-click for skipped or counterproductive; or use keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>−</kbd> <kbd>s</kbd> <kbd>0</kbd>.</span>`;
+        right-click for didn’t happen or counterproductive; or use keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>−</kbd> <kbd>s</kbd> <kbd>0</kbd>.
+        Arrow keys move between blocks; <kbd>Enter</kbd> opens one.</span>`;
       return;
     }
     const mine = b.tags || [];
@@ -859,6 +862,14 @@
     }
     if (t.closest && t.closest('input, textarea, select, .popover')) return;
     const mod = e.metaKey || e.ctrlKey;
+    if (!mod && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+      return navigate(e.key);
+    }
+    if (e.key === 'Enter' && ui.selectedId && findBlock(ui.selectedId)) {
+      e.preventDefault();
+      return openBlockDialog(ui.selectedId);
+    }
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if (reviewing()) {
@@ -870,11 +881,6 @@
         ui.selectedId = null;
         commit(() => removeBlock(sel));
       }
-      if (e.key === 'Enter' && isUnplanned(sel)) {
-        e.preventDefault();
-        ui.editing = { kind: 'block', id: sel.id };
-        render();
-      }
       return; // planned blocks can't be deleted or renamed while reviewing
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selectedId) {
@@ -883,12 +889,18 @@
       ui.selectedId = null;
       commit(() => { week().blocks = week().blocks.filter(b => b.id !== id); });
     }
-    if (e.key === 'Enter' && ui.selectedId) {
-      e.preventDefault();
-      ui.editing = { kind: 'block', id: ui.selectedId };
-      render();
-    }
   });
+
+  // Arrow keys: move the selection between blocks as they're shown (in
+  // review, where they actually happened, unplanned ones included).
+  function navigate(key) {
+    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const items = reviewing()
+      ? [...week().blocks.map(b => ({ id: b.id, ...M.effectivePos(b) })), ...week().unplanned.map(b => ({ id: b.id, day: b.day, start: b.start, size: b.size }))]
+      : week().blocks.map(b => ({ id: b.id, day: b.day, start: b.start, size: b.size }));
+    const id = M.navTarget(items, days, ui.selectedId, key);
+    if (id && id !== ui.selectedId) select(id);
+  }
 
   // "How was Tue?": saved when you leave the field (one undo step).
   document.addEventListener('change', e => {
@@ -908,7 +920,7 @@
     const b = findBlock(id), unplanned = isUnplanned(b);
     const at = { getBoundingClientRect: () => ({ left: e.clientX, right: e.clientX, top: e.clientY, bottom: e.clientY }) };
     openPopover(at, `
-      ${unplanned ? '' : '<button class="menu-item" data-r="skip">Skipped: didn’t do it</button>'}
+      ${unplanned ? '' : '<button class="menu-item" data-r="skip">Didn’t happen</button>'}
       <button class="menu-item" data-r="bad">Counterproductive</button>
       <button class="menu-item" data-r="">Clear rating</button>
       ${b.actual ? '<div class="menu-sep"></div><button class="menu-item" data-act="unmove">Back to plan</button>' : ''}
@@ -1253,6 +1265,7 @@
       case 'import': return $('#import-file').click();
       case 'settings': return openSettings(cmd);
       case 'weeks': return openWeeks(cmd);
+      case 'more': return openMore(cmd);
       case 'new-regular': return editRegular(null, cmd);
       case 'print': return window.print();
       case 'mode': return setMode(cmd.dataset.mode);
@@ -1296,7 +1309,7 @@
   document.addEventListener('pointerdown', e => {
     const pill = e.target.closest('[data-regular]');
     closedFor = pill && popoverFor === 'regular:' + pill.dataset.regular ? popoverFor : null;
-    if (popover && !popover.contains(e.target) && !e.target.closest('[data-cmd="settings"], [data-cmd="new-regular"], [data-cmd="weeks"]')) closePopover();
+    if (popover && !popover.contains(e.target) && !e.target.closest('[data-cmd="settings"], [data-cmd="new-regular"], [data-cmd="weeks"], [data-cmd="more"]')) closePopover();
   }, true);
 
   const SIZE_OPTS = [[2, 'a smidge'], [4, 'a bit'], [6, 'a good bit'], [8, 'a big chunk'], [12, 'loads']];
@@ -1432,6 +1445,32 @@
     });
   }
 
+  // The ⋯ menu: things you need now and then, kept out of the header.
+  function openMore(anchor) {
+    if (closePopover()) return;
+    openPopover(anchor, `
+      <button class="menu-item" data-do="export">Export this plan…</button>
+      <button class="menu-item" data-do="import">Import a plan…</button>
+      <div class="menu-sep"></div>
+      <button class="menu-item danger" data-do="clear">Clear this week’s blocks…</button>`, el => {
+      el.style.width = '230px';
+      el.style.padding = '6px';
+      el.addEventListener('click', e => {
+        const b = e.target.closest('[data-do]');
+        if (!b) return;
+        closePopover();
+        if (b.dataset.do === 'export') return exportPlan();
+        if (b.dataset.do === 'import') return $('#import-file').click();
+        if (!week().blocks.length && !week().unplanned.length) return toast('Already empty');
+        if (confirm('Clear every block from this week? (Regulars and unplaced stay. You can undo.)')) {
+          ui.selectedId = null;
+          commit(() => { week().blocks = []; week().unplanned = []; });
+          toast('Cleared. ⌘Z to undo');
+        }
+      });
+    });
+  }
+
   function openSettings(anchor) {
     if (closePopover()) return;
     openPopover(anchor, `
@@ -1450,7 +1489,6 @@
         <button data-v="early">early</button><button data-v="evening">evening</button>
       </div>
       <div class="flex items-center gap-2 mt-4 pt-3 border-t" style="border-color: var(--grid)">
-        <button class="btn danger" data-do="clear">Clear all blocks</button>
         <button class="btn ml-auto" data-do="close">Done</button>
       </div>`, el => {
       const sync = () => {
@@ -1484,12 +1522,6 @@
           const shown = b.dataset.v === 'early' ? week().view.showEarly : week().view.showEvening;
           pushUndo();
           if (setZone(b.dataset.v, !shown)) save(); else undoStack.pop();
-        } else if (b.dataset.do === 'clear') {
-          if (!week().blocks.length) return toast('Already empty');
-          if (confirm('Clear every block from the week? (Regulars and unplaced stay. You can undo.)')) {
-            commit(() => { week().blocks = []; });
-            toast('Cleared. ⌘Z to undo');
-          }
         } else if (b.dataset.do === 'close') return closePopover();
         sync();
       });

@@ -63,8 +63,11 @@ and move smoothly. The visible zones always fill the board's full height.
   Type a name and press Enter. Escape (or leaving it blank) throws it away.
 - **Drag** a block to move it, including to another day.
 - **Drag its top or bottom edge** to resize it.
-- **Double-click** to open its **focus notes** (the title is editable there
-  too). Select a block and press Enter for a quick inline rename.
+- **Double-click** (or select it and press **Enter**) to open its **focus
+  notes**. Rename it there: the name at the top is editable.
+- **Arrow keys** move between blocks: ↑/↓ within a day; ←/→ to the nearest
+  block in the next day that has any, in that direction. With nothing
+  selected, an arrow picks the first block. They work in review mode too.
 - Hover for tools: ● change colour, ⧉ duplicate, ☆ save as a regular,
   × delete. Delete or Backspace also removes the selected block.
 - **Duplicate** puts the copy straight after the original. If there's no
@@ -127,7 +130,7 @@ back at how the week went. Nothing you do in review changes the plan.
 - Planned blocks can't be deleted or renamed while reviewing. Mark them
   *skipped* instead.
 - **Rate a block:** tap the badge in its corner to cycle **✓ → ✓✓ → ✓✓✓** and
-  back to unrated. **Right-click** a block for *skipped* (didn't do it) or
+  back to unrated. **Right-click** a block for *didn't happen* or
   *counterproductive*. Or select a block and press **1 / 2 / 3**, **−**
   (counterproductive), **s** (skipped) or **0** (clear). Rating is optional;
   unrated blocks just look a little faded.
@@ -152,7 +155,7 @@ its focus lines and any session notes. Choose "Save as PDF" as the destination, 
 can put it on the left or the right.
 
 **Settings** set the first day of the week, which days to show, whether
-blocks show what's next, the sidebar side, and the optional zones. You can also clear all blocks there. **Undo/redo**:
+blocks show what's next, the sidebar side, and the optional zones. **Undo/redo**:
 ⌘Z / ⇧⌘Z (Ctrl on other platforms), or the header buttons.
 
 ## Saving
@@ -161,8 +164,9 @@ Everything (all weeks) autosaves to the browser's `localStorage`, per browser an
 origin. That means opening the file directly and serving it over
 `localhost` give you separate plans.
 
-**Export** downloads everything (all weeks, regulars, unplaced) as JSON. **Import** loads one back and
-replaces the current plan (undoable).
+The **⋯** menu in the header has **Export** (downloads everything, meaning all
+weeks, regulars and unplaced, as JSON), **Import** (loads one back and
+replaces the current plan; undoable) and **Clear this week's blocks**.
 
 ## Code
 

@@ -580,3 +580,35 @@ test('a zone stays open while an actual position or unplanned block sits in it',
     blocks: [], unplanned: [b('u', 0, 2, 2)] }], currentWeek: 'w' });
   assert.equal(wk(t).view.showEarly, true);
 });
+
+// ---- keyboard navigation between blocks ----
+
+const nav = (items, cur, key, days = [0, 1, 2, 3, 4]) => M.navTarget(items, days, cur, key);
+const I = (id, day, start, size) => ({ id, day, start, size });
+
+test('with nothing selected, any arrow selects the first block of the week', () => {
+  const items = [I('b', 1, 8, 4), I('a', 0, 20, 4), I('c', 0, 10, 4)];
+  assert.equal(nav(items, null, 'ArrowDown'), 'c');
+  assert.equal(nav([], null, 'ArrowDown'), null);
+});
+
+test('up and down move to the previous or next block in the same day, and stop at the ends', () => {
+  const items = [I('m1', 0, 8, 4), I('m2', 0, 14, 4), I('m3', 0, 22, 4), I('t', 1, 12, 4)];
+  assert.equal(nav(items, 'm2', 'ArrowDown'), 'm3');
+  assert.equal(nav(items, 'm2', 'ArrowUp'), 'm1');
+  assert.equal(nav(items, 'm3', 'ArrowDown'), 'm3');
+  assert.equal(nav(items, 'm1', 'ArrowUp'), 'm1');
+});
+
+test("left and right pick the block nearest the current one's middle in the next day that has any", () => {
+  const items = [I('a', 0, 10, 4), I('early', 1, 8, 2), I('late', 1, 20, 6), I('far', 3, 30, 4)];
+  assert.equal(nav(items, 'a', 'ArrowRight'), 'early');   // middle 12: early's is 9, late's 23
+  assert.equal(nav(items, 'late', 'ArrowRight'), 'far');  // day 2 is empty, so keep going
+  assert.equal(nav(items, 'far', 'ArrowRight'), 'far');   // nothing further: stay
+  assert.equal(nav(items, 'early', 'ArrowLeft'), 'a');
+});
+
+test("left and right follow the board's day order", () => {
+  const items = [I('sun', 6, 10, 4), I('mon', 0, 10, 4)];
+  assert.equal(M.navTarget(items, [6, 0, 1], 'sun', 'ArrowRight'), 'mon');
+});

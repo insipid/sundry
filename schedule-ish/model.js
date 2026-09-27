@@ -418,6 +418,30 @@
       .filter(t => t.items.length || t.sessions.length);
   }
 
+  // Arrow-key navigation between blocks ({ id, day, start, size }), with the
+  // board's visible `days` in order. Up/down: previous/next block in the
+  // same day. Left/right: the nearest day in that direction that has blocks,
+  // choosing the block whose middle is closest to the current one's. With
+  // nothing selected, the first block of the week. Returns an id or null.
+  function navTarget(items, days, currentId, key) {
+    const shown = items.filter(x => days.includes(x.day));
+    const order = (a, c) => days.indexOf(a.day) - days.indexOf(c.day) || a.start - c.start || a.size - c.size;
+    const cur = shown.find(x => x.id === currentId);
+    if (!cur) return shown.length ? [...shown].sort(order)[0].id : null;
+    if (key === 'ArrowUp' || key === 'ArrowDown') {
+      const same = shown.filter(x => x.day === cur.day).sort(order);
+      const i = same.indexOf(cur) + (key === 'ArrowDown' ? 1 : -1);
+      return (same[i] || cur).id;
+    }
+    const mid = x => x.start + x.size / 2;
+    const step = key === 'ArrowRight' ? 1 : -1;
+    for (let d = days.indexOf(cur.day) + step; d >= 0 && d < days.length; d += step) {
+      const there = shown.filter(x => x.day === days[d]);
+      if (there.length) return there.sort((a, c) => Math.abs(mid(a) - mid(cur)) - Math.abs(mid(c) - mid(cur)) || a.start - c.start)[0].id;
+    }
+    return cur.id;
+  }
+
   // Move list[from] to insertion point `to` (0..length, counted in the
   // original list). Returns a new array.
   function moveItem(list, from, to) {
@@ -432,7 +456,7 @@
     zonesFor, zoneLabel, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
     defaultState, normalizeState, blankWeek, copyWeek, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
-    threadKey, nextFocus, effectivePos,
+    threadKey, nextFocus, effectivePos, navTarget,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;
   else root.Model = Model;
