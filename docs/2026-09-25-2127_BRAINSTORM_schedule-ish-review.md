@@ -263,6 +263,15 @@ lull" / "the break". Either is a one-line label change (the stored zone id
 stays `midday`). An alternative that ends the question for good: let zones
 be renamed in Settings. Undecided.
 
+## For v1: print page 2 needs more love (raised 2026-09-27)
+
+Drew wants the print-out's second page to include the day summaries ("How
+was Tue?"), and it needs more care generally, with block reviews and
+unplanned blocks presumably in there too. "Doesn't have to be next", but
+it's before v1. Links to: the week-in-review idea (day notes plus block
+reviews together), the summary view, and the review-report print layout
+in Side ideas.
+
 ## Side ideas (not review, raised 2026-09-26)
 
 Feasibility only; nothing decided or built.
@@ -340,3 +349,7 @@ Feasibility only; nothing decided or built.
 - **2026-09-27:** Built review-mode move, resize and draw (plan vs actual),
   as decided. Found and fixed a bug that lost a new block's name when the tag
   bar grew.
+- **2026-09-27:** A ghost now highlights with its own block only. Unplanned
+  blocks got a hover ×, Enter to rename, and a dialog with name, Delete and
+  "What happened" (Drew: the review box is the description). Print page 2
+  noted as a v1 item.

@@ -116,11 +116,13 @@ week.
 back at how the week went. Nothing you do in review changes the plan.
 - **What actually happened:** drag a block to where it really happened, or
   drag its edges if it took longer or shorter. A faint dashed ghost marks
-  where it was planned. Right-click, then **Back to plan**, to undo that for
-  one block. Plan mode always shows the plan.
+  where it was planned; it lights up when you select or hover its block.
+  Right-click, then **Back to plan**, to undo that for one block. Plan mode always shows the plan.
 - **Unplanned blocks:** draw on empty space for something that happened
   without being planned. It's hatched, can be rated, tagged and reviewed like
-  any block, and deleted (Delete key, or right-click). In plan mode it shows
+  any block (its "What happened" box doubles as a description). Rename it with
+  Enter or in its dialog; delete it with the hover ×, the Delete key, or
+  right-click. In plan mode it shows
   faintly, so you can see where reality didn't match the plan.
 - Planned blocks can't be deleted or renamed while reviewing. Mark them
   *skipped* instead.
