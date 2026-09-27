@@ -318,8 +318,8 @@
   function planGhostHtml(b) {
     const px = ui.stepPx;
     const [, ink] = M.PALETTE[b.color] || M.PALETTE[0];
-    return `<div class="plan-ghost" style="--ring:${ink}; top:${(b.start - ui.range.start) * px + 1.5}px; height:${b.size * px - 3}px"
-      title="Planned here"></div>`;
+    return `<div class="plan-ghost ${b.id === ui.selectedId ? 'lit' : ''}" data-ghost-for="${b.id}"
+      style="--ring:${ink}; top:${(b.start - ui.range.start) * px + 1.5}px; height:${b.size * px - 3}px" title="Planned here"></div>`;
   }
 
   function blockHtml(b, lay, isGhost = false, extra = {}) {
@@ -363,6 +363,8 @@
       ${rev ? `<button class="rate ${rating === null ? 'empty' : typeof rating === 'number' ? '' : 'word'}" data-rate="${b.id}"
           title="Tap: ✓ → ✓✓ → ✓✓✓ · right-click for skipped or counterproductive">${rating === null ? 'rate' : RATING_LABEL[rating]}</button>` : ''}
       ${hasNotes && !shownNext ? '<span class="has-notes" title="Has notes (double-click)">⋯</span>' : ''}
+      ${rev && extra.unplanned ? `<div class="tools ${roomy ? 'at-bottom' : ''}">
+        <button class="tool" data-action="delete" title="Delete this unplanned block (⌫)">×</button></div>` : ''}
       ${isGhost || rev || faint ? '' : `<div class="tools ${roomy ? 'at-bottom' : ''}">
         <button class="tool" data-action="color" title="Change colour" style="color:inherit">●</button>
         <button class="tool" data-action="duplicate" title="Duplicate (or ⌥-drag)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="3"/><path d="M16 8V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h2"/></svg></button>
@@ -385,6 +387,7 @@
     ui.selectedId = id;
     ui.addingTag = false;
     $$('.block').forEach(el => el.classList.toggle('selected', el.dataset.block === id));
+    $$('.plan-ghost').forEach(g => g.classList.toggle('lit', g.dataset.ghostFor === id));
     renderReviewBar();
   }
 
@@ -406,6 +409,13 @@
         : '<button class="tag-chip add" data-cmd="add-tag">+ tag</button>'}`;
     if (ui.addingTag) $('#new-tag').focus();
   }
+
+  // Hovering a moved block lights up the ghost of where it was planned.
+  document.addEventListener('pointerover', e => {
+    const el = e.target.closest && e.target.closest('.block');
+    const id = el && el.dataset.block;
+    $$('.plan-ghost').forEach(g => g.classList.toggle('hot', !!id && g.dataset.ghostFor === id));
+  });
 
   // ---- geometry ------------------------------------------------------------
 
@@ -856,6 +866,11 @@
         ui.selectedId = null;
         commit(() => removeBlock(sel));
       }
+      if (e.key === 'Enter' && isUnplanned(sel)) {
+        e.preventDefault();
+        ui.editing = { kind: 'block', id: sel.id };
+        render();
+      }
       return; // planned blocks can't be deleted or renamed while reviewing
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selectedId) {
@@ -940,6 +955,7 @@
   function renameBlock(b, title) {
     const from = M.threadKey(b.title), to = M.threadKey(title);
     b.title = title;
+    if (isUnplanned(b)) return;
     if (from === to || !from) return;
     const f = week().focus;
     const others = week().blocks.some(x => x !== b && M.threadKey(x.title) === from);
@@ -1129,7 +1145,7 @@
     overlay.innerHTML = `
       <div class="dialog" role="dialog" aria-label="Review this block">
         <div class="dialog-head" style="background:${fill}; color:${ink}">
-          <div class="dialog-title">${esc(b.title || 'untitled')}</div>
+          ${isUnplanned(b) ? `<input class="dialog-title" value="${esc(b.title)}" placeholder="what was it?">` : `<div class="dialog-title">${esc(b.title || 'untitled')}</div>`}
           <div class="text-xs opacity-80 mt-0.5">${isUnplanned(b) ? 'Unplanned · ' : b.actual ? 'Moved from the plan · ' : ''}${M.DAY_LONG[M.effectivePos(b).day]} · ${M.zoneLabel(M.zoneAt(M.effectivePos(b).start, ui.zones))} · ${M.sizeWord(M.effectivePos(b).size)}${shared > 1 ? ` · focus shared by ${shared} blocks` : ''}</div>
         </div>
         <div class="dialog-body">
@@ -1138,11 +1154,12 @@
             ${done.map(x => `<div class="ro-item done">✓ ${esc(x.text)}</div>`).join('')}</div>` : ''}
           ${b.session && b.session.trim() ? `<div class="dialog-sec"><h3>${holder ? 'Note' : 'This session'} <span class="ro">(as planned)</span></h3>
             <div class="ro-item">${esc(b.session)}</div></div>` : ''}
-          <div class="dialog-sec"><h3>Review · ${M.DAY_LONG[M.effectivePos(b).day]}</h3>
-            <textarea class="session-box review-box" rows="3" placeholder="How did this block go?">${esc(b.review || '')}</textarea></div>
+          <div class="dialog-sec"><h3>${isUnplanned(b) ? 'What happened' : 'Review'} · ${M.DAY_LONG[M.effectivePos(b).day]}</h3>
+            <textarea class="session-box review-box" rows="3" placeholder="${isUnplanned(b) ? 'What was it, and how did it go?' : 'How did this block go?'}">${esc(b.review || '')}</textarea></div>
         </div>
         <div class="flex items-center px-4 pb-4 pt-1">
-          <span class="text-[11.5px]" style="color:var(--muted)">The plan is read-only while reviewing · Esc or ⌘Enter to close</span>
+          ${isUnplanned(b) ? '<button class="btn danger" data-do="delete">Delete</button>'
+            : '<span class="text-[11.5px]" style="color:var(--muted)">The plan is read-only while reviewing · Esc or ⌘Enter to close</span>'}
           <button class="btn primary ml-auto" data-do="done">Done</button>
         </div>
       </div>`;
@@ -1151,14 +1168,28 @@
     box.focus();
     box.setSelectionRange(box.value.length, box.value.length);
 
+    const titleInput = overlay.querySelector('input.dialog-title');
     const close = () => {
       overlay.remove();
       const text = box.value.trim();
-      if (text !== (b.review || '')) { pushUndo(before); b.review = text; save(); }
+      const title = titleInput ? titleInput.value.trim() : b.title;
+      if (text !== (b.review || '') || (title && title !== b.title)) {
+        pushUndo(before);
+        b.review = text;
+        if (title) b.title = title;
+        save();
+      }
       render();
     };
     overlay.addEventListener('pointerdown', e => { if (e.target === overlay) close(); });
-    overlay.addEventListener('click', e => { if (e.target.closest('[data-do="done"]')) close(); });
+    overlay.addEventListener('click', e => {
+      if (e.target.closest('[data-do="done"]')) close();
+      else if (e.target.closest('[data-do="delete"]')) {
+        overlay.remove();
+        ui.selectedId = null;
+        commit(() => removeBlock(b));
+      }
+    });
     overlay.addEventListener('keydown', e => {
       e.stopPropagation(); // keep 1/2/3, ⌫ and ⌘Z away from the board underneath
       if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); close(); }
@@ -1182,7 +1213,7 @@
       switch (act.dataset.action) {
         case 'delete':
           ui.selectedId = null;
-          return commit(() => { week().blocks = week().blocks.filter(b => b.id !== id); });
+          return commit(() => removeBlock(findBlock(id)));
         case 'duplicate': {
           const b = findBlock(id);
           const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
