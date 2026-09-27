@@ -180,8 +180,10 @@
     /* review: unplanned blocks are hatched; ghosts mark where moved blocks were planned */
     .block.unplanned { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 5px, transparent 5px 11px); border: 1.5px dashed var(--ring); }
     .block.faint-unplanned { opacity: .32; pointer-events: none; z-index: 0; }
-    .plan-ghost { position: absolute; left: 3px; right: 3px; border: 1.5px dashed var(--ring); border-radius: 12px; opacity: .4; pointer-events: none; }
-    .plan-ghost.lit, .plan-ghost.hot { opacity: .95; border-width: 2px; background: color-mix(in srgb, var(--ring) 10%, transparent); }
+    /* The ghost takes pointer events only for hover; a press on it still draws in the column. */
+    .plan-ghost { position: absolute; left: 3px; right: 3px; border: 1.5px dashed var(--ring); border-radius: 12px; opacity: .4; }
+    .plan-ghost.lit, .plan-ghost.hot { opacity: .7; background: color-mix(in srgb, var(--ring) 6%, transparent); }
+    .block.ghost-hot { outline: 2px solid color-mix(in srgb, var(--ring) 50%, transparent); outline-offset: 2px; }
     body.reviewing .block .title { padding-right: 30px; }
     body.reviewing .block.unrated { opacity: .62; }
     body.reviewing .block.r-1 { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ring) 45%, transparent); }

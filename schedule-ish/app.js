@@ -410,11 +410,15 @@
     if (ui.addingTag) $('#new-tag').focus();
   }
 
-  // Hovering a moved block lights up the ghost of where it was planned.
+  // Hovering a moved block lights up the ghost of where it was planned, and
+  // hovering the ghost lights up where the block ended up.
   document.addEventListener('pointerover', e => {
     const el = e.target.closest && e.target.closest('.block');
-    const id = el && el.dataset.block;
+    const ghost = e.target.closest && e.target.closest('.plan-ghost');
+    const gid = ghost && ghost.dataset.ghostFor;
+    const id = (el && el.dataset.block) || gid;
     $$('.plan-ghost').forEach(g => g.classList.toggle('hot', !!id && g.dataset.ghostFor === id));
+    $$('.block').forEach(b => b.classList.toggle('ghost-hot', !!gid && b.dataset.block === gid));
   });
 
   // ---- geometry ------------------------------------------------------------
