@@ -87,7 +87,22 @@ live week, ready to use again.
 - So review mode isn't purely "locked": dragging and drawing change meaning
   there. Resizing in review mode is still undecided.
 
-## Review mode: move and resize = what actually happened (v1, raised 2026-09-27)
+## Review mode: move and resize = what actually happened (v1): DECIDED 2026-09-27, not built
+
+**Decided:** the same block carries an optional `actual`, not a copy.
+1. **Unplanned blocks show faintly in plan mode**, so mismatches are visible
+   while planning. Only unplanned blocks: moved or resized blocks never show
+   their actual position in plan mode (the two modes must stay distinct).
+2. Ghosts of the plan in review mode: **not answered yet**. Claude's default
+   is to show them always, very faint.
+3. **Deleting unplanned blocks in review: yes.** Planned blocks can only be
+   marked skipped.
+4. **Resize in review = "took longer / shorter"**, with no separate rating.
+
+Waiting on Close week and template vs single week, because a closed week
+must store this state. Build when Drew says go.
+
+(Original proposal and questions below.)
 
 Drew wants to move and resize blocks in review mode ("it took longer"),
 but those changes must not touch the plan, while still counting in the
@@ -219,6 +234,17 @@ Questions for Drew:
 3. Do per-session notes matter, or is a shared focus enough?
 4. At Close week, should unfinished focus items carry into the next week?
 
+## Zone name: "midday" (raised 2026-09-27)
+
+Drew dislikes "midday" because it reads as literally noon, though the
+figurative "middle of the day" is right. A hyphen ("mid-day") doesn't help.
+Options, in lower case as displayed: **noon-ish** (Claude's pick: the "-ish"
+makes it clearly a rough band, and it echoes the app's name), **middle**
+(the plainer pick), "between", "lunch" (clashes with Lunch blocks), "the
+lull" / "the break". Either is a one-line label change (the stored zone id
+stays `midday`). An alternative that ends the question for good: let zones
+be renamed in Settings. Undecided.
+
 ## Side ideas (not review, raised 2026-09-26)
 
 Feasibility only; nothing decided or built.
@@ -283,3 +309,7 @@ Feasibility only; nothing decided or built.
   kept separate from the plan; proposal recorded above (block `actual` plus
   unplanned blocks). Also fixed: clicking a regular's pill again now closes
   its editor.
+- **2026-09-27:** Drew decided the review plan-vs-actual questions (1, 3, 4;
+  2 is still open, with a default) and asked for a better word than "midday";
+  options recorded. Close week and template vs single week are still being
+  thought about.
