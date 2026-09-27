@@ -539,3 +539,44 @@ test('blocks keep a review note; copies of a week start without one', () => {
   const copy = M.copyWeek(wk(s), 'Next');
   assert.deepEqual(copy.blocks.map(x => x.review), ['', '']);
 });
+
+// ---- review: what actually happened ----
+
+test('a block can record where it actually happened; bad values are dropped, out-of-range ones clamped', () => {
+  const s = M.normalizeState({ weeks: [{ id: 'w', name: 'W', blocks: [
+    { ...b('a', 0, 8, 4), actual: { day: 1, start: 10, size: 6 } },
+    { ...b('c', 0, 14, 4), actual: { day: 9, start: 10, size: 6 } },
+    { ...b('d', 0, 20, 4), actual: { day: 2, start: 38, size: 6 } },
+    b('e', 0, 26, 4),
+  ] }], currentWeek: 'w' });
+  assert.deepEqual(wk(s).blocks.map(x => x.actual), [{ day: 1, start: 10, size: 6 }, null, { day: 2, start: 34, size: 6 }, null]);
+});
+
+test('effectivePos is where a block is shown in review: actual if recorded, else the plan', () => {
+  assert.deepEqual(M.effectivePos({ ...b('a', 0, 8, 4), actual: { day: 1, start: 10, size: 6 } }), { day: 1, start: 10, size: 6 });
+  assert.deepEqual(M.effectivePos({ ...b('a', 0, 8, 4), actual: null }), { day: 0, start: 8, size: 4 });
+});
+
+test('unplanned blocks live in their own list on the week', () => {
+  const s = M.normalizeState({ weeks: [{ id: 'w', name: 'W', blocks: [],
+    unplanned: [{ ...b('u', 2, 22, 6), title: 'Fire drill', rating: 'bad', review: 'ate the afternoon' }, { id: 'junk' }] }], currentWeek: 'w' });
+  assert.deepEqual(wk(s).unplanned.map(x => [x.id, x.day, x.start, x.size, x.title, x.rating, x.review]), [['u', 2, 22, 6, 'Fire drill', 'bad', 'ate the afternoon']]);
+  assert.deepEqual(M.normalizeState({}).weeks[0].unplanned, []);
+});
+
+test('a copied week drops actuals and unplanned blocks', () => {
+  const src = { ...M.blankWeek('W'), blocks: [{ ...b('a', 0, 8, 4), actual: { day: 1, start: 10, size: 6 } }],
+    unplanned: [{ ...b('u', 2, 22, 6) }] };
+  const copy = M.copyWeek(src, 'Next');
+  assert.equal(copy.blocks[0].actual, null);
+  assert.deepEqual(copy.unplanned, []);
+});
+
+test('a zone stays open while an actual position or unplanned block sits in it', () => {
+  const s = M.normalizeState({ weeks: [{ id: 'w', name: 'W', view: { showEvening: false },
+    blocks: [{ ...b('a', 0, 8, 4), actual: { day: 0, start: 34, size: 4 } }] }], currentWeek: 'w' });
+  assert.equal(wk(s).view.showEvening, true);
+  const t = M.normalizeState({ weeks: [{ id: 'w', name: 'W', view: { showEarly: false },
+    blocks: [], unplanned: [b('u', 0, 2, 2)] }], currentWeek: 'w' });
+  assert.equal(wk(t).view.showEarly, true);
+});

@@ -237,22 +237,27 @@
   const normTags = v => [...new Set((Array.isArray(v) ? v : [])
     .filter(t => typeof t === 'string').map(t => t.trim().toLowerCase()).filter(Boolean))];
   const blankDayNotes = () => Array(7).fill('');
+  // Where a block shows in review mode: where it actually happened, if that
+  // was recorded, otherwise where it was planned.
+  const effectivePos = b => (b.actual ? { ...b.actual } : { day: b.day, start: b.start, size: b.size });
   // Monday = 0, like the board's days.
   const todayIndex = (date = new Date()) => (date.getDay() + 6) % 7;
 
   function blankWeek(name = 'New week') {
-    return { id: newId(), name, view: defaultView(), zones: { ...DEFAULT_ZONE_SIZES }, blocks: [], dayNotes: blankDayNotes(), focus: {} };
+    return { id: newId(), name, view: defaultView(), zones: { ...DEFAULT_ZONE_SIZES }, blocks: [], unplanned: [], dayNotes: blankDayNotes(), focus: {} };
   }
 
   // A deep copy with fresh ids. Open focus lines carry over; done lines,
-  // session notes, ratings, tags, block reviews and day notes start fresh.
+  // session notes, ratings, tags, block reviews, day notes, actual positions
+  // and unplanned blocks start fresh.
   function copyWeek(week, name) {
     const copy = JSON.parse(JSON.stringify(week));
     copy.id = newId();
     copy.name = name;
     copy.dayNotes = blankDayNotes();
     copy.focus = Object.fromEntries(Object.entries(copy.focus || {}).map(([k, items]) => [k, items.filter(x => !x.done)]));
-    for (const x of copy.blocks) { x.id = newId(); x.rating = null; x.tags = []; x.session = ''; x.review = ''; }
+    for (const x of copy.blocks) { x.id = newId(); x.rating = null; x.tags = []; x.session = ''; x.review = ''; x.actual = null; }
+    copy.unplanned = [];
     return copy;
   }
 
@@ -306,11 +311,18 @@
       });
       rz = DEFAULT_ZONE_SIZES;
     }
-    const blocks = rawBlocks.map(x => ({
+    const normBlock = x => ({
       id: idOr(x.id), day: x.day, ...clampBlock(x.start, x.size, FULL_RANGE),
       title: str(x.title), color: color(x.color), session: str(x.session),
       rating: RATINGS.includes(x.rating) ? x.rating : null, tags: normTags(x.tags), review: str(x.review),
-    }));
+    });
+    const validPos = p => p && int(p.day, 0, 6) && Number.isFinite(p.start) && Number.isFinite(p.size);
+    // Review: where a planned block actually happened (null = as planned).
+    const blocks = rawBlocks.map(x => ({ ...normBlock(x),
+      actual: validPos(x.actual) ? { day: x.actual.day, ...clampBlock(x.actual.start, x.actual.size, FULL_RANGE) } : null }));
+    // Review: blocks that happened without being planned. Kept apart from the
+    // plan so nothing that plans (pushing, gaps, duplicates) ever sees them.
+    const unplanned = (Array.isArray(raw.unplanned) ? raw.unplanned : []).filter(validPos).map(normBlock);
 
     // Shared focus per name. Older plans kept notes on each block: merge them
     // by name, dropping repeated lines.
@@ -330,13 +342,15 @@
     const zones = zonesOk ? Object.fromEntries(ZONE_IDS.map(k => [k, rz[k]])) : { ...DEFAULT_ZONE_SIZES };
     const layout = zonesFor(zones);
 
+    // Everything that takes up time: plans, actual positions, unplanned blocks.
+    const occupied = [...blocks, ...blocks.filter(x => x.actual).map(x => x.actual), ...unplanned];
     const v = raw.view || {};
     const view = {
-      showEarly: Boolean(v.showEarly) || !canHide('early', blocks, layout),
-      showEvening: Boolean(v.showEvening) || !canHide('evening', blocks, layout),
+      showEarly: Boolean(v.showEarly) || !canHide('early', occupied, layout),
+      showEvening: Boolean(v.showEvening) || !canHide('evening', occupied, layout),
     };
     const dayNotes = blankDayNotes().map((_, i) => str(Array.isArray(raw.dayNotes) ? raw.dayNotes[i] : ''));
-    return { id: idOr(raw.id), name: str(raw.name).trim() || 'Untitled week', view, zones, blocks, dayNotes, focus };
+    return { id: idOr(raw.id), name: str(raw.name).trim() || 'Untitled week', view, zones, blocks, unplanned, dayNotes, focus };
   }
 
   // Validate/repair anything loaded from storage or an import file.
@@ -418,7 +432,7 @@
     zonesFor, zoneLabel, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
     defaultState, normalizeState, blankWeek, copyWeek, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
-    threadKey, nextFocus,
+    threadKey, nextFocus, effectivePos,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;
   else root.Model = Model;
