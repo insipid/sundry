@@ -17,11 +17,16 @@
   const TOTAL_STEPS = ZONE_IDS.reduce((n, id) => n + DEFAULT_ZONE_SIZES[id], 0);
   const FULL_RANGE = { start: 0, end: TOTAL_STEPS };
 
+  // What each zone is called on screen. Ids are what's stored; "midday" is
+  // shown as "noon-ish" so it reads as a rough band, not 12:00.
+  const ZONE_LABELS = { midday: 'noon-ish' };
+  const zoneLabel = id => ZONE_LABELS[id] || id;
+
   // Zone sizes (steps per zone) → [{ id, label, steps, start, end, optional }]
   function zonesFor(sizes) {
     let acc = 0;
     return ZONE_IDS.map(id => {
-      const z = { id, label: id, steps: sizes[id], start: acc, end: acc + sizes[id], optional: !!OPTIONAL[id] };
+      const z = { id, label: zoneLabel(id), steps: sizes[id], start: acc, end: acc + sizes[id], optional: !!OPTIONAL[id] };
       acc = z.end;
       return z;
     });
@@ -410,7 +415,7 @@
 
   const Model = {
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, STEPS_PER_LINE, DAY_NAMES, DAY_LONG, PALETTE,
-    zonesFor, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
+    zonesFor, zoneLabel, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
     defaultState, normalizeState, blankWeek, copyWeek, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
     threadKey, nextFocus,

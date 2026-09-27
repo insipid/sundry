@@ -135,7 +135,7 @@
     const regulars = state.regulars.map(r => `
       <div class="chip" data-regular="${r.id}" style="${colorStyle(r.color)}" title="Drag onto a day · click to edit">
         <span class="truncate">${esc(r.title)}</span>
-        ${r.zone ? `<span class="text-[11px] opacity-60">${r.zone}</span>` : ''}
+        ${r.zone ? `<span class="text-[11px] opacity-60">${M.zoneLabel(r.zone)}</span>` : ''}
         ${pips(r.size)}
       </div>`).join('');
 
@@ -166,7 +166,7 @@
       <section class="mt-auto text-[11.5px] leading-relaxed" style="color:var(--muted)">
         <p><b class="font-semibold">Drag down</b> in a day to rough out a chunk, or click for a default one.</p>
         <p>Drag edges to resize. <b class="font-semibold">Double-click</b> for its focus notes. <b class="font-semibold">⌥-drag</b> to copy. Drop a regular on a <b class="font-semibold">day name</b> to put it in its usual spot.</p>
-        <p>Drag a <b class="font-semibold">zone name</b> (midday, afternoon…) to move where it starts. <b class="font-semibold">+ early / + evening</b> add the ends of the day; click the word to tuck it away.</p>
+        <p>Drag a <b class="font-semibold">zone name</b> (noon-ish, afternoon…) to move where it starts. <b class="font-semibold">+ early / + evening</b> add the ends of the day; click the word to tuck it away.</p>
       </section>`;
   }
 
@@ -645,7 +645,7 @@
         $$('.day-head').forEach(h => {
           const hot = +h.dataset.day === headDay;
           h.classList.toggle('drop-hot', hot);
-          if (hot) h.dataset.hint = item.zone || 'whenever';
+          if (hot) h.dataset.hint = item.zone ? M.zoneLabel(item.zone) : 'whenever';
         });
       },
       end(d) {
@@ -955,7 +955,7 @@
           </div>
           <div class="text-xs opacity-80 mt-0.5">${siblings.length > 1
             ? `Shared by <b>${siblings.length} blocks</b> this week: ${siblings.map(x => x === b ? `<b>${M.DAY_NAMES[x.day]}</b>` : M.DAY_NAMES[x.day]).join(' · ')}`
-            : `${M.DAY_LONG[b.day]} · ${M.zoneAt(b.start, ui.zones)} · ${M.sizeWord(b.size)}`}</div>
+            : `${M.DAY_LONG[b.day]} · ${M.zoneLabel(M.zoneAt(b.start, ui.zones))} · ${M.sizeWord(b.size)}`}</div>
         </div>
         <div class="dialog-body"></div>
         <div class="flex items-center px-4 pb-4 pt-1">

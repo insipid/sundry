@@ -234,7 +234,7 @@ Questions for Drew:
 3. Do per-session notes matter, or is a shared focus enough?
 4. At Close week, should unfinished focus items carry into the next week?
 
-## Zone name: "midday" (raised 2026-09-27)
+## Zone name: "midday" (raised 2026-09-27): DECIDED "noon-ish", built 2026-09-27
 
 Drew dislikes "midday" because it reads as literally noon, though the
 figurative "middle of the day" is right. A hyphen ("mid-day") doesn't help.
@@ -313,3 +313,5 @@ Feasibility only; nothing decided or built.
   2 is still open, with a default) and asked for a better word than "midday";
   options recorded. Close week and template vs single week are still being
   thought about.
+- **2026-09-27:** Drew picked "noon-ish" for the middle zone; built (display
+  label only, and the stored id stays `midday`).

@@ -521,3 +521,10 @@ test('focusForPrint lists each thread once, in board order, with its days and se
   assert.deepEqual(out[0].sessions, [{ day: 2, text: 'just Acme' }]);
   assert.deepEqual(out[1].sessions, [{ day: 1, text: 'legs' }]);
 });
+
+test('the middle zone is shown as "noon-ish" (its stored id stays "midday")', () => {
+  assert.equal(M.zoneLabel('midday'), 'noon-ish');
+  assert.equal(M.zoneLabel('morning'), 'morning');
+  assert.equal(M.zone('midday').label, 'noon-ish');
+  assert.equal(M.zone('midday').id, 'midday');
+});
