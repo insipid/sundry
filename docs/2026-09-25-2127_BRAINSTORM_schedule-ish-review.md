@@ -97,7 +97,10 @@ start without reviews.
   Tue?") and block reviews together, per day, as the written part of the
   week in review. Not built; it belongs to the summary view design.
 
-## Review mode: move and resize = what actually happened (v1): DECIDED 2026-09-27, not built
+## Review mode: move and resize = what actually happened (v1): DECIDED and BUILT 2026-09-27
+
+Built as the design doc's round 9. The ghost question (2) went in as the
+default: always shown, faint.
 
 (2026-09-27: Drew found resizing hard in review mode. That's because it
 isn't built yet: review still locks the plan. Claude pointed out it doesn't
@@ -334,3 +337,6 @@ Feasibility only; nothing decided or built.
   per-block review box. Noted: day notes and block reviews should come
   together in the week-in-review summary. Resizing in review isn't built yet
   (it's plan vs actual); offered to build it next.
+- **2026-09-27:** Built review-mode move, resize and draw (plan vs actual),
+  as decided. Found and fixed a bug that lost a new block's name when the tag
+  bar grew.

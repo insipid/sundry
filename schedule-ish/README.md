@@ -113,8 +113,17 @@ there. Dragging a block from the week back onto this list takes it off the
 week.
 
 **Review** (the *Plan / Review* switch next to the week name) is for looking
-back at how the week went. The plan is locked while you review: nothing
-moves, resizes or gets deleted, and a click just selects.
+back at how the week went. Nothing you do in review changes the plan.
+- **What actually happened:** drag a block to where it really happened, or
+  drag its edges if it took longer or shorter. A faint dashed ghost marks
+  where it was planned. Right-click, then **Back to plan**, to undo that for
+  one block. Plan mode always shows the plan.
+- **Unplanned blocks:** draw on empty space for something that happened
+  without being planned. It's hatched, can be rated, tagged and reviewed like
+  any block, and deleted (Delete key, or right-click). In plan mode it shows
+  faintly, so you can see where reality didn't match the plan.
+- Planned blocks can't be deleted or renamed while reviewing. Mark them
+  *skipped* instead.
 - **Rate a block:** tap the badge in its corner to cycle **✓ → ✓✓ → ✓✓✓** and
   back to unrated. **Right-click** a block for *skipped* (didn't do it) or
   *counterproductive*. Or select a block and press **1 / 2 / 3**, **−**

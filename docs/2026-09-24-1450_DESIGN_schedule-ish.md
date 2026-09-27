@@ -290,3 +290,26 @@ next", never a to-do list, and some blocks just hold time.
 - **Print:** `focusForPrint` gives one entry per name in board order, with
   days, focus lines (done struck through) and session lines. Time-holders
   show session lines only.
+
+## Round 9 (2026-09-27): review records what actually happened
+
+Decided in the brainstorm ("Review mode: move and resize = what actually
+happened").
+- **Data:** planned blocks carry `actual` ({ day, start, size } or null =
+  as planned); `effectivePos` is where a block shows in review. Unplanned
+  blocks live in `week.unplanned`, apart from the plan, so pushing, gap
+  finding and duplicates never see them. Zones stay open while an actual
+  position or unplanned block sits in them. `copyWeek` drops both. Still
+  plan version 5 (additive).
+- **Review mode:** drag = actual position; edge drag = took longer or
+  shorter; a faint dashed ghost at the planned position (shown always, the
+  default for the question that was left open). Drawing on empty space makes
+  a hatched unplanned block, named inline. Right-click: "Back to plan", or
+  "Delete (unplanned)". Delete removes unplanned blocks only. A block dragged
+  back onto its plan returns to "as planned" (`tidyActual`).
+- **Plan mode:** ignores `actual`; unplanned blocks show at 32% opacity and
+  can't be clicked, so mismatches are visible while planning.
+- **Fix found while testing:** in review mode, selecting a new block grows
+  the tag bar, the board refits, and the redraw was dropping the name being
+  typed. `renderBoard` now keeps an in-progress edit (value, caret, focus)
+  across redraws.
