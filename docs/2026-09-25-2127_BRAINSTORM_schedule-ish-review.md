@@ -87,6 +87,36 @@ live week, ready to use again.
 - So review mode isn't purely "locked": dragging and drawing change meaning
   there. Resizing in review mode is still undecided.
 
+## Review mode: move and resize = what actually happened (v1, raised 2026-09-27)
+
+Drew wants to move and resize blocks in review mode ("it took longer"),
+but those changes must not touch the plan, while still counting in the
+week's review. This builds on the "Plan vs actual through gestures" idea
+above.
+
+**Claude's proposal:** each block keeps its plan, plus an optional
+`actual` ({ day, start, size }).
+- Plan mode always shows the plan and ignores `actual`.
+- In review mode, dragging or resizing sets `actual`. The block shows
+  there, with a faint dashed ghost at its planned position. Resizing means
+  "took longer or shorter".
+- Drawing on empty space in review mode makes an **unplanned** block
+  (hatched), for "something ate my afternoon". It exists only in review.
+- Right-click gains "Back to plan" (clears `actual`).
+- Ratings, tags and focus stay on the block. The summary can later compare
+  plan and actual per block (drift, overruns).
+- Untouched blocks have no `actual` ("as planned"). "New from this week"
+  drops actuals and unplanned blocks. Nothing flows back into the plan
+  automatically; a "make this the plan" action could come later.
+
+Questions for Drew:
+1. Unplanned blocks in plan mode: invisible, or faint?
+2. Ghosts of the plan in review: always, or only for the selected block?
+3. Deleting in review: allowed for unplanned blocks, while planned ones can
+   only be marked skipped?
+4. Resize in review = "took longer / shorter" (no separate "overran"
+   rating)?
+
 ## Mockups
 
 - `schedule-ish/mockups/notes-focus.html`: shared focus notes. Click a
@@ -249,3 +279,7 @@ Feasibility only; nothing decided or built.
   hold time). Built the shared-focus notes mockup (see Mockups).
 - **2026-09-27:** Drew chose the shared-focus notes and asked for a
   time-holder toggle and a Settings switch for "what's next": built.
+- **2026-09-27:** Drew raised moving and resizing in review mode, with state
+  kept separate from the plan; proposal recorded above (block `actual` plus
+  unplanned blocks). Also fixed: clicking a regular's pill again now closes
+  its editor.
