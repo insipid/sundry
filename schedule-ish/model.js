@@ -245,14 +245,14 @@
   }
 
   // A deep copy with fresh ids. Open focus lines carry over; done lines,
-  // session notes, ratings, tags and day notes start fresh.
+  // session notes, ratings, tags, block reviews and day notes start fresh.
   function copyWeek(week, name) {
     const copy = JSON.parse(JSON.stringify(week));
     copy.id = newId();
     copy.name = name;
     copy.dayNotes = blankDayNotes();
     copy.focus = Object.fromEntries(Object.entries(copy.focus || {}).map(([k, items]) => [k, items.filter(x => !x.done)]));
-    for (const x of copy.blocks) { x.id = newId(); x.rating = null; x.tags = []; x.session = ''; }
+    for (const x of copy.blocks) { x.id = newId(); x.rating = null; x.tags = []; x.session = ''; x.review = ''; }
     return copy;
   }
 
@@ -309,7 +309,7 @@
     const blocks = rawBlocks.map(x => ({
       id: idOr(x.id), day: x.day, ...clampBlock(x.start, x.size, FULL_RANGE),
       title: str(x.title), color: color(x.color), session: str(x.session),
-      rating: RATINGS.includes(x.rating) ? x.rating : null, tags: normTags(x.tags),
+      rating: RATINGS.includes(x.rating) ? x.rating : null, tags: normTags(x.tags), review: str(x.review),
     }));
 
     // Shared focus per name. Older plans kept notes on each block: merge them

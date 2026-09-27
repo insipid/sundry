@@ -528,3 +528,14 @@ test('the middle zone is shown as "noon-ish" (its stored id stays "midday")', ()
   assert.equal(M.zone('midday').label, 'noon-ish');
   assert.equal(M.zone('midday').id, 'midday');
 });
+
+// ---- per-block review text ----
+
+test('blocks keep a review note; copies of a week start without one', () => {
+  const s = M.normalizeState({ weeks: [{ id: 'w', name: 'W', blocks: [
+    { ...b('a', 0, 8, 4), review: 'Got the Acme one out' }, { ...b('c', 0, 14, 4), review: 7 },
+  ] }], currentWeek: 'w' });
+  assert.deepEqual(wk(s).blocks.map(x => x.review), ['Got the Acme one out', '']);
+  const copy = M.copyWeek(wk(s), 'Next');
+  assert.deepEqual(copy.blocks.map(x => x.review), ['', '']);
+});

@@ -87,7 +87,22 @@ live week, ready to use again.
 - So review mode isn't purely "locked": dragging and drawing change meaning
   there. Resizing in review mode is still undecided.
 
+## Block reviews (built 2026-09-27)
+
+In review mode, double-clicking a block shows the plan side read-only (focus
+list "as planned", session note) and a per-block **Review** text box
+(`block.review`), like "How was Tue?" but for one block. Copies of a week
+start without reviews.
+- **Idea for the summary / week in review:** bring the day notes ("How was
+  Tue?") and block reviews together, per day, as the written part of the
+  week in review. Not built; it belongs to the summary view design.
+
 ## Review mode: move and resize = what actually happened (v1): DECIDED 2026-09-27, not built
+
+(2026-09-27: Drew found resizing hard in review mode. That's because it
+isn't built yet: review still locks the plan. Claude pointed out it doesn't
+have to wait for Close week, since `actual` lives on the block, and asked
+whether to build it next.)
 
 **Decided:** the same block carries an optional `actual`, not a copy.
 1. **Unplanned blocks show faintly in plan mode**, so mismatches are visible
@@ -315,3 +330,7 @@ Feasibility only; nothing decided or built.
   thought about.
 - **2026-09-27:** Drew picked "noon-ish" for the middle zone; built (display
   label only, and the stored id stays `midday`).
+- **2026-09-27:** Built the read-only plan in the review dialog plus a
+  per-block review box. Noted: day notes and block reviews should come
+  together in the week-in-review summary. Resizing in review isn't built yet
+  (it's plan vs actual); offered to build it next.

@@ -296,7 +296,7 @@
     const holder = !isGhost && isTimeHolder(b.title);
     const next = isGhost || holder ? null : M.nextFocus(week(), b.title);
     const shownNext = !rev && !tiny && state.settings.showNext ? next : null;
-    const hasNotes = !isGhost && (!!next || !!(b.session && b.session.trim()));
+    const hasNotes = !isGhost && (!!next || !!(b.session && b.session.trim()) || (rev && !!(b.review && b.review.trim())));
     const rating = b.rating ?? null;
     if (rev) cls.push(rating === null ? 'unrated' : `r-${rating}`);
     return `<div class="${cls.join(' ')}" data-block="${b.id}"
@@ -473,7 +473,7 @@
     const body = document.body.classList;
     if (d.copy) {
       const b = findBlock(d.blockId);
-      week().blocks.push({ ...b, id: M.newId(), session: '', rating: null, tags: [] });
+      week().blocks.push({ ...b, id: M.newId(), session: '', rating: null, tags: [], review: '' });
       body.add('copying');
     } else if (d.kind === 'move' || d.kind === 'regular' || d.kind === 'unplaced') body.add('dragging');
     else if (d.kind === 'create') body.add('creating');
@@ -693,7 +693,7 @@
   }
 
   function createBlock(day, start, size) {
-    const b = { id: M.newId(), day, start, size, title: '', color: 7, session: '', rating: null, tags: [] };
+    const b = { id: M.newId(), day, start, size, title: '', color: 7, session: '', rating: null, tags: [], review: '' };
     pushUndo();
     week().blocks.push(b);
     ui.selectedId = b.id;
@@ -936,6 +936,7 @@
     if (!b) return;
     closePopover();
     select(id);
+    if (reviewing()) return openReviewDialog(b);
     const before = snapshot();
     const key = M.threadKey(b.title);
     const items = focusOf(b.title).map(x => ({ ...x }));
@@ -1025,6 +1026,58 @@
     });
   }
 
+  // Review mode: the plan side (focus, session line) is shown read-only;
+  // the one thing to write is this block's own review.
+  function openReviewDialog(b) {
+    const before = snapshot();
+    const key = M.threadKey(b.title);
+    const holder = isTimeHolder(b.title);
+    const items = holder ? [] : focusOf(b.title);
+    const open = items.filter(x => !x.done), done = items.filter(x => x.done);
+    const next = open.find(x => x.text.trim());
+    const [fill, ink] = M.PALETTE[b.color] || M.PALETTE[0];
+    const shared = week().blocks.filter(x => M.threadKey(x.title) === key).length;
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dialog" role="dialog" aria-label="Review this block">
+        <div class="dialog-head" style="background:${fill}; color:${ink}">
+          <div class="dialog-title">${esc(b.title || 'untitled')}</div>
+          <div class="text-xs opacity-80 mt-0.5">${M.DAY_LONG[b.day]} · ${M.zoneLabel(M.zoneAt(b.start, ui.zones))} · ${M.sizeWord(b.size)}${shared > 1 ? ` · focus shared by ${shared} blocks` : ''}</div>
+        </div>
+        <div class="dialog-body">
+          ${items.length ? `<div class="dialog-sec"><h3>Focus this week <span class="ro">(as planned)</span></h3>
+            ${open.map(x => `<div class="ro-item">○ ${esc(x.text)}${x === next ? ' <span class="next-pill">next</span>' : ''}</div>`).join('')}
+            ${done.map(x => `<div class="ro-item done">✓ ${esc(x.text)}</div>`).join('')}</div>` : ''}
+          ${b.session && b.session.trim() ? `<div class="dialog-sec"><h3>${holder ? 'Note' : 'This session'} <span class="ro">(as planned)</span></h3>
+            <div class="ro-item">${esc(b.session)}</div></div>` : ''}
+          <div class="dialog-sec"><h3>Review · ${M.DAY_LONG[b.day]}</h3>
+            <textarea class="session-box review-box" rows="3" placeholder="How did this block go?">${esc(b.review || '')}</textarea></div>
+        </div>
+        <div class="flex items-center px-4 pb-4 pt-1">
+          <span class="text-[11.5px]" style="color:var(--muted)">The plan is read-only while reviewing · Esc or ⌘Enter to close</span>
+          <button class="btn primary ml-auto" data-do="done">Done</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const box = overlay.querySelector('.review-box');
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+
+    const close = () => {
+      overlay.remove();
+      const text = box.value.trim();
+      if (text !== (b.review || '')) { pushUndo(before); b.review = text; save(); }
+      render();
+    };
+    overlay.addEventListener('pointerdown', e => { if (e.target === overlay) close(); });
+    overlay.addEventListener('click', e => { if (e.target.closest('[data-do="done"]')) close(); });
+    overlay.addEventListener('keydown', e => {
+      e.stopPropagation(); // keep 1/2/3, ⌫ and ⌘Z away from the board underneath
+      if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); close(); }
+    });
+  }
+
   // ---- clicks: block tools, sidebar, header commands -----------------------
 
   document.addEventListener('click', e => {
@@ -1047,7 +1100,7 @@
           const b = findBlock(id);
           const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
           const spot = M.duplicateSpot(week().blocks, b, days, ui.range, ui.zones);
-          const copy = { ...b, id: M.newId(), ...spot, session: '', rating: null, tags: [] };
+          const copy = { ...b, id: M.newId(), ...spot, session: '', rating: null, tags: [], review: '' };
           ui.selectedId = copy.id;
           commit(() => week().blocks.push(copy));
           if (spot.day !== b.day) toast(`No room after it, so the copy went to ${M.DAY_LONG[spot.day]}`);

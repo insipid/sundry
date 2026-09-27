@@ -123,6 +123,9 @@ moves, resizes or gets deleted, and a click just selects.
 - **Tag it:** the bar along the bottom shows tag chips for the selected block
   (*flow*, *interrupted*, *wrong time*, …). Tap to toggle. **+ tag** adds
   your own to the shared list. Tags show under the block's name.
+- **Review a block:** double-click it. The plan side (focus list, session
+  note) shows read-only, "as planned", and there's a **Review** box for how
+  this particular block went. Blocks with a review show ⋯.
 - **How was Tue?:** a one-line note per day, in a row under the grid.
 - Today's day name has a small dot.
 - Plan mode hides all of this. New blocks, duplicates and copies of a week
