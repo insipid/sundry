@@ -84,10 +84,10 @@ Already saved: mode, sidebar side/hidden, visible days, early/evening,
 "show what's next". Added:
 
 - the tick-boxes of both dialogs (above);
-- the selected block (`settings.selected`, per week not needed: cleared if
-  the id is gone);
-- the board's scroll position (a separate small key,
-  `schedule-ish:ui`, so scrolling never touches undo or the plan).
+- the selected block and the board's scroll position, per week, in a
+  separate small key, `schedule-ish:ui`, so selecting and scrolling never
+  touch undo or the plan. Switching weeks brings back where you were in
+  that week. A selection whose block is gone is dropped.
 
 Menus and dialogs mid-open are not restored.
 

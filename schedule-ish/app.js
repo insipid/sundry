@@ -39,6 +39,30 @@
     catch (e) { console.warn('schedule-ish: could not save', e); }
   }
 
+  // Where you left off, per week: the selected block and the board's scroll.
+  // Kept apart from the plan, so it never makes an undo step.
+  const UI_KEY = 'schedule-ish:ui';
+  const uiSaved = (() => {
+    try { const v = JSON.parse(localStorage.getItem(UI_KEY)); if (v && typeof v.weeks === 'object') return v; } catch (e) { /* start fresh */ }
+    return { weeks: {} };
+  })();
+  const savedFor = id => (uiSaved.weeks[id] = uiSaved.weeks[id] || {});
+  function saveUi() {
+    for (const id of Object.keys(uiSaved.weeks)) if (!state.weeks.some(w => w.id === id)) delete uiSaved.weeks[id];
+    try { localStorage.setItem(UI_KEY, JSON.stringify(uiSaved)); } catch (e) { /* not worth a warning */ }
+  }
+  function rememberSelection() {
+    const mine = savedFor(state.currentWeek);
+    if (mine.selected === (ui.selectedId || null)) return;
+    mine.selected = ui.selectedId || null;
+    saveUi();
+  }
+  function restoreScroll() {
+    const mine = savedFor(state.currentWeek), el = $('#board-body');
+    el.scrollTop = mine.top || 0;
+    el.scrollLeft = mine.left || 0;
+  }
+
   const snapshot = () => JSON.stringify(state);
   function pushUndo(snap = snapshot()) {
     undoStack.push(snap);
@@ -122,6 +146,8 @@
   }
 
   function render() {
+    if (ui.selectedId && !findBlock(ui.selectedId)) ui.selectedId = null;
+    rememberSelection();
     $('#week-name').textContent = week().name;
     document.body.classList.toggle('reviewing', reviewing());
     $$('[data-cmd="mode"]').forEach(b => b.classList.toggle('on', b.dataset.mode === state.settings.mode));
@@ -390,6 +416,7 @@
   function select(id) {
     ui.selectedId = id;
     ui.addingTag = false;
+    rememberSelection();
     $$('.block').forEach(el => el.classList.toggle('selected', el.dataset.block === id));
     $$('.plan-ghost').forEach(g => g.classList.toggle('lit', g.dataset.ghostFor === id));
     renderReviewBar();
@@ -1379,9 +1406,10 @@
   // changes that week. New weeks start blank or as a copy of this one.
 
   function switchWeek(id) {
-    ui.selectedId = null;
+    ui.selectedId = savedFor(id).selected || null;
     ui.editing = null;
     commit(s => { s.currentWeek = id; });
+    restoreScroll();
   }
 
   function openWeeks(anchor) {
@@ -1707,6 +1735,20 @@
     if (e.key === STORAGE_KEY && e.newValue) { state = M.normalizeState(JSON.parse(e.newValue)); render(); }
   });
 
+  let scrollTimer;
+  $('#board-body').addEventListener('scroll', () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      const el = $('#board-body'), mine = savedFor(state.currentWeek);
+      mine.top = el.scrollTop;
+      mine.left = el.scrollLeft;
+      saveUi();
+    }, 150);
+  }, { passive: true });
+
   save(); // write back anything load() repaired or migrated
+  ui.selectedId = savedFor(state.currentWeek).selected || null;
   render();
+  // After Tailwind has styled the page and the day has been fitted.
+  setTimeout(restoreScroll, 300);
 })();

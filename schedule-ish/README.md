@@ -176,7 +176,9 @@ blocks show what's next, the sidebar side, and the optional zones. **Undo/redo**
 ## Saving
 
 Everything (all weeks) autosaves to the browser's `localStorage`, per browser and per
-origin. Finished weeks go to a separate archive entry there. That means opening the file directly and serving it over
+origin. Finished weeks go to a separate archive entry there. The app also
+remembers where you were in each week (the selected block and how far the
+board is scrolled), separately from the plan. That means opening the file directly and serving it over
 `localhost` give you separate plans.
 
 The **⋯** menu in the header has **Export** (downloads everything, meaning all
