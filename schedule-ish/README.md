@@ -145,7 +145,7 @@ back at how the week went. Nothing you do in review changes the plan.
 - Plan mode hides all of this. New blocks, duplicates and copies of a week
   start unrated.
 
-**PDF** is a shortcut for the browser's print (⌘P does the same). It opens
+**Print** is a shortcut for the browser's print (⌘P does the same). It opens
 the print dialog with the week on one landscape page. The week's name is at
 the top, the sidebar and buttons are hidden, and the colours are kept. If
 anything has notes, a **second page** lists each name once, with its days,
