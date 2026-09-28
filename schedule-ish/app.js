@@ -2,7 +2,8 @@
 (function () {
   'use strict';
   const M = window.Model;
-  const STORAGE_KEY = 'schedule-ish:v1';
+  const S = window.Shared; // which calendar, and its storage keys (share.js)
+  const STORAGE_KEY = S.keys.plan;
   const DRAG_THRESHOLD = 4;
   const ADD_ROW_H = 26;     // the "+ early" / "+ evening" rows
   const DAYNOTE_H = 30;     // the "How was Tue?" row in review mode
@@ -25,6 +26,7 @@
     zones: M.zonesFor(week().zones),
     range: M.visibleRange(week().view, M.zonesFor(week().zones)),
     printing: false,
+    published: null,    // a shared calendar's changed published version, if noticed
   };
 
   function load() {
@@ -32,7 +34,7 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return M.normalizeState(JSON.parse(raw));
     } catch (e) { console.warn('schedule-ish: could not load saved plan', e); }
-    return M.defaultState();
+    return S.initial || M.defaultState();
   }
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
@@ -41,7 +43,7 @@
 
   // Where you left off, per week: the selected block and the board's scroll.
   // Kept apart from the plan, so it never makes an undo step.
-  const UI_KEY = 'schedule-ish:ui';
+  const UI_KEY = S.keys.ui;
   const uiSaved = (() => {
     try { const v = JSON.parse(localStorage.getItem(UI_KEY)); if (v && typeof v.weeks === 'object') return v; } catch (e) { /* start fresh */ }
     return { weeks: {} };
@@ -153,6 +155,7 @@
     $$('[data-cmd="mode"]').forEach(b => b.classList.toggle('on', b.dataset.mode === state.settings.mode));
     $('#finish-btn').style.display = reviewing() ? '' : 'none';
     renderReviewBar();
+    renderShareBar();
     placeSidebar();
     renderSidebar();
     renderBoard();
@@ -1489,7 +1492,7 @@
     }));
   }
 
-  const ARCHIVE_KEY = 'schedule-ish:archive';
+  const ARCHIVE_KEY = S.keys.archive;
   // Finished weeks, kept whole, keyed by when they were finished. Written
   // here and nowhere else; nothing reads them back yet. False if it failed.
   function archiveWeek(entry) {
@@ -1580,6 +1583,51 @@
       e.stopPropagation(); // keep the board's keys away
       if (e.key === 'Escape') { e.preventDefault(); close(); }
     });
+  }
+
+  // ---- shared calendars (?cal=<id>) ---------------------------------------
+
+  // A shared calendar is this browser's own copy of a published file. The
+  // bar says so, offers a reset to the published version, and notices when
+  // that version has changed (Reset or Ignore; nothing is replaced unasked).
+  function renderShareBar() {
+    const bar = $('#share-bar');
+    if (S.id === null) { bar.style.display = 'none'; return; }
+    bar.style.display = '';
+    bar.innerHTML = ui.published
+      ? `<b>The published version has changed.</b>
+         <button class="share-btn" data-share="reset">Reset to it</button>
+         <button class="share-btn" data-share="ignore">Ignore</button>`
+      : `Shared calendar <b>${esc(S.id)}</b> · your changes stay in this browser
+         <button class="share-btn" data-share="reset">Reset to the published version</button>`;
+  }
+  async function resetToPublished() {
+    if (!confirm('Replace this browser’s copy with the published version? (You can undo.)')) return;
+    let src;
+    try { src = ui.published || await S.fetchSource(); } catch (e) { return toast('Couldn’t load the published version'); }
+    commitEditing(true);
+    closePopover();
+    ui.selectedId = null;
+    ui.published = null;
+    S.setSource({ fingerprint: src.fingerprint, ignored: null });
+    commit(() => { state = src.state; });
+    toast('Reset to the published version. ⌘Z to undo');
+  }
+  $('#share-bar').addEventListener('click', e => {
+    const b = e.target.closest('[data-share]');
+    if (!b) return;
+    if (b.dataset.share === 'reset') return resetToPublished();
+    S.setSource({ ...S.source(), ignored: ui.published.fingerprint });
+    ui.published = null;
+    renderShareBar();
+  });
+  // In the background on each visit: has the published file changed since
+  // this copy was made (and not been ignored)? Offline or missing: stay quiet.
+  if (S.id !== null && location.protocol !== 'file:') {
+    S.fetchSource().then(src => {
+      const seen = S.source();
+      if (src.fingerprint !== seen.fingerprint && src.fingerprint !== seen.ignored) { ui.published = src; renderShareBar(); }
+    }).catch(() => {});
   }
 
   // The ⋯ menu: things you need now and then, kept out of the header.

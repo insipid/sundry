@@ -178,15 +178,36 @@ blocks show what's next, the sidebar side, and the optional zones. **Undo/redo**
 ## Saving
 
 Everything (all weeks) autosaves to the browser's `localStorage`, per browser and per
-origin. Finished weeks go to a separate archive entry there. The app also
-remembers where you were in each week (the selected block and how far the
-board is scrolled), separately from the plan. That means opening the file directly and serving it over
-`localhost` give you separate plans.
+origin, so opening the file directly and serving it over `localhost` give
+you separate plans. Finished weeks go to a separate archive entry there. The
+app also remembers where you were in each week (the selected block and how
+far the board is scrolled), separately from the plan.
 
 The **⋯** menu in the header has **Export** (downloads everything, meaning all
 weeks, with their regulars and one-offs, as JSON; not the archive),
 **Import** (loads one back and replaces the current plan, or adds a single
 exported week alongside the others; undoable) and **Clear this week's blocks**.
+
+## Sharing a calendar
+
+A calendar can be published with the app and shared as a link:
+
+1. Build it, then **⋯ → Export**.
+2. Save the file as `calendars/<id>.json` next to `index.html`. The id is
+   letters, numbers and hyphens: a readable name or a UUID.
+3. Share `…/index.html?cal=<id>`. Try `?cal=example`.
+
+A shared calendar is a starting point. The first visit fetches the file;
+after that it lives in the visitor's browser under its own storage (its own
+plan, archive and saved place), apart from their own calendar, which a plain
+link still opens. Their changes stay in their browser; the published file
+never changes. A bar above the board says which calendar it is and offers
+**Reset to the published version** (undoable). If the published file has
+changed since, the bar says so and offers **Reset** or **Ignore**.
+
+If the file is missing or broken, the page says the calendar couldn't be
+loaded (it never shows your own calendar instead). Shared calendars need the
+page served over http: browsers block the fetch when it's opened as a file.
 
 ## Code
 
@@ -194,6 +215,8 @@ exported week alongside the others; undoable) and **Clear this week's blocks**.
 |---|---|
 | `index.html` | Page shell, Tailwind, and a small `<style>` block for the grid, blocks and print layout |
 | `model.js` | Pure logic: zones and steps, snapping, overlap layout, gap finding, loading/validation. No DOM. |
+| `share.js` | Which calendar the page shows (your own, or `?cal=<id>`), its storage keys, first-visit fetch; then starts `app.js` |
+| `calendars/` | Published calendars for `?cal=<id>` |
 | `app.js` | Rendering, pointer-event drag/resize (blocks and zone breaks), sidebar, popovers, persistence, undo, print |
 | `test/model.test.js` | Unit tests for `model.js` |
 
@@ -208,8 +231,6 @@ The design notes are in
 
 ## Not yet
 
-- Comparing plan to reality: marking how a day actually went against how it
-  was planned.
 - Attributes on blocks beyond name, size and colour.
 - Phone layout. It's built for landscape screens: desktop first, and fine on
   a tablet.

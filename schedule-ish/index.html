@@ -119,6 +119,17 @@
     .ro-item { font-size: 14px; color: var(--ink); padding: 3px 4px; }
     .ro-item.done { color: var(--faint); text-decoration: line-through; }
     div.dialog-title { font-size: 17px; font-weight: 700; }
+    /* shared calendars: the bar above the board, and the can't-load page */
+    #share-bar { margin: 0 20px 10px; padding: 6px 12px; border-radius: 10px; background: #eef0f4; color: #4a5468;
+      font-size: 13px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .share-btn { border: 0; background: rgba(255,255,255,.8); color: inherit; font: inherit; font-size: 12.5px; padding: 3px 10px; border-radius: 8px; }
+    .share-btn:first-of-type { margin-left: auto; }
+    .share-btn:hover { background: #fff; }
+    .load-error { min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--bg, #faf8f4); }
+    .load-error > div { max-width: 420px; }
+    .load-error h1 { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+    .load-error p { color: #6f685d; margin: 0 0 14px; line-height: 1.5; }
+    .load-error a { color: var(--ink); font-weight: 600; }
     /* New week / Finish week: what to carry into the next week */
     .keep-opt { display: flex; align-items: flex-start; gap: 9px; padding: 5px 4px; border-radius: 8px; cursor: pointer; font-size: 14px; }
     .keep-opt:hover { background: #f7f4ee; }
@@ -245,7 +256,7 @@
       header { padding: 0 0 8px !important; }
       .week-btn { background: none; padding: 0; }
       .week-btn .caret { display: none; }
-      header .ml-auto, #finish-btn, .dialog-overlay, #sidebar, #toast, .popover, .zone-add-row, .zone-minus, .mode-seg, #review-bar,
+      header .ml-auto, #finish-btn, #share-bar, .dialog-overlay, #sidebar, #toast, .popover, .zone-add-row, .zone-minus, .mode-seg, #review-bar,
       .block .tools, .block .edge { display: none !important; }
       main { display: block !important; padding: 0 !important; }
       main > section { box-shadow: none !important; border: 1px solid #e6e1d8; }
@@ -312,6 +323,7 @@
       </div>
     </header>
 
+    <div id="share-bar" style="display:none"></div>
     <main id="main" class="flex-1 min-h-0 flex gap-3 pb-5">
       <aside id="sidebar" class="w-64 shrink-0 flex flex-col gap-5 overflow-y-auto overflow-x-hidden px-2"></aside>
       <section class="flex-1 min-w-0 flex flex-col rounded-2xl overflow-hidden"
@@ -328,6 +340,6 @@
   <div id="toast"></div>
 
   <script src="model.js"></script>
-  <script src="app.js"></script>
+  <script src="share.js"></script><!-- starts app.js -->
 </body>
 </html>

@@ -1,6 +1,6 @@
 # PLAN: Shared calendars loaded from the URL
 
-**For:** Drew · **Status:** draft for Drew's review, not started · **Branch:** `schedule-ish`
+**For:** Drew · **Status:** approved and built 2026-09-28 · **Branch:** `schedule-ish`
 
 Separate from `2026-09-28-1747_PLAN_finish-week.md`. The two share only the
 data format, which is already settled (a full export, plan v6).
@@ -25,7 +25,9 @@ with it, but only in their own browser. The published file never changes.
   Everything it saves goes under keys named after the id:
   - `schedule-ish:cal:<id>:v1` (the plan, and the tick-box settings),
   - `schedule-ish:cal:<id>:archive` (Finish week),
-  - `schedule-ish:cal:<id>:ui` (selection and scroll).
+  - `schedule-ish:cal:<id>:ui` (selection and scroll),
+  - `schedule-ish:cal:<id>:source` (the published file's fingerprint, and
+    one that was ignored).
   A plain URL (no `?cal=`) opens your own calendar, exactly as today.
 - **First visit:** fetch the file, save a copy under the calendar's keys,
   show it. **Later visits:** show the saved copy straight away; edits
@@ -63,9 +65,11 @@ you choose Reset.
 
 - `model.js`: `validCalId(id)`, and a small, stable `fingerprint(text)`
   string hash. Tests for both.
-- `app.js`: read `?cal=` before `load()`. Storage keys come from one
-  function instead of constants. A first-visit loader with an error screen,
-  the background freshness check, and the banner (Reset / Ignore).
+- `share.js` (new, loaded before `app.js`, which it starts): reads `?cal=`,
+  works out the storage keys, does the first-visit fetch, shows the error
+  screen. Built this way so `app.js` can stay synchronous.
+- `app.js`: takes its keys from `share.js`; the background freshness check
+  and the banner (Reset / Ignore).
 - `index.html`: banner and error-screen styles.
 - `README.md`: a "Sharing a calendar" section.
 - One example file, `calendars/example.json`, so the feature can be tried.
