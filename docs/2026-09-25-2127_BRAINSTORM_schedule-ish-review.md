@@ -374,3 +374,6 @@ Feasibility only; nothing decided or built.
   `2026-09-28-1747_PLAN_finish-week.md`): per-week regulars and one-offs,
   New week / Finish week ticks, the archive, saved UI state (selection and
   scroll), PDF button renamed Print, and a fuller print page 2.
+- **2026-09-28:** Archive labels are just the week name (Drew). Shared
+  calendars (`?cal=<id>`, own storage per id) planned separately in
+  `2026-09-28-2109_PLAN_shared-calendars.md`, waiting on Drew's review.
