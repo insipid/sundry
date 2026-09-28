@@ -485,6 +485,20 @@
     }));
   }
 
+  // Shared calendars (?cal=<id>): the id names a file next to the page, so
+  // it's letters, numbers and hyphens only (a UUID or a readable name).
+  const validCalId = id => typeof id === 'string' && /^[A-Za-z0-9-]{1,100}$/.test(id);
+  // A short, stable fingerprint of a published file's text (32-bit FNV-1a),
+  // to notice when the published version changes.
+  function fingerprint(text) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8, '0');
+  }
+
   // Arrow-key navigation between blocks ({ id, day, start, size }), with the
   // board's visible `days` in order. Up/down: previous/next block in the
   // same day. Left/right: the nearest day in that direction that has blocks,
@@ -523,7 +537,7 @@
     zonesFor, zoneLabel, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
     defaultState, normalizeState, blankWeek, copyWeek, daysForPrint, carryWeek, archiveEntry, shortDate, DEFAULT_KEEP, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
-    threadKey, nextFocus, effectivePos, navTarget,
+    threadKey, nextFocus, effectivePos, navTarget, validCalId, fingerprint,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;
   else root.Model = Model;

@@ -722,3 +722,17 @@ test('daysForPrint lists each shown day with its note and blocks where they ende
   assert.deepEqual([out[1].blocks[0].movedFrom, out[1].blocks[0].size, out[1].blocks[0].zone], [0, 6, 'morning']);
   assert.deepEqual([out[1].blocks[1].unplanned, out[1].blocks[1].movedFrom], [true, null]);
 });
+
+// ---- shared calendars ----
+
+test('a shared calendar id is letters, numbers and hyphens only', () => {
+  for (const ok of ['example', 'Spring-demo-2', '3f2b8c1e-9d4a-4c1b-8e2f-6a7b9c0d1e2f']) assert.ok(M.validCalId(ok), ok);
+  for (const bad of ['', '../secret', 'a/b', 'a.json', 'with space', 'x'.repeat(101), null, undefined, 7]) assert.ok(!M.validCalId(bad), String(bad));
+});
+
+test('fingerprint is short, stable, and changes with the text', () => {
+  assert.equal(M.fingerprint(''), '811c9dc5');
+  assert.match(M.fingerprint('{"a":1}'), /^[0-9a-f]{8}$/);
+  assert.equal(M.fingerprint('{"a":1}'), M.fingerprint('{"a":1}'));
+  assert.notEqual(M.fingerprint('{"a":1}'), M.fingerprint('{"a":2}'));
+});
