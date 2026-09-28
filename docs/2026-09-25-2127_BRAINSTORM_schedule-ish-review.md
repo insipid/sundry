@@ -263,7 +263,24 @@ lull" / "the break". Either is a one-line label change (the stored zone id
 stays `midday`). An alternative that ends the question for good: let zones
 be renamed in Settings. Undecided.
 
-## For v1: print page 2 needs more love (raised 2026-09-27)
+## Finish week (was "Close week"): DECIDED and BUILT 2026-09-28
+
+See `2026-09-28-1747_PLAN_finish-week.md`. In short: **Finish week…** (Review
+only) saves the whole week to a `schedule-ish:archive` localStorage entry,
+then resets the week in place with three remembered ticks (keep the
+schedule / regulars / one-offs), and returns to Plan. ⌘Z undoes it. The
+dialog can print or export just this week. Regulars and one-offs now belong
+to each week (plan v6); New week uses the same ticks. This settles "template
+vs single week": a week is a single live board that you finish and restart.
+Open focus lines for names still around carry forward (question 4 below).
+
+Still open: browsing the archive, and the summary / week-in-review view.
+
+## For v1: print page 2 needs more love (raised 2026-09-27): first pass BUILT 2026-09-28
+
+Page 2 is now the week's record: a tally, day by day (day note, blocks where
+they ended up with rating, tags, session and review), then focus lists.
+Waiting on Drew's reaction.
 
 Drew wants the print-out's second page to include the day summaries ("How
 was Tue?"), and it needs more care generally, with block reviews and
@@ -353,3 +370,7 @@ Feasibility only; nothing decided or built.
   blocks got a hover ×, Enter to rename, and a dialog with name, Delete and
   "What happened" (Drew: the review box is the description). Print page 2
   noted as a v1 item.
+- **2026-09-28:** Planned and built Finish week (plan doc
+  `2026-09-28-1747_PLAN_finish-week.md`): per-week regulars and one-offs,
+  New week / Finish week ticks, the archive, saved UI state (selection and
+  scroll), PDF button renamed Print, and a fuller print page 2.
