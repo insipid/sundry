@@ -282,12 +282,13 @@
     .map(([k, d]) => [k, v && typeof v[k] === 'boolean' ? v[k] : d]));
 
   // An archive entry for a finished week: the whole week as it stood, plus
-  // the shared vocabularies, labelled "Name (finished Sun 28 Sep)".
+  // the shared vocabularies. The label is just the week's name: when it was
+  // finished is `finishedAt`, and showing it is up to whatever displays it.
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const shortDate = date => `${DAY_NAMES[todayIndex(date)]} ${date.getDate()} ${MONTHS[date.getMonth()]}`; // Mon 28 Sep
   function archiveEntry(state, week, date = new Date()) {
     return {
-      label: `${week.name} (finished ${shortDate(date)})`,
+      label: week.name,
       finishedAt: date.toISOString(),
       version: state.version,
       week: JSON.parse(JSON.stringify(week)),

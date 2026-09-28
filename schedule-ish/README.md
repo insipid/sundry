@@ -153,7 +153,7 @@ the next week: the same three as New week, remembered separately. Nothing
 happens until you press **Finish week**. Then:
 - the whole week as it stands (plan, what happened, ratings, tags, reviews,
   day notes, focus, regulars and one-offs) is saved to an **archive** in the
-  browser, labelled like *My week (finished Mon 28 Sep)*;
+  browser, under the week's name and the time you finished;
 - the week starts again under the same name, keeping only what you ticked;
 - you're back in Plan mode.
 

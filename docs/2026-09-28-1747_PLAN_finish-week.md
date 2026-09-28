@@ -64,7 +64,7 @@ by the finish time (ISO string):
 
 ```
 { "2026-09-28T17:47:03.120Z": {
-    label: "My week (finished Mon 28 Sep)",
+    label: "My week",
     finishedAt: "2026-09-28T17:47:03.120Z",
     version: 6,
     week: { ...the whole week, including its regulars and one-offs },

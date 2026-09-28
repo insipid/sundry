@@ -1571,7 +1571,7 @@
         case 'print': return window.print();
         case 'export': {
           const entry = M.archiveEntry(state, week());
-          return download({ kind: 'schedule-ish week', ...entry, label: entry.label.replace('finished', 'exported'), exportedAt: entry.finishedAt, finishedAt: undefined },
+          return download({ kind: 'schedule-ish week', ...entry, exportedAt: entry.finishedAt, finishedAt: undefined },
             `schedule-ish-${fileSlug(week().name)}-${new Date().toISOString().slice(0, 10)}.json`);
         }
       }

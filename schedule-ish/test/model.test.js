@@ -681,12 +681,12 @@ test('carryWeek with an empty calendar keeps the sidebar; blank keeps nothing', 
   assert.deepEqual([blank.blocks, blank.regulars, blank.unplaced, blank.focus], [[], [], [], {}]);
 });
 
-test('archiveEntry keeps the whole week as it stood, labelled with the finish date', () => {
+test('archiveEntry keeps the whole week as it stood, labelled with its name', () => {
   const s = M.defaultState();
   const w = { ...fullWeek(), name: 'My week' };
   const when = new Date(2026, 8, 28, 17, 47);
   const e = M.archiveEntry(s, w, when);
-  assert.equal(e.label, 'My week (finished Mon 28 Sep)');
+  assert.equal(e.label, 'My week');
   assert.equal(e.finishedAt, when.toISOString());
   assert.equal(e.version, 6);
   assert.deepEqual(e.week, w);
