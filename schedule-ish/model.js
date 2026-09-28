@@ -284,10 +284,10 @@
   // An archive entry for a finished week: the whole week as it stood, plus
   // the shared vocabularies, labelled "Name (finished Sun 28 Sep)".
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const shortDate = date => `${DAY_NAMES[todayIndex(date)]} ${date.getDate()} ${MONTHS[date.getMonth()]}`; // Mon 28 Sep
   function archiveEntry(state, week, date = new Date()) {
-    const when = `${DAY_NAMES[todayIndex(date)]} ${date.getDate()} ${MONTHS[date.getMonth()]}`;
     return {
-      label: `${week.name} (finished ${when})`,
+      label: `${week.name} (finished ${shortDate(date)})`,
       finishedAt: date.toISOString(),
       version: state.version,
       week: JSON.parse(JSON.stringify(week)),
@@ -462,6 +462,28 @@
       .filter(t => t.items.length || t.sessions.length);
   }
 
+  // The print-out's day-by-day record: for each shown day, its note and
+  // every block that ended up there (planned blocks where they actually
+  // happened, plus unplanned ones), top to bottom, with how it went.
+  function daysForPrint(week, days, zones = zonesFor(week.zones)) {
+    const all = [
+      ...week.blocks.map(x => ({ x, pos: effectivePos(x), unplanned: false })),
+      ...(week.unplanned || []).map(x => ({ x, pos: effectivePos(x), unplanned: true })),
+    ];
+    return days.map(day => ({
+      day,
+      note: (week.dayNotes[day] || '').trim(),
+      blocks: all.filter(e => e.pos.day === day)
+        .sort((a, c) => a.pos.start - c.pos.start || a.pos.size - c.pos.size)
+        .map(({ x, pos, unplanned }) => ({
+          id: x.id, title: x.title, color: x.color, rating: x.rating ?? null, tags: x.tags || [],
+          session: (x.session || '').trim(), review: (x.review || '').trim(), unplanned,
+          movedFrom: !unplanned && x.actual && x.actual.day !== x.day ? x.day : null,
+          zone: zoneAt(pos.start, zones), size: pos.size,
+        })),
+    }));
+  }
+
   // Arrow-key navigation between blocks ({ id, day, start, size }), with the
   // board's visible `days` in order. Up/down: previous/next block in the
   // same day. Left/right: the nearest day in that direction that has blocks,
@@ -499,7 +521,7 @@
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, STEPS_PER_LINE, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, zoneLabel, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
-    defaultState, normalizeState, blankWeek, copyWeek, carryWeek, archiveEntry, DEFAULT_KEEP, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
+    defaultState, normalizeState, blankWeek, copyWeek, daysForPrint, carryWeek, archiveEntry, shortDate, DEFAULT_KEEP, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
     threadKey, nextFocus, effectivePos, navTarget,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;

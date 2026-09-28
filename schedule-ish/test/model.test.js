@@ -703,3 +703,22 @@ test('New week and Finish week each remember their tick-boxes; missing ones use 
   assert.deepEqual(s.newWeek, { schedule: true, regulars: true, oneOffs: true });
   assert.deepEqual(s.finishWeek, { schedule: false, regulars: true, oneOffs: false });
 });
+
+// ---- print: day by day ----
+
+test('daysForPrint lists each shown day with its note and blocks where they ended up', () => {
+  const w = { ...M.blankWeek('W'), dayNotes: [' calm ', '', 'busy', '', '', '', ''],
+    blocks: [
+      { ...b('late', 0, 20, 4), title: 'Admin', rating: 1, tags: ['flow'], session: ' inbox ', review: ' done ' },
+      { ...b('early', 0, 8, 4), title: 'Gym', rating: null },
+      { ...b('moved', 0, 12, 4), title: 'Write', rating: 'skip', actual: { day: 2, start: 10, size: 6 } },
+    ],
+    unplanned: [{ ...b('u', 2, 30, 4), title: 'Fire drill', rating: 'bad' }] };
+  const out = M.daysForPrint(w, [0, 2, 1]);
+  assert.deepEqual(out.map(d => [d.day, d.note, d.blocks.map(x => x.id)]),
+    [[0, 'calm', ['early', 'late']], [2, 'busy', ['moved', 'u']], [1, '', []]]);
+  const admin = out[0].blocks[1];
+  assert.deepEqual([admin.rating, admin.tags, admin.session, admin.review, admin.zone, admin.unplanned], [1, ['flow'], 'inbox', 'done', 'midday', false]);
+  assert.deepEqual([out[1].blocks[0].movedFrom, out[1].blocks[0].size, out[1].blocks[0].zone], [0, 6, 'morning']);
+  assert.deepEqual([out[1].blocks[1].unplanned, out[1].blocks[1].movedFrom], [true, null]);
+});

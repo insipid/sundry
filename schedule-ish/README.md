@@ -162,9 +162,11 @@ archive yet: it's kept for later.
 
 **Print** is a shortcut for the browser's print (⌘P does the same). It opens
 the print dialog with the week on one landscape page. The week's name is at
-the top, the sidebar and buttons are hidden, and the colours are kept. If
-anything has notes, a **second page** lists each name once, with its days,
-its focus lines and any session notes. Choose "Save as PDF" as the destination, or print it.
+the top, the sidebar and buttons are hidden, and the colours are kept. A
+**second page** is the week's record: a tally (blocks planned, rated, didn't
+happen, unproductive, moved, unplanned), then **day by day** (each day's
+note, then every block where it ended up, with its rating, tags, session
+note and review), then each name's **focus** list. Choose "Save as PDF" as the destination, or print it.
 
 **Sidebar**: the header button next to undo shows or hides it. Settings
 can put it on the left or the right.

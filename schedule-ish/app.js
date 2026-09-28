@@ -1705,20 +1705,65 @@
     toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
   }
 
-  // On paper the day is squeezed to fit one landscape page.
-  // Page 2: each name's focus and session notes, in board order (not a
-  // calendar). Time-holders only show their session notes.
+  // On paper the day is squeezed to fit one landscape page. Page 2 is the
+  // week's record: a header with a tally, then day by day (the day's note,
+  // then each block where it ended up, with rating, tags, session line and
+  // review), then each name's focus list. Time-holders have no focus list.
   function renderPrintNotes() {
+    const w = week();
     const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
-    const threads = M.focusForPrint(week(), days)
+    const byDay = M.daysForPrint(w, days, ui.zones);
+    const threads = M.focusForPrint(w, days)
       .map(t => (isTimeHolder(t.title) ? { ...t, items: [] } : t))
-      .filter(t => t.items.length || t.sessions.length);
-    $('#print-notes').innerHTML = threads.length ? `
-      <h2>Notes · ${esc(week().name)}</h2>
-      ${threads.map(t => `
-        <h3>${esc(t.title || 'untitled')} <span class="pdays">${t.days.map(d => M.DAY_NAMES[d]).join(' · ')}</span></h3>
-        ${t.items.length ? `<ul>${t.items.map(x => `<li class="${x.done ? 'done' : ''}">${x.done ? '✓' : '○'} ${esc(x.text)}</li>`).join('')}</ul>` : ''}
-        ${t.sessions.map(x => `<p class="psess"><b>${M.DAY_NAMES[x.day]}:</b> ${esc(x.text)}</p>`).join('')}`).join('')}` : '';
+      .filter(t => t.items.length);
+    const all = byDay.flatMap(d => d.blocks);
+    if (!all.length && !byDay.some(d => d.note) && !threads.length) { $('#print-notes').innerHTML = ''; return; }
+
+    const count = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+    const planned = all.filter(x => !x.unplanned);
+    const rated = all.filter(x => typeof x.rating === 'number');
+    const tally = [
+      count(planned.length, 'block') + ' planned',
+      rated.length && `${rated.length} rated (${[1, 2, 3].map(r => all.filter(x => x.rating === r).length ? `${RATING_LABEL[r]} ${all.filter(x => x.rating === r).length}` : '').filter(Boolean).join(', ')})`,
+      all.filter(x => x.rating === 'skip').length && `${all.filter(x => x.rating === 'skip').length} didn’t happen`,
+      all.filter(x => x.rating === 'bad').length && `${all.filter(x => x.rating === 'bad').length} unproductive`,
+      all.filter(x => x.movedFrom != null).length && `${all.filter(x => x.movedFrom != null).length} moved`,
+      all.filter(x => x.unplanned).length && `${count(all.filter(x => x.unplanned).length, 'unplanned block')}`,
+    ].filter(Boolean).join(' · ');
+
+    const blockLine = x => {
+      const [fill, ink] = M.PALETTE[x.color] || M.PALETTE[0];
+      const meta = [M.zoneLabel(x.zone), M.sizeWord(x.size), x.unplanned && 'unplanned', x.movedFrom != null && `moved from ${M.DAY_NAMES[x.movedFrom]}`].filter(Boolean).join(' · ');
+      return `<div class="pn-block ${x.unplanned ? 'unplanned' : ''} ${x.rating === 'skip' ? 'skipped' : ''}">
+        <div class="pn-line"><i class="pn-sw" style="background:${fill};border-color:${ink}"></i><b>${esc(x.title || 'untitled')}</b>
+          ${x.rating != null ? `<span class="pn-rate ${typeof x.rating === 'number' ? '' : 'word'}">${RATING_LABEL[x.rating]}</span>` : ''}<span class="pn-meta">${meta}</span></div>
+        ${x.tags.length ? `<div class="pn-tags">${x.tags.map(esc).join(' · ')}</div>` : ''}
+        ${x.session ? `<div class="pn-sess">${esc(x.session)}</div>` : ''}
+        ${x.review ? `<div class="pn-rev">${esc(x.review)}</div>` : ''}
+      </div>`;
+    };
+
+    $('#print-notes').innerHTML = `
+      <header class="pn-head">
+        <h2>${esc(w.name)}</h2>
+        <span>the week on paper · printed ${M.shortDate(new Date())}</span>
+        <div class="pn-tally">${tally}</div>
+      </header>
+      <h3 class="pn-sec">Day by day</h3>
+      <div class="pn-cols">${byDay.map(d => `
+        <section class="pn-day">
+          <h4>${M.DAY_LONG[d.day]}</h4>
+          ${d.note ? `<p class="pn-note">${esc(d.note)}</p>` : ''}
+          ${d.blocks.length ? d.blocks.map(blockLine).join('') : '<p class="pn-empty">nothing on</p>'}
+        </section>`).join('')}
+      </div>
+      ${threads.length ? `<h3 class="pn-sec">Focus</h3>
+      <div class="pn-cols">${threads.map(t => `
+        <section class="pn-day">
+          <h4>${esc(t.title || 'untitled')} <span class="pdays">${t.days.map(d => M.DAY_NAMES[d]).join(' · ')}</span></h4>
+          <ul>${t.items.map(x => `<li class="${x.done ? 'done' : ''}">${x.done ? '✓' : '○'} ${esc(x.text)}</li>`).join('')}</ul>
+        </section>`).join('')}
+      </div>` : ''}`;
   }
   window.addEventListener('beforeprint', () => { ui.printing = true; renderBoard(); renderPrintNotes(); });
   window.addEventListener('afterprint', () => { ui.printing = false; renderBoard(); });
