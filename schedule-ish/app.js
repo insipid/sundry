@@ -125,6 +125,7 @@
     $('#week-name').textContent = week().name;
     document.body.classList.toggle('reviewing', reviewing());
     $$('[data-cmd="mode"]').forEach(b => b.classList.toggle('on', b.dataset.mode === state.settings.mode));
+    $('#finish-btn').style.display = reviewing() ? '' : 'none';
     renderReviewBar();
     placeSidebar();
     renderSidebar();
@@ -1269,6 +1270,7 @@
       case 'more': return openMore(cmd);
       case 'new-regular': return editRegular(null, cmd);
       case 'print': return window.print();
+      case 'finish': return openFinish();
       case 'mode': return setMode(cmd.dataset.mode);
       case 'add-tag': ui.addingTag = true; return renderReviewBar();
       case 'toggle-sidebar': return commit(s => { s.settings.sidebarHidden = !s.settings.sidebarHidden; });
@@ -1393,20 +1395,21 @@
         </button>`).join('')}
       </div>
       <div class="menu-sep"></div>
-      <button class="menu-item" data-do="new-blank">+ New blank week</button>
-      <button class="menu-item" data-do="new-copy">+ New from this week</button>
+      <button class="menu-item" data-do="new">+ New week…</button>
       <div class="menu-sep"></div>
       <button class="menu-item" data-do="rename">Rename this week…</button>
       <button class="menu-item danger" data-do="delete" ${state.weeks.length < 2 ? 'disabled title="It’s the only week"' : ''}>Delete this week…</button>`, el => {
       // Swap the menu for a one-field name form.
-      const askName = (label, initial, done) => {
+      const askName = (label, initial, done, extra = '', okLabel = 'OK') => {
         el.innerHTML = `
           <label>${label}</label>
           <input class="field" data-f="name" value="${esc(initial)}">
+          ${extra}
           <div class="flex items-center gap-2 mt-3">
             <button class="btn ml-auto" data-do="cancel">Cancel</button>
-            <button class="btn primary" data-do="ok">OK</button>
+            <button class="btn primary" data-do="ok">${okLabel}</button>
           </div>`;
+        mountKeep(el, 'newWeek');
         const input = el.querySelector('[data-f="name"]');
         input.focus(); input.select();
         const ok = () => { const v = input.value.trim(); if (!v) return input.focus(); closePopover(); done(v); };
@@ -1419,18 +1422,12 @@
         if (!b || b.disabled) return;
         if (b.dataset.week) { closePopover(); if (b.dataset.week !== cur.id) switchWeek(b.dataset.week); return; }
         switch (b.dataset.do) {
-          case 'new-blank':
+          case 'new':
             return askName('name the new week', 'New week', name => {
-              const w = M.blankWeek(name);
+              const w = M.carryWeek(cur, state.settings.newWeek, name);
               ui.selectedId = null;
               commit(s => { s.weeks.push(w); s.currentWeek = w.id; });
-            });
-          case 'new-copy':
-            return askName('name the copy', `${cur.name} copy`, name => {
-              const w = M.copyWeek(cur, name);
-              ui.selectedId = null;
-              commit(s => { s.weeks.push(w); s.currentWeek = w.id; });
-            });
+            }, `<label>keep from this week</label>${keepHtml(state.settings.newWeek)}`, 'Create');
           case 'rename':
             return askName('rename this week', cur.name, name => commit(() => { week().name = name; }));
           case 'delete':
@@ -1443,6 +1440,117 @@
             });
         }
       });
+    });
+  }
+
+  // ---- carrying a week forward: New week and Finish week ---------------
+
+  const KEEP_OPTS = [
+    ['schedule', 'Keep the schedule', 'the planned blocks, without any of the review'],
+    ['regulars', 'Keep regulars', ''],
+    ['oneOffs', 'Keep one-offs', ''],
+  ];
+  const keepHtml = keep => KEEP_OPTS.map(([k, label, hint]) => `
+    <label class="keep-opt"><input type="checkbox" data-keep="${k}" ${keep[k] ? 'checked' : ''}>
+      <span>${label}${hint ? `<small>${hint}</small>` : ''}</span></label>`).join('');
+  // The ticks are remembered (per dialog) as settings, not undo steps.
+  function mountKeep(el, which) {
+    el.querySelectorAll('[data-keep]').forEach(box => box.addEventListener('change', () => {
+      state.settings[which][box.dataset.keep] = box.checked;
+      save();
+    }));
+  }
+
+  const ARCHIVE_KEY = 'schedule-ish:archive';
+  // Finished weeks, kept whole, keyed by when they were finished. Written
+  // here and nowhere else; nothing reads them back yet. False if it failed.
+  function archiveWeek(entry) {
+    try {
+      const all = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '{}');
+      all[entry.finishedAt] = entry;
+      localStorage.setItem(ARCHIVE_KEY, JSON.stringify(all));
+      return true;
+    } catch (e) {
+      console.warn('schedule-ish: could not archive', e);
+      return false;
+    }
+  }
+
+  function download(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  const fileSlug = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'week';
+
+  // Review only. Nothing is saved until "Finish week" is pressed; then the
+  // week goes to the archive as it stands and is reset in place (same name)
+  // with what the ticks keep. One undo step brings it all back.
+  function openFinish() {
+    if (!reviewing()) return;
+    commitEditing();
+    closePopover();
+    const cur = week();
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dialog" role="dialog" aria-label="Finish this week">
+        <div class="dialog-head" style="background:#f1ece3">
+          <div class="dialog-title">Finish “${esc(cur.name)}”</div>
+          <div class="text-xs mt-0.5" style="color:var(--muted)">Everything here, plan and review, is saved to the archive first.</div>
+        </div>
+        <div class="dialog-body">
+          <div class="dialog-sec"><h3>Before you go</h3>
+            <div class="finish-links">
+              <button class="btn" data-do="print">Print this week</button>
+              <button class="btn" data-do="export">Export this week</button>
+            </div></div>
+          <div class="dialog-sec"><h3>Start the next week</h3>${keepHtml(state.settings.finishWeek)}</div>
+        </div>
+        <div class="flex items-center gap-2 px-4 pb-4 pt-1">
+          <span class="text-[11.5px]" style="color:var(--muted)">⌘Z undoes it</span>
+          <button class="btn ml-auto" data-do="cancel">Cancel</button>
+          <button class="btn primary" data-do="finish">Finish week</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    mountKeep(overlay, 'finishWeek');
+    overlay.querySelector('[data-do="finish"]').focus();
+
+    const close = () => overlay.remove();
+    const finish = () => {
+      const w = week();
+      if (!archiveWeek(M.archiveEntry(state, w))) return toast('Couldn’t save to the archive (storage full?). Nothing changed.');
+      close();
+      const fresh = { ...M.carryWeek(w, state.settings.finishWeek), id: w.id };
+      ui.selectedId = null;
+      commit(s => {
+        s.weeks = s.weeks.map(x => (x.id === w.id ? fresh : x));
+        s.settings.mode = 'plan';
+      });
+      toast('Week finished. Saved to the archive.');
+    };
+    overlay.addEventListener('pointerdown', e => { if (e.target === overlay) close(); });
+    overlay.addEventListener('click', e => {
+      const b = e.target.closest('[data-do]');
+      if (!b) return;
+      switch (b.dataset.do) {
+        case 'cancel': return close();
+        case 'finish': return finish();
+        case 'print': return window.print();
+        case 'export': {
+          const entry = M.archiveEntry(state, week());
+          return download({ kind: 'schedule-ish week', ...entry, label: entry.label.replace('finished', 'exported'), exportedAt: entry.finishedAt, finishedAt: undefined },
+            `schedule-ish-${fileSlug(week().name)}-${new Date().toISOString().slice(0, 10)}.json`);
+        }
+      }
+    });
+    overlay.addEventListener('keydown', e => {
+      e.stopPropagation(); // keep the board's keys away
+      if (e.key === 'Escape') { e.preventDefault(); close(); }
     });
   }
 
@@ -1532,12 +1640,7 @@
   // ---- import / export -----------------------------------------------------
 
   function exportPlan() {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `schedule-ish-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    download(state, `schedule-ish-${new Date().toISOString().slice(0, 10)}.json`);
   }
 
   $('#import-file').addEventListener('change', async e => {
@@ -1545,7 +1648,16 @@
     e.target.value = '';
     if (!file) return;
     try {
-      const next = M.normalizeState(JSON.parse(await file.text()));
+      const raw = JSON.parse(await file.text());
+      // One week (from Finish week's Export): add it alongside the others.
+      if (raw && raw.kind === 'schedule-ish week' && raw.week) {
+        const w = M.normalizeState({ version: raw.version, weeks: [raw.week] }).weeks[0];
+        w.id = M.newId();
+        ui.selectedId = null;
+        commit(s => { s.weeks.push(w); s.currentWeek = w.id; });
+        return toast(`Added “${w.name}” as a week`);
+      }
+      const next = M.normalizeState(raw);
       if (!confirm(`Replace the current plan with “${file.name}”? (You can undo.)`)) return;
       commit(() => { state = next; });
       toast('Plan imported');

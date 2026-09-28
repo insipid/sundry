@@ -694,3 +694,12 @@ test('archiveEntry keeps the whole week as it stood, labelled with the finish da
   assert.deepEqual(e.tags, s.tags);
   assert.deepEqual(e.timeHolders, []);
 });
+
+test('New week and Finish week each remember their tick-boxes; missing ones use the defaults', () => {
+  assert.deepEqual(M.DEFAULT_KEEP, { schedule: false, regulars: true, oneOffs: true });
+  const d = M.defaultState().settings;
+  assert.deepEqual([d.newWeek, d.finishWeek], [M.DEFAULT_KEEP, M.DEFAULT_KEEP]);
+  const s = M.normalizeState({ settings: { newWeek: { schedule: true, regulars: 'yes' }, finishWeek: { oneOffs: false } } }).settings;
+  assert.deepEqual(s.newWeek, { schedule: true, regulars: true, oneOffs: true });
+  assert.deepEqual(s.finishWeek, { schedule: false, regulars: true, oneOffs: false });
+});

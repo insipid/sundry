@@ -275,6 +275,11 @@
     return w;
   }
   const copyWeek = (week, name) => carryWeek(week, KEEP_ALL, name);
+  // What New week and Finish week keep until you say otherwise: the
+  // sidebar lists, but an empty calendar.
+  const DEFAULT_KEEP = { schedule: false, regulars: true, oneOffs: true };
+  const normKeep = v => Object.fromEntries(Object.entries(DEFAULT_KEEP)
+    .map(([k, d]) => [k, v && typeof v[k] === 'boolean' ? v[k] : d]));
 
   // An archive entry for a finished week: the whole week as it stood, plus
   // the shared vocabularies, labelled "Name (finished Sun 28 Sep)".
@@ -300,7 +305,8 @@
     ];
     return {
       version: 6,
-      settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false, mode: 'plan', showNext: true },
+      settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false, mode: 'plan', showNext: true,
+        newWeek: { ...DEFAULT_KEEP }, finishWeek: { ...DEFAULT_KEEP } },
       weeks: [week],
       currentWeek: week.id,
       tags: [...STARTER_TAGS],
@@ -413,6 +419,9 @@
       sidebarHidden: s.sidebarHidden === true,
       mode: s.mode === 'review' ? 'review' : 'plan',
       showNext: s.showNext !== false,
+      // The tick-boxes of New week and Finish week, remembered separately.
+      newWeek: normKeep(s.newWeek),
+      finishWeek: normKeep(s.finishWeek),
     };
 
     // Plans before v4 counted half as many steps; their sizes all double.
@@ -490,7 +499,7 @@
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, STEPS_PER_LINE, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, zoneLabel, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
-    defaultState, normalizeState, blankWeek, copyWeek, carryWeek, archiveEntry, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
+    defaultState, normalizeState, blankWeek, copyWeek, carryWeek, archiveEntry, DEFAULT_KEEP, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
     threadKey, nextFocus, effectivePos, navTarget,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;

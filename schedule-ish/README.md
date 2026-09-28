@@ -31,8 +31,9 @@ CDNs, so it needs a network connection on first load.
 one-offs, zone breaks and early/evening. Whatever you change is saved into the week you're
 on. The dropdown can:
 - switch to another week;
-- start a **new blank week**, or a **new one from this week** (a full copy,
-  notes and ticks included);
+- start a **new week** from this one, ticking what to keep: **the schedule**
+  (the planned blocks, without any review), **regulars**, **one-offs**. The
+  ticks are remembered for next time;
 - **rename** or **delete** this week (deleting asks first, and ⌘Z brings it
   back).
 
@@ -145,6 +146,20 @@ back at how the week went. Nothing you do in review changes the plan.
 - Plan mode hides all of this. New blocks, duplicates and copies of a week
   start unrated.
 
+**Finish week…** (in the header, Review mode only) closes out the week.
+The dialog has **Print this week** and **Export this week** (a JSON file of
+just this week; Import adds it back as a week). Then tick what to keep for
+the next week: the same three as New week, remembered separately. Nothing
+happens until you press **Finish week**. Then:
+- the whole week as it stands (plan, what happened, ratings, tags, reviews,
+  day notes, focus, regulars and one-offs) is saved to an **archive** in the
+  browser, labelled like *My week (finished Mon 28 Sep)*;
+- the week starts again under the same name, keeping only what you ticked;
+- you're back in Plan mode.
+
+⌘Z undoes a finish (the archived copy stays). There's no way to browse the
+archive yet: it's kept for later.
+
 **Print** is a shortcut for the browser's print (⌘P does the same). It opens
 the print dialog with the week on one landscape page. The week's name is at
 the top, the sidebar and buttons are hidden, and the colours are kept. If
@@ -161,12 +176,13 @@ blocks show what's next, the sidebar side, and the optional zones. **Undo/redo**
 ## Saving
 
 Everything (all weeks) autosaves to the browser's `localStorage`, per browser and per
-origin. That means opening the file directly and serving it over
+origin. Finished weeks go to a separate archive entry there. That means opening the file directly and serving it over
 `localhost` give you separate plans.
 
 The **⋯** menu in the header has **Export** (downloads everything, meaning all
-weeks, regulars and one-offs, as JSON), **Import** (loads one back and
-replaces the current plan; undoable) and **Clear this week's blocks**.
+weeks, with their regulars and one-offs, as JSON; not the archive),
+**Import** (loads one back and replaces the current plan, or adds a single
+exported week alongside the others; undoable) and **Clear this week's blocks**.
 
 ## Code
 
