@@ -27,8 +27,8 @@ CDNs, so it needs a network connection on first load.
 ## Using it
 
 **Weeks.** The dropdown next to the title shows which week you're on, e.g.
-*My week ▾*. Each week is its own live board, with its own blocks, zone
-breaks and early/evening. Whatever you change is saved into the week you're
+*My week ▾*. Each week is its own live board, with its own blocks, regulars,
+one-offs, zone breaks and early/evening. Whatever you change is saved into the week you're
 on. The dropdown can:
 - switch to another week;
 - start a **new blank week**, or a **new one from this week** (a full copy,
@@ -36,7 +36,7 @@ on. The dropdown can:
 - **rename** or **delete** this week (deleting asks first, and ⌘Z brings it
   back).
 
-Days shown, regulars and one-offs are shared by all weeks.
+Days shown and tags are shared by all weeks.
 
 **The day** has no hours. It's split into soft zones: *morning*, *noon-ish*
 (tinted, the middle of the day) and *afternoon*. Faint lines mark the day off, and

@@ -243,37 +243,66 @@
   // Monday = 0, like the board's days.
   const todayIndex = (date = new Date()) => (date.getDay() + 6) % 7;
 
+  // A week carries its own regulars and one-offs (`unplaced`).
   function blankWeek(name = 'New week') {
-    return { id: newId(), name, view: defaultView(), zones: { ...DEFAULT_ZONE_SIZES }, blocks: [], unplanned: [], dayNotes: blankDayNotes(), focus: {} };
+    return { id: newId(), name, view: defaultView(), zones: { ...DEFAULT_ZONE_SIZES }, blocks: [], unplanned: [], dayNotes: blankDayNotes(), focus: {},
+      regulars: [], unplaced: [] };
   }
 
-  // A deep copy with fresh ids. Open focus lines carry over; done lines,
-  // session notes, ratings, tags, block reviews, day notes, actual positions
-  // and unplanned blocks start fresh.
-  function copyWeek(week, name) {
-    const copy = JSON.parse(JSON.stringify(week));
-    copy.id = newId();
-    copy.name = name;
-    copy.dayNotes = blankDayNotes();
-    copy.focus = Object.fromEntries(Object.entries(copy.focus || {}).map(([k, items]) => [k, items.filter(x => !x.done)]));
-    for (const x of copy.blocks) { x.id = newId(); x.rating = null; x.tags = []; x.session = ''; x.review = ''; x.actual = null; }
-    copy.unplanned = [];
-    return copy;
+  // A fresh week from an old one, keeping what `keep` asks for:
+  //   schedule: the planned blocks (with zone sizes and view),
+  //   regulars, oneOffs: the sidebar lists.
+  // Everything from review starts fresh: ratings, tags, reviews, session
+  // lines, actual positions, unplanned blocks, day notes and done focus
+  // lines. Open focus lines stay for the names that are still around.
+  // Fresh ids throughout; same name unless one is given.
+  const KEEP_ALL = { schedule: true, regulars: true, oneOffs: true };
+  function carryWeek(week, keep = KEEP_ALL, name = week.name) {
+    const old = JSON.parse(JSON.stringify(week));
+    const w = blankWeek(name);
+    if (keep.schedule) {
+      w.view = old.view;
+      w.zones = old.zones;
+      w.blocks = old.blocks.map(x => ({ ...x, id: newId(), rating: null, tags: [], session: '', review: '', actual: null }));
+    }
+    if (keep.regulars) w.regulars = (old.regulars || []).map(r => ({ ...r, id: newId() }));
+    if (keep.oneOffs) w.unplaced = (old.unplaced || []).map(u => ({ ...u, id: newId() }));
+    const names = new Set([...w.blocks, ...w.regulars, ...w.unplaced].map(x => threadKey(x.title)));
+    for (const [k, items] of Object.entries(old.focus || {})) {
+      const open = items.filter(x => !x.done);
+      if (names.has(k) && open.length) w.focus[k] = open;
+    }
+    return w;
+  }
+  const copyWeek = (week, name) => carryWeek(week, KEEP_ALL, name);
+
+  // An archive entry for a finished week: the whole week as it stood, plus
+  // the shared vocabularies, labelled "Name (finished Sun 28 Sep)".
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function archiveEntry(state, week, date = new Date()) {
+    const when = `${DAY_NAMES[todayIndex(date)]} ${date.getDate()} ${MONTHS[date.getMonth()]}`;
+    return {
+      label: `${week.name} (finished ${when})`,
+      finishedAt: date.toISOString(),
+      version: state.version,
+      week: JSON.parse(JSON.stringify(week)),
+      tags: [...state.tags],
+      timeHolders: [...state.timeHolders],
+    };
   }
 
   function defaultState() {
     const week = { ...blankWeek('My week'), id: 'w-first' };
+    week.regulars = [
+      { id: 'r-gym', title: 'Gym', size: 6, color: 1, zone: 'morning', notes: [] },
+      { id: 'r-lunch', title: 'Lunch', size: 4, color: 4, zone: 'midday', notes: [] },
+      { id: 'r-deep', title: 'Deep work', size: 8, color: 0, zone: 'morning', notes: [] },
+    ];
     return {
-      version: 5,
+      version: 6,
       settings: { weekStart: 0, visibleDays: [true, true, true, true, true, true, true], sidebar: 'left', sidebarHidden: false, mode: 'plan', showNext: true },
       weeks: [week],
       currentWeek: week.id,
-      regulars: [
-        { id: 'r-gym', title: 'Gym', size: 6, color: 1, zone: 'morning', notes: [] },
-        { id: 'r-lunch', title: 'Lunch', size: 4, color: 4, zone: 'midday', notes: [] },
-        { id: 'r-deep', title: 'Deep work', size: 8, color: 0, zone: 'morning', notes: [] },
-      ],
-      unplaced: [],
       tags: [...STARTER_TAGS],
       timeHolders: [],
     };
@@ -288,11 +317,24 @@
   const normFocus = v => (Array.isArray(v) ? v : [])
     .filter(n => n && typeof n.text === 'string' && n.text.trim())
     .map(n => ({ text: n.text, done: n.done === true || n.check === true }));
+  const sidebarSize = (x, scale) => clampBlock(0, (x.size ? x.size * scale : 2 * STEPS_PER_LINE), FULL_RANGE).size;
+  const normRegulars = (v, scale = 1) => (Array.isArray(v) ? v : [])
+    .filter(x => x && typeof x.title === 'string')
+    .map(x => ({ id: idOr(x.id), title: x.title, size: sidebarSize(x, scale), color: color(x.color),
+      zone: ZONE_IDS.includes(x.zone) ? x.zone : null,
+      notes: normFocus(x.notes).map(n => ({ text: n.text, done: false })) })); // lines to seed a week's focus
+  const normOneOffs = (v, scale = 1) => (Array.isArray(v) ? v : [])
+    .filter(x => x && typeof x.title === 'string')
+    .map(x => ({ id: idOr(x.id), title: x.title, size: sidebarSize(x, scale), color: color(x.color),
+      // older one-offs carried note lines: keep them as one session line
+      session: str(x.session) || normFocus(x.notes).map(n => n.text.trim()).join('; ') }));
 
   // One week's board: view, zone sizes and blocks. `v1` maps a version-1
   // (17-step) plan onto the current day; `scale` multiplies everything for
   // v2/v3 plans, which used a 20-step day (half today's resolution).
-  function normalizeWeek(raw, v1 = false, scale = 1) {
+  // `shared` holds the old, pre-v6 global regulars and one-offs: a week
+  // without lists of its own gets a copy of them (fresh ids).
+  function normalizeWeek(raw, v1 = false, scale = 1, shared = { regulars: [], unplaced: [] }) {
     let rawBlocks = (Array.isArray(raw.blocks) ? raw.blocks : [])
       .filter(x => x && int(x.day, 0, 6) && Number.isFinite(x.start) && Number.isFinite(x.size));
     let rz = raw.zones || {};
@@ -350,7 +392,10 @@
       showEvening: Boolean(v.showEvening) || !canHide('evening', occupied, layout),
     };
     const dayNotes = blankDayNotes().map((_, i) => str(Array.isArray(raw.dayNotes) ? raw.dayNotes[i] : ''));
-    return { id: idOr(raw.id), name: str(raw.name).trim() || 'Untitled week', view, zones, blocks, unplanned, dayNotes, focus };
+    const own = Array.isArray(raw.regulars) || Array.isArray(raw.unplaced);
+    const regulars = own ? normRegulars(raw.regulars, scale) : shared.regulars.map(r => ({ ...r, id: newId(), notes: r.notes.map(n => ({ ...n })) }));
+    const unplaced = own ? normOneOffs(raw.unplaced, scale) : shared.unplaced.map(u => ({ ...u, id: newId() }));
+    return { id: idOr(raw.id), name: str(raw.name).trim() || 'Untitled week', view, zones, blocks, unplanned, dayNotes, focus, regulars, unplaced };
   }
 
   // Validate/repair anything loaded from storage or an import file.
@@ -372,30 +417,20 @@
 
     // Plans before v4 counted half as many steps; their sizes all double.
     const scale = raw.version >= 1 && raw.version <= 3 ? 2 : 1;
+    // Before v6, regulars and one-offs were shared by every week.
+    const shared = { regulars: normRegulars(raw.regulars, scale), unplaced: normOneOffs(raw.unplaced, scale) };
     let weeks;
     if (Array.isArray(raw.weeks)) {
-      weeks = raw.weeks.filter(w => w && typeof w === 'object' && !Array.isArray(w)).map(w => normalizeWeek(w, false, scale));
+      weeks = raw.weeks.filter(w => w && typeof w === 'object' && !Array.isArray(w)).map(w => normalizeWeek(w, false, scale, shared));
     } else {
-      weeks = [normalizeWeek({ name: 'My week', view: raw.view, zones: raw.zones, blocks: raw.blocks, focus: raw.focus }, raw.version === 1, scale)];
+      weeks = [normalizeWeek({ name: 'My week', view: raw.view, zones: raw.zones, blocks: raw.blocks, focus: raw.focus }, raw.version === 1, scale, shared)];
     }
-    if (!weeks.length) weeks = [blankWeek('My week')];
+    if (!weeks.length) weeks = [{ ...blankWeek('My week'), regulars: shared.regulars, unplaced: shared.unplaced }];
     const currentWeek = weeks.some(w => w.id === raw.currentWeek) ? raw.currentWeek : weeks[0].id;
-
-    const regulars = (Array.isArray(raw.regulars) ? raw.regulars : [])
-      .filter(x => x && typeof x.title === 'string')
-      .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, (x.size ? x.size * scale : 2 * STEPS_PER_LINE), FULL_RANGE).size, color: color(x.color),
-        zone: ZONE_IDS.includes(x.zone) ? x.zone : null,
-        notes: normFocus(x.notes).map(n => ({ text: n.text, done: false })) })); // lines to seed a week's focus
-
-    const unplaced = (Array.isArray(raw.unplaced) ? raw.unplaced : [])
-      .filter(x => x && typeof x.title === 'string')
-      .map(x => ({ id: idOr(x.id), title: x.title, size: clampBlock(0, (x.size ? x.size * scale : 2 * STEPS_PER_LINE), FULL_RANGE).size, color: color(x.color),
-        // older unplaced items carried note lines: keep them as one session line
-        session: str(x.session) || normFocus(x.notes).map(n => n.text.trim()).join('; ') }));
 
     const tags = Array.isArray(raw.tags) ? normTags(raw.tags) : [...STARTER_TAGS];
     const timeHolders = normTags(raw.timeHolders);
-    return { version: 5, settings, weeks, currentWeek, regulars, unplaced, tags, timeHolders };
+    return { version: 6, settings, weeks, currentWeek, tags, timeHolders };
   }
 
   // The print-out's notes page: each name once, in board order (first
@@ -455,7 +490,7 @@
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, STEPS_PER_LINE, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, zoneLabel, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
-    defaultState, normalizeState, blankWeek, copyWeek, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
+    defaultState, normalizeState, blankWeek, copyWeek, carryWeek, archiveEntry, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
     threadKey, nextFocus, effectivePos, navTarget,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;

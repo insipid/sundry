@@ -67,7 +67,8 @@
     save(); render();
   }
 
-  // The week on the board. Settings, regulars and unplaced are global.
+  // The week on the board, with its own regulars and one-offs (`unplaced`).
+  // Settings and tags are global.
   function week() { return state.weeks.find(w => w.id === state.currentWeek); }
 
   const cloneLines = lines => (lines || []).map(n => ({ ...n }));
@@ -84,13 +85,13 @@
   function tidyActual(b) {
     if (b && b.actual && b.actual.day === b.day && b.actual.start === b.start && b.actual.size === b.size) b.actual = null;
   }
-  const findRegular = id => state.regulars.find(r => r.id === id);
-  const findUnplaced = id => state.unplaced.find(u => u.id === id);
+  const findRegular = id => week().regulars.find(r => r.id === id);
+  const findUnplaced = id => week().unplaced.find(u => u.id === id);
 
   // Same title → same colour, so "Gym" always looks like Gym.
   function colorFor(title) {
     const t = title.trim().toLowerCase();
-    const match = state.regulars.find(r => r.title.toLowerCase() === t) || week().blocks.find(b => b.title.toLowerCase() === t);
+    const match = week().regulars.find(r => r.title.toLowerCase() === t) || week().blocks.find(b => b.title.toLowerCase() === t);
     if (match) return match.color;
     let h = 0;
     for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -143,14 +144,14 @@
   };
 
   function renderSidebar() {
-    const regulars = state.regulars.map(r => `
+    const regulars = week().regulars.map(r => `
       <div class="chip" data-regular="${r.id}" style="${colorStyle(r.color)}" title="Drag onto a day · click to edit">
         <span class="truncate">${esc(r.title)}</span>
         ${r.zone ? `<span class="text-[11px] opacity-60">${M.zoneLabel(r.zone)}</span>` : ''}
         ${pips(r.size)}
       </div>`).join('');
 
-    const unplaced = state.unplaced.map(u => {
+    const unplaced = week().unplaced.map(u => {
       const editing = ui.editing && ui.editing.kind === 'unplaced' && ui.editing.id === u.id;
       return `
       <div class="chip group" data-unplaced="${u.id}" style="${colorStyle(u.color)}" title="Drag onto a day · double-click to rename">
@@ -604,7 +605,7 @@
         if (d.toUnplaced) {
           const b = findBlock(d.blockId);
           week().blocks = week().blocks.filter(x => x !== b);
-          state.unplaced.push({ id: b.id, title: b.title || 'untitled', size: b.size, color: b.color, session: b.session || '' });
+          week().unplaced.push({ id: b.id, title: b.title || 'untitled', size: b.size, color: b.color, session: b.session || '' });
           ui.selectedId = null;
           toast('Moved to one-offs');
         }
@@ -748,7 +749,7 @@
         ui.ghost = null;
         if (d.reorderTo != null && item) {
           const key = own.list;
-          state[key] = M.moveItem(state[key], state[key].indexOf(item), d.reorderTo);
+          week()[key] = M.moveItem(week()[key], week()[key].indexOf(item), d.reorderTo);
           return settle(d);
         }
         if (!g || !item) return render();
@@ -760,7 +761,7 @@
         if (!consume && item.notes && item.notes.length && !(week().focus[key] || []).length && !isTimeHolder(item.title)) {
           week().focus[key] = cloneLines(item.notes);
         }
-        if (consume) state.unplaced = state.unplaced.filter(u => u !== item);
+        if (consume) week().unplaced = week().unplaced.filter(u => u !== item);
         ui.selectedId = id;
         settle(d);
       },
@@ -849,7 +850,7 @@
     if (t.id === 'unplaced-input' && e.key === 'Enter') {
       const title = t.value.trim();
       if (title) {
-        commit(s => s.unplaced.push({ id: M.newId(), title, size: 2 * M.STEPS_PER_LINE, color: colorFor(title), session: '' }));
+        commit(s => week().unplaced.push({ id: M.newId(), title, size: 2 * M.STEPS_PER_LINE, color: colorFor(title), session: '' }));
         $('#unplaced-input').focus();
       }
       return;
@@ -1244,14 +1245,14 @@
           return commit(() => { const b = findBlock(id); b.color = (b.color + 1) % M.PALETTE.length; });
         case 'make-regular': {
           const b = findBlock(id);
-          if (state.regulars.some(r => r.title.toLowerCase() === b.title.toLowerCase())) return toast(`“${b.title}” is already a regular`);
-          commit(s => s.regulars.push({ id: M.newId(), title: b.title || 'untitled', size: b.size, color: b.color, zone: M.zoneAt(b.start, ui.zones),
+          if (week().regulars.some(r => r.title.toLowerCase() === b.title.toLowerCase())) return toast(`“${b.title}” is already a regular`);
+          commit(s => week().regulars.push({ id: M.newId(), title: b.title || 'untitled', size: b.size, color: b.color, zone: M.zoneAt(b.start, ui.zones),
             notes: focusOf(b.title).filter(x => !x.done).map(x => ({ text: x.text, done: false })) }));
           return toast(`Saved “${b.title || 'untitled'}” as a regular`);
         }
         case 'drop-unplaced': {
           const uid = act.closest('[data-unplaced]').dataset.unplaced;
-          return commit(s => { s.unplaced = s.unplaced.filter(u => u.id !== uid); });
+          return commit(s => { week().unplaced = week().unplaced.filter(u => u.id !== uid); });
         }
       }
       return;
@@ -1348,7 +1349,7 @@
         if (!draft.title) { title.focus(); return; }
         commit(s => {
           if (existing) Object.assign(findRegular(id), draft);
-          else s.regulars.push({ ...draft, id: M.newId() });
+          else week().regulars.push({ ...draft, id: M.newId() });
         });
         closePopover();
       };
@@ -1363,7 +1364,7 @@
         else if (b.dataset.do === 'save') return doSave();
         else if (b.dataset.do === 'cancel') return closePopover();
         else if (b.dataset.do === 'delete') {
-          commit(s => { s.regulars = s.regulars.filter(r => r.id !== id); });
+          commit(s => { week().regulars = week().regulars.filter(r => r.id !== id); });
           return closePopover();
         }
         sync();

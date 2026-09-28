@@ -104,9 +104,9 @@ test('sizeWord gives rough words, not durations (two steps to a word-step)', () 
 
 test('defaultState is valid and seeds a couple of regulars', () => {
   const s = M.defaultState();
-  assert.equal(s.version, 5);
+  assert.equal(s.version, 6);
   assert.equal(wk(s).blocks.length, 0);
-  assert.ok(s.regulars.length >= 1);
+  assert.ok(wk(s).regulars.length >= 1);
   assert.deepEqual(M.normalizeState(JSON.parse(JSON.stringify(s))), s);
 });
 
@@ -120,8 +120,8 @@ test('normalizeState repairs partial input and drops junk', () => {
   assert.deepEqual(wk(s).blocks.map(x => x.id), ['a', 'd']);
   // d is clamped to the full day
   assert.deepEqual([wk(s).blocks[1].start, wk(s).blocks[1].size], [35, 5]);
-  assert.deepEqual(s.regulars, []);
-  assert.deepEqual(s.unplaced, []);
+  assert.deepEqual(wk(s).regulars, []);
+  assert.deepEqual(wk(s).unplaced, []);
 });
 
 test('normalizeState turns on a hidden zone that has blocks in it', () => {
@@ -189,7 +189,7 @@ test('v1 plans move onto the 40-step day, keeping each block in its zone', () =>
     zones: { early: 3, morning: 4, midday: 2, afternoon: 4, evening: 4 },
     blocks: [b('am', 0, 3, 4), b('lunch', 0, 7, 2), b('pm', 0, 9, 2), b('eve', 0, 13, 2), b('dawn', 0, 0, 3)],
   });
-  assert.equal(s.version, 5);
+  assert.equal(s.version, 6);
   assert.deepEqual(wk(s).zones, M.DEFAULT_ZONE_SIZES);
   const at = id => { const x = wk(s).blocks.find(y => y.id === id); return [x.start, x.size]; };
   assert.deepEqual(at('am'), [8, 10]);   // the whole morning
@@ -305,13 +305,13 @@ test('a v2 plan becomes a single week called "My week", at double resolution', (
     zones: { early: 3, morning: 6, midday: 2, afternoon: 5, evening: 4 },
     blocks: [b('a', 1, 5, 2)], regulars: [{ title: 'Gym', size: 3 }], unplaced: [],
   });
-  assert.equal(s.version, 5);
+  assert.equal(s.version, 6);
   assert.equal(s.weeks.length, 1);
   assert.equal(wk(s).name, 'My week');
   assert.deepEqual(wk(s).view, { showEarly: true, showEvening: false });
   assert.deepEqual(wk(s).zones, { early: 6, morning: 12, midday: 4, afternoon: 10, evening: 8 });
   assert.deepEqual(wk(s).blocks.map(x => [x.id, x.start, x.size]), [['a', 10, 4]]);
-  assert.equal(s.regulars[0].size, 6);
+  assert.equal(wk(s).regulars[0].size, 6);
   assert.equal(s.blocks, undefined);
 });
 
@@ -342,11 +342,11 @@ test('v3 plans (20-step day) double every position and size', () => {
     regulars: [{ title: 'Gym', size: 3, zone: 'morning' }],
     unplaced: [{ title: 'Tidy', size: 1 }],
   });
-  assert.equal(s.version, 5);
+  assert.equal(s.version, 6);
   assert.deepEqual(wk(s).zones, { early: 8, morning: 12, midday: 2, afternoon: 10, evening: 8 });
   assert.deepEqual(wk(s).blocks.map(x => [x.id, x.start, x.size]), [['a', 8, 10], ['eve', 36, 4]]);
-  assert.equal(s.regulars[0].size, 6);
-  assert.equal(s.unplaced[0].size, 2);
+  assert.equal(wk(s).regulars[0].size, 6);
+  assert.equal(wk(s).unplaced[0].size, 2);
   // and a v4 plan is left exactly as it is
   assert.deepEqual(M.normalizeState(JSON.parse(JSON.stringify(s))), s);
 });
@@ -382,7 +382,7 @@ test('a regular\'s usual zone can be none (null); missing or unknown means none'
   const s = M.normalizeState({ regulars: [
     { title: 'Gym', zone: 'morning' }, { title: 'Read', zone: null }, { title: 'Old' }, { title: 'Odd', zone: 'teatime' },
   ] });
-  assert.deepEqual(s.regulars.map(r => r.zone), ['morning', null, null, null]);
+  assert.deepEqual(wk(s).regulars.map(r => r.zone), ['morning', null, null, null]);
 });
 
 // ---- review mode: ratings, tags, day notes ----
@@ -466,8 +466,8 @@ test('blocks keep a per-session line; regulars keep focus seed lines; unplaced k
     unplaced: [{ title: 'Tidy', notes: [{ text: 'garage', check: null }, { text: 'shed', check: false }] }, { title: 'Call', session: 'mum' }],
   });
   assert.equal(wk(s).blocks[0].session, 'just Acme');
-  assert.deepEqual(s.regulars[0].notes, [item('stretch')]);
-  assert.deepEqual(s.unplaced.map(u => u.session), ['garage; shed', 'mum']);
+  assert.deepEqual(wk(s).regulars[0].notes, [item('stretch')]);
+  assert.deepEqual(wk(s).unplaced.map(u => u.session), ['garage; shed', 'mum']);
 });
 
 test('time-holders are a shared list of names', () => {
@@ -611,4 +611,86 @@ test("left and right pick the block nearest the current one's middle in the next
 test("left and right follow the board's day order", () => {
   const items = [I('sun', 6, 10, 4), I('mon', 0, 10, 4)];
   assert.equal(M.navTarget(items, [6, 0, 1], 'sun', 'ArrowRight'), 'mon');
+});
+
+// ---- v6: regulars and one-offs belong to each week ----
+
+test('a pre-v6 plan gives every week its own copy of the shared regulars and one-offs', () => {
+  const s = M.normalizeState({ version: 5,
+    weeks: [{ id: 'w1', name: 'A', blocks: [] }, { id: 'w2', name: 'B', blocks: [] }], currentWeek: 'w1',
+    regulars: [{ id: 'r', title: 'Gym', size: 6, zone: 'morning', notes: [{ text: 'stretch' }] }],
+    unplaced: [{ id: 'u', title: 'Tidy', size: 4 }] });
+  assert.equal(s.version, 6);
+  assert.equal(s.regulars, undefined);
+  assert.equal(s.unplaced, undefined);
+  for (const w of s.weeks) {
+    assert.deepEqual(w.regulars.map(r => [r.title, r.size, r.zone, r.notes]), [['Gym', 6, 'morning', [item('stretch')]]]);
+    assert.deepEqual(w.unplaced.map(u => [u.title, u.size]), [['Tidy', 4]]);
+  }
+  // separate copies, separate ids
+  assert.notEqual(s.weeks[0].regulars[0].id, s.weeks[1].regulars[0].id);
+  s.weeks[0].regulars[0].notes[0].text = 'changed';
+  assert.equal(s.weeks[1].regulars[0].notes[0].text, 'stretch');
+});
+
+test('a v6 week keeps its own lists, even when empty', () => {
+  const s = M.normalizeState({ version: 6, weeks: [
+    { id: 'w1', name: 'A', blocks: [], regulars: [{ id: 'r', title: 'Swim', size: 4 }], unplaced: [] },
+    { id: 'w2', name: 'B', blocks: [], regulars: [], unplaced: [{ id: 'u', title: 'Call', size: 2 }] },
+  ], currentWeek: 'w1' });
+  assert.deepEqual(s.weeks.map(w => [w.regulars.map(r => r.id), w.unplaced.map(u => u.id)]), [[['r'], []], [[], ['u']]]);
+  assert.deepEqual(M.normalizeState(JSON.parse(JSON.stringify(s))), s);
+});
+
+// ---- carrying a week forward (New week, Finish week) ----
+
+const fullWeek = () => ({ ...M.blankWeek('Normal'),
+  view: { showEarly: true, showEvening: false }, zones: { early: 6, morning: 12, midday: 4, afternoon: 10, evening: 8 },
+  dayNotes: ['good day', '', '', '', '', '', ''],
+  focus: { 'job applications': [item('Call Sam'), item('LinkedIn', true)], 'gym': [item('legs')], 'tidy': [item('shed')], 'gone': [item('x')] },
+  blocks: [{ ...b('a', 0, 8, 4), title: 'Job applications', session: 'Acme', rating: 3, tags: ['flow'], review: 'ok', actual: { day: 1, start: 8, size: 4 } }],
+  unplanned: [b('u', 2, 22, 6)],
+  regulars: [{ id: 'r', title: 'Gym', size: 6, color: 1, zone: 'morning', notes: [item('legs')] }],
+  unplaced: [{ id: 'o', title: 'Tidy', size: 4, color: 2, session: '' }] });
+
+test('carryWeek keeping everything: the schedule without any review, same name', () => {
+  const src = fullWeek();
+  const w = M.carryWeek(src, { schedule: true, regulars: true, oneOffs: true });
+  assert.equal(w.name, 'Normal');
+  assert.deepEqual([w.view, w.zones], [src.view, src.zones]);
+  assert.deepEqual(w.blocks.map(x => [x.title, x.day, x.start, x.size, x.session, x.rating, x.tags, x.review, x.actual]),
+    [['Job applications', 0, 8, 4, '', null, [], '', null]]);
+  assert.notEqual(w.blocks[0].id, 'a');
+  assert.deepEqual([w.unplanned, w.dayNotes[0]], [[], '']);
+  assert.deepEqual([w.regulars.map(r => r.title), w.unplaced.map(u => u.title)], [['Gym'], ['Tidy']]);
+  assert.notEqual(w.regulars[0].id, 'r');
+  // open focus lines stay for names still around; done lines and orphans go
+  assert.deepEqual(w.focus, { 'job applications': [item('Call Sam')], 'gym': [item('legs')], 'tidy': [item('shed')] });
+  // deep
+  w.regulars[0].notes[0].text = 'arms';
+  assert.equal(src.regulars[0].notes[0].text, 'legs');
+});
+
+test('carryWeek with an empty calendar keeps the sidebar; blank keeps nothing', () => {
+  const src = fullWeek();
+  const w = M.carryWeek(src, { schedule: false, regulars: true, oneOffs: true }, 'Next');
+  assert.equal(w.name, 'Next');
+  assert.deepEqual([w.blocks, w.zones, w.view], [[], M.DEFAULT_ZONE_SIZES, { showEarly: false, showEvening: false }]);
+  assert.deepEqual(Object.keys(w.focus), ['gym', 'tidy']);
+  const blank = M.carryWeek(src, { schedule: false, regulars: false, oneOffs: false });
+  assert.deepEqual([blank.blocks, blank.regulars, blank.unplaced, blank.focus], [[], [], [], {}]);
+});
+
+test('archiveEntry keeps the whole week as it stood, labelled with the finish date', () => {
+  const s = M.defaultState();
+  const w = { ...fullWeek(), name: 'My week' };
+  const when = new Date(2026, 8, 28, 17, 47);
+  const e = M.archiveEntry(s, w, when);
+  assert.equal(e.label, 'My week (finished Mon 28 Sep)');
+  assert.equal(e.finishedAt, when.toISOString());
+  assert.equal(e.version, 6);
+  assert.deepEqual(e.week, w);
+  assert.notEqual(e.week, w);
+  assert.deepEqual(e.tags, s.tags);
+  assert.deepEqual(e.timeHolders, []);
 });
