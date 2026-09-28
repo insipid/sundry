@@ -377,3 +377,4 @@ Feasibility only; nothing decided or built.
 - **2026-09-28:** Archive labels are just the week name (Drew). Shared
   calendars (`?cal=<id>`, own storage per id) planned separately in
   `2026-09-28-2109_PLAN_shared-calendars.md`, waiting on Drew's review.
+- **2026-09-28:** Built shared calendars (`?cal=<id>`) as planned.
