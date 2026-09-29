@@ -13,14 +13,18 @@ with it, but only in their own browser. The published file never changes.
 
 ## How it behaves
 
-- **`?cal=<id>`** loads `calendars/<id>.json`, which sits next to
+- **`?cal=<id>`** loads `calendars/<id>.js`, which sits next to
   `index.html`. The page works out the file's URL from the id; the link
   never contains a path.
 - **The id** is letters, numbers and hyphens only (a UUID or a readable name
   both fit), so a link can't reach anything outside `calendars/`. An invalid
   id is treated like a missing file.
-- **The file** is any full export (⋯ → Export). It goes through the same
-  checks and upgrades as Import, so older files still load.
+- **The file** is a full export wrapped in one call, `scheduleIsh({...});`,
+  and is loaded as a script. (Changed 2026-09-29: it was plain `.json`, but
+  browsers won't fetch that from disk, and Drew wants it to work opened as a
+  file too. One file per calendar either way.) ⋯ → **Export as a shared
+  calendar** writes one. The data goes through the same checks and upgrades
+  as Import, so older exports still load.
 - **Its own storage.** A shared calendar never touches your own calendar.
   Everything it saves goes under keys named after the id:
   - `schedule-ish:cal:<id>:v1` (the plan, and the tick-box settings),
@@ -29,7 +33,7 @@ with it, but only in their own browser. The published file never changes.
   - `schedule-ish:cal:<id>:source` (the published file's fingerprint, and
     one that was ignored).
   A plain URL (no `?cal=`) opens your own calendar, exactly as today.
-- **First visit:** fetch the file, save a copy under the calendar's keys,
+- **First visit:** load the file, save a copy under the calendar's keys,
   show it. **Later visits:** show the saved copy straight away; edits
   (including undo, Finish week, New week) change only that copy.
 - **A banner** says which calendar this is and that changes stay in this
@@ -38,7 +42,7 @@ with it, but only in their own browser. The published file never changes.
 
 ## When the published file changes
 
-On each visit the page fetches the file in the background and compares it
+On each visit the page loads the file again in the background and compares it
 with the version the saved copy started from. The copy keeps a fingerprint
 (a hash) of the file it came from. If they differ, the banner says **"The
 published version has changed"** and offers **Reset** or **Ignore**. Ignore
@@ -52,13 +56,13 @@ you choose Reset.
   board. It never falls back to your own calendar under a shared name.
 - **The same on a later visit:** the saved copy still shows. The background
   check fails quietly.
-- **Opened straight from disk (`file://`):** browsers block the fetch, so the
-  message says the page needs to be served over http.
+- **Opened straight from disk (`file://`):** works the same, because the
+  file is loaded as a script.
 
 ## Publishing one
 
-1. Build the calendar, then ⋯ → Export.
-2. Save the file as `schedule-ish/calendars/<id>.json`.
+1. Build the calendar.
+2. ⋯ → Export as a shared calendar; put the `.js` in `schedule-ish/calendars/`.
 3. Share `…/index.html?cal=<id>`.
 
 ## Code
@@ -66,13 +70,13 @@ you choose Reset.
 - `model.js`: `validCalId(id)`, and a small, stable `fingerprint(text)`
   string hash. Tests for both.
 - `share.js` (new, loaded before `app.js`, which it starts): reads `?cal=`,
-  works out the storage keys, does the first-visit fetch, shows the error
+  works out the storage keys, does the first-visit load, shows the error
   screen. Built this way so `app.js` can stay synchronous.
 - `app.js`: takes its keys from `share.js`; the background freshness check
   and the banner (Reset / Ignore).
 - `index.html`: banner and error-screen styles.
 - `README.md`: a "Sharing a calendar" section.
-- One example file, `calendars/example.json`, so the feature can be tried.
+- One example file, `calendars/example.js`, so the feature can be tried.
 
 ## Not now (too far ahead)
 

@@ -1,4 +1,4 @@
-{
+scheduleIsh({
   "version": 6,
   "settings": {
     "weekStart": 0,
@@ -350,4 +350,4 @@
     "lunch",
     "gym"
   ]
-}
+});

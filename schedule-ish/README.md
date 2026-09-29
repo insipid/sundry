@@ -192,12 +192,13 @@ exported week alongside the others; undoable) and **Clear this week's blocks**.
 
 A calendar can be published with the app and shared as a link:
 
-1. Build it, then **⋯ → Export**.
-2. Save the file as `calendars/<id>.json` next to `index.html`. The id is
-   letters, numbers and hyphens: a readable name or a UUID.
+1. Build it, then **⋯ → Export as a shared calendar**. That downloads
+   `<id>.js`: the same data as Export, wrapped as `scheduleIsh({...});`.
+2. Put it in `calendars/` next to `index.html` (rename it if you like). The
+   id is letters, numbers and hyphens: a readable name or a UUID.
 3. Share `…/index.html?cal=<id>`. Try `?cal=example`.
 
-A shared calendar is a starting point. The first visit fetches the file;
+A shared calendar is a starting point. The first visit loads the file;
 after that it lives in the visitor's browser under its own storage (its own
 plan, archive and saved place), apart from their own calendar, which a plain
 link still opens. Their changes stay in their browser; the published file
@@ -206,8 +207,9 @@ never changes. A bar above the board says which calendar it is and offers
 changed since, the bar says so and offers **Reset** or **Ignore**.
 
 If the file is missing or broken, the page says the calendar couldn't be
-loaded (it never shows your own calendar instead). Shared calendars need the
-page served over http: browsers block the fetch when it's opened as a file.
+loaded (it never shows your own calendar instead). Calendar files are
+scripts rather than plain JSON so that they load both from a server and with
+the page opened straight from disk.
 
 ## Code
 
@@ -216,7 +218,7 @@ page served over http: browsers block the fetch when it's opened as a file.
 | `index.html` | Page shell, Tailwind, and a small `<style>` block for the grid, blocks and print layout |
 | `model.js` | Pure logic: zones and steps, snapping, overlap layout, gap finding, loading/validation. No DOM. |
 | `share.js` | Which calendar the page shows (your own, or `?cal=<id>`), its storage keys, first-visit fetch; then starts `app.js` |
-| `calendars/` | Published calendars for `?cal=<id>` |
+| `calendars/` | Published calendars for `?cal=<id>` (`<id>.js`) |
 | `app.js` | Rendering, pointer-event drag/resize (blocks and zone breaks), sidebar, popovers, persistence, undo, print |
 | `test/model.test.js` | Unit tests for `model.js` |
 

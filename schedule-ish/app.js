@@ -1623,7 +1623,7 @@
   });
   // In the background on each visit: has the published file changed since
   // this copy was made (and not been ignored)? Offline or missing: stay quiet.
-  if (S.id !== null && location.protocol !== 'file:') {
+  if (S.id !== null) {
     S.fetchSource().then(src => {
       const seen = S.source();
       if (src.fingerprint !== seen.fingerprint && src.fingerprint !== seen.ignored) { ui.published = src; renderShareBar(); }
@@ -1636,6 +1636,7 @@
     openPopover(anchor, `
       <button class="menu-item" data-do="export">Export this plan…</button>
       <button class="menu-item" data-do="import">Import a plan…</button>
+      <button class="menu-item" data-do="export-shared" title="A calendars/&lt;id&gt;.js file, for sharing as ?cal=&lt;id&gt;">Export as a shared calendar…</button>
       <div class="menu-sep"></div>
       <button class="menu-item danger" data-do="clear">Clear this week’s blocks…</button>`, el => {
       el.style.width = '230px';
@@ -1646,6 +1647,7 @@
         closePopover();
         if (b.dataset.do === 'export') return exportPlan();
         if (b.dataset.do === 'import') return $('#import-file').click();
+        if (b.dataset.do === 'export-shared') return exportShared();
         if (!week().blocks.length && !week().unplanned.length) return toast('Already empty');
         if (confirm('Clear every block from this week? (Regulars and one-offs stay. You can undo.)')) {
           ui.selectedId = null;
@@ -1714,6 +1716,19 @@
   }
 
   // ---- import / export -----------------------------------------------------
+
+  // For calendars/<id>.js: the same export, wrapped so share.js can load it
+  // as a script (which works from disk too). Named after this calendar.
+  function exportShared() {
+    const id = S.id || fileSlug(week().name);
+    const blob = new Blob([`scheduleIsh(${JSON.stringify(state, null, 2)});\n`], { type: 'text/javascript' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${id}.js`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast(`Put ${id}.js in calendars/, then share ?cal=${id}`);
+  }
 
   function exportPlan() {
     download(state, `schedule-ish-${new Date().toISOString().slice(0, 10)}.json`);
