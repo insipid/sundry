@@ -110,7 +110,7 @@ scheduleIsh({
         {
           "id": "d5",
           "day": 1,
-          "start": 28,
+          "start": 30,
           "size": 2,
           "title": "Walk",
           "color": 6,
@@ -149,7 +149,7 @@ scheduleIsh({
         {
           "id": "d8",
           "day": 2,
-          "start": 28,
+          "start": 30,
           "size": 2,
           "title": "Admin",
           "color": 7,
@@ -188,7 +188,7 @@ scheduleIsh({
         {
           "id": "d11",
           "day": 3,
-          "start": 28,
+          "start": 30,
           "size": 2,
           "title": "Walk",
           "color": 6,
