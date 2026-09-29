@@ -28,8 +28,8 @@ scheduleIsh({
   },
   "weeks": [
     {
-      "id": "w-example",
-      "name": "An example week",
+      "id": "w-default",
+      "name": "My week",
       "view": {
         "showEarly": false,
         "showEvening": false
@@ -43,10 +43,10 @@ scheduleIsh({
       },
       "blocks": [
         {
-          "id": "x0",
+          "id": "d0",
           "day": 0,
           "start": 8,
-          "size": 4,
+          "size": 2,
           "title": "Gym",
           "color": 1,
           "session": "",
@@ -56,25 +56,12 @@ scheduleIsh({
           "actual": null
         },
         {
-          "id": "x1",
+          "id": "d1",
           "day": 0,
           "start": 12,
           "size": 6,
-          "title": "Job applications",
+          "title": "Focus work",
           "color": 0,
-          "session": "just Acme",
-          "rating": null,
-          "tags": [],
-          "review": "",
-          "actual": null
-        },
-        {
-          "id": "x2",
-          "day": 0,
-          "start": 18,
-          "size": 4,
-          "title": "Lunch",
-          "color": 4,
           "session": "",
           "rating": null,
           "tags": [],
@@ -82,12 +69,12 @@ scheduleIsh({
           "actual": null
         },
         {
-          "id": "x3",
+          "id": "d2",
           "day": 0,
           "start": 24,
-          "size": 8,
-          "title": "Deep work",
-          "color": 0,
+          "size": 2,
+          "title": "Admin",
+          "color": 7,
           "session": "",
           "rating": null,
           "tags": [],
@@ -95,11 +82,11 @@ scheduleIsh({
           "actual": null
         },
         {
-          "id": "x4",
+          "id": "d3",
           "day": 1,
           "start": 10,
-          "size": 8,
-          "title": "Deep work",
+          "size": 6,
+          "title": "Focus work",
           "color": 0,
           "session": "",
           "rating": null,
@@ -108,11 +95,11 @@ scheduleIsh({
           "actual": null
         },
         {
-          "id": "x5",
+          "id": "d4",
           "day": 1,
-          "start": 18,
+          "start": 24,
           "size": 4,
-          "title": "Lunch",
+          "title": "Errands",
           "color": 4,
           "session": "",
           "rating": null,
@@ -121,11 +108,128 @@ scheduleIsh({
           "actual": null
         },
         {
-          "id": "x6",
+          "id": "d5",
           "day": 1,
-          "start": 24,
+          "start": 28,
+          "size": 2,
+          "title": "Walk",
+          "color": 6,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d6",
+          "day": 2,
+          "start": 8,
+          "size": 2,
+          "title": "Gym",
+          "color": 1,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d7",
+          "day": 2,
+          "start": 22,
           "size": 6,
+          "title": "Project",
+          "color": 2,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d8",
+          "day": 2,
+          "start": 28,
+          "size": 2,
           "title": "Admin",
+          "color": 7,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d9",
+          "day": 3,
+          "start": 10,
+          "size": 6,
+          "title": "Focus work",
+          "color": 0,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d10",
+          "day": 3,
+          "start": 24,
+          "size": 2,
+          "title": "Admin",
+          "color": 7,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d11",
+          "day": 3,
+          "start": 28,
+          "size": 2,
+          "title": "Walk",
+          "color": 6,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d12",
+          "day": 4,
+          "start": 8,
+          "size": 2,
+          "title": "Gym",
+          "color": 1,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d13",
+          "day": 4,
+          "start": 12,
+          "size": 6,
+          "title": "Project",
+          "color": 2,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d14",
+          "day": 4,
+          "start": 26,
+          "size": 2,
+          "title": "Week review",
           "color": 3,
           "session": "",
           "rating": null,
@@ -134,116 +238,12 @@ scheduleIsh({
           "actual": null
         },
         {
-          "id": "x7",
-          "day": 2,
-          "start": 8,
-          "size": 4,
-          "title": "Gym",
-          "color": 1,
-          "session": "",
-          "rating": null,
-          "tags": [],
-          "review": "",
-          "actual": null
-        },
-        {
-          "id": "x8",
-          "day": 2,
-          "start": 12,
-          "size": 6,
-          "title": "Job applications",
-          "color": 0,
-          "session": "",
-          "rating": null,
-          "tags": [],
-          "review": "",
-          "actual": null
-        },
-        {
-          "id": "x9",
-          "day": 2,
-          "start": 18,
-          "size": 4,
-          "title": "Lunch",
-          "color": 4,
-          "session": "",
-          "rating": null,
-          "tags": [],
-          "review": "",
-          "actual": null
-        },
-        {
-          "id": "x10",
-          "day": 2,
-          "start": 24,
-          "size": 8,
-          "title": "Portfolio",
-          "color": 2,
-          "session": "",
-          "rating": null,
-          "tags": [],
-          "review": "",
-          "actual": null
-        },
-        {
-          "id": "x11",
-          "day": 3,
+          "id": "d15",
+          "day": 5,
           "start": 10,
-          "size": 8,
-          "title": "Deep work",
-          "color": 0,
-          "session": "",
-          "rating": null,
-          "tags": [],
-          "review": "",
-          "actual": null
-        },
-        {
-          "id": "x12",
-          "day": 3,
-          "start": 18,
-          "size": 4,
-          "title": "Lunch",
-          "color": 4,
-          "session": "",
-          "rating": null,
-          "tags": [],
-          "review": "",
-          "actual": null
-        },
-        {
-          "id": "x13",
-          "day": 3,
-          "start": 24,
-          "size": 8,
-          "title": "Portfolio",
-          "color": 2,
-          "session": "",
-          "rating": null,
-          "tags": [],
-          "review": "",
-          "actual": null
-        },
-        {
-          "id": "x14",
-          "day": 4,
-          "start": 8,
-          "size": 4,
-          "title": "Gym",
-          "color": 1,
-          "session": "",
-          "rating": null,
-          "tags": [],
-          "review": "",
-          "actual": null
-        },
-        {
-          "id": "x15",
-          "day": 4,
-          "start": 12,
           "size": 6,
-          "title": "Deep work",
-          "color": 0,
+          "title": "Chores",
+          "color": 3,
           "session": "",
           "rating": null,
           "tags": [],
@@ -251,13 +251,39 @@ scheduleIsh({
           "actual": null
         },
         {
-          "id": "x16",
-          "day": 4,
-          "start": 24,
+          "id": "d16",
+          "day": 5,
+          "start": 22,
           "size": 6,
           "title": "Friends",
           "color": 5,
-          "session": "pub quiz",
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d17",
+          "day": 6,
+          "start": 12,
+          "size": 2,
+          "title": "Walk",
+          "color": 6,
+          "session": "",
+          "rating": null,
+          "tags": [],
+          "review": "",
+          "actual": null
+        },
+        {
+          "id": "d18",
+          "day": 6,
+          "start": 24,
+          "size": 2,
+          "title": "Week prep",
+          "color": 3,
+          "session": "",
           "rating": null,
           "tags": [],
           "review": "",
@@ -275,25 +301,25 @@ scheduleIsh({
         ""
       ],
       "focus": {
-        "job applications": [
+        "focus work": [
           {
-            "text": "Tailor CV for Acme",
+            "text": "Outline the next piece",
             "done": false
           },
           {
-            "text": "Call Sam about an intro",
+            "text": "Tidy up notes",
             "done": false
           }
         ],
-        "portfolio": [
+        "project": [
           {
-            "text": "Case study 2 draft",
+            "text": "Sketch the first steps",
             "done": false
           }
         ],
-        "deep work": [
+        "week prep": [
           {
-            "text": "Chapter 1 notes",
+            "text": "Look over next week",
             "done": false
           }
         ]
@@ -302,40 +328,55 @@ scheduleIsh({
         {
           "id": "r-gym",
           "title": "Gym",
-          "size": 6,
+          "size": 2,
           "color": 1,
           "zone": "morning",
           "notes": []
         },
         {
-          "id": "r-lunch",
-          "title": "Lunch",
-          "size": 4,
-          "color": 4,
-          "zone": "midday",
+          "id": "r-focus",
+          "title": "Focus work",
+          "size": 6,
+          "color": 0,
+          "zone": "morning",
           "notes": []
         },
         {
-          "id": "r-deep",
-          "title": "Deep work",
-          "size": 8,
-          "color": 0,
-          "zone": "morning",
+          "id": "r-admin",
+          "title": "Admin",
+          "size": 2,
+          "color": 7,
+          "zone": "afternoon",
+          "notes": []
+        },
+        {
+          "id": "r-walk",
+          "title": "Walk",
+          "size": 2,
+          "color": 6,
+          "zone": null,
           "notes": []
         }
       ],
       "unplaced": [
         {
-          "id": "o1",
-          "title": "Tidy the shed",
+          "id": "o-dentist",
+          "title": "Book the dentist",
+          "size": 2,
+          "color": 4,
+          "session": ""
+        },
+        {
+          "id": "o-bike",
+          "title": "Fix the bike",
           "size": 4,
-          "color": 2,
+          "color": 3,
           "session": ""
         }
       ]
     }
   ],
-  "currentWeek": "w-example",
+  "currentWeek": "w-default",
   "tags": [
     "flow",
     "energised",
@@ -347,7 +388,7 @@ scheduleIsh({
     "should repeat"
   ],
   "timeHolders": [
-    "lunch",
-    "gym"
+    "gym",
+    "walk"
   ]
 });
