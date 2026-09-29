@@ -378,3 +378,8 @@ Feasibility only; nothing decided or built.
   calendars (`?cal=<id>`, own storage per id) planned separately in
   `2026-09-28-2109_PLAN_shared-calendars.md`, waiting on Drew's review.
 - **2026-09-28:** Built shared calendars (`?cal=<id>`) as planned.
+- **2026-09-29:** "calendar" → "schedule" in the UI; shared schedules are
+  `?weeks=<id>` in `weeks/` (`?cal=` still works). Print now follows the
+  mode: Plan prints plan + focus; Review prints the week as it went + "how
+  the week went" (worked, didn't work, ran long/short, moved, didn't happen,
+  tags, by name, days). Parked: printing both boards at once.
