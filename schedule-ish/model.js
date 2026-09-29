@@ -463,35 +463,33 @@
       .filter(t => t.items.length || t.sessions.length);
   }
 
-  // Print page 2 in review: how the week went. Which blocks worked, which
-  // didn't, which ran long or short, moved, or didn't happen; how each name
-  // did; what the tags say; the day notes. Starter tags count as good or
-  // bad; tags you add yourself only show in the tag list.
+  // Print page 2 in review: how the week went. Unrated blocks are
+  // placeholders and are left out. Worked: anything rated ✓ or better, or
+  // with a good tag, best first. Didn't work: unproductive, didn't happen,
+  // bad tags, ran long or short, moved. Then how each name did, what the
+  // tags say, and the day notes. Starter tags count as good or bad; tags you
+  // add yourself only show in the tag list.
   const GOOD_TAGS = ['flow', 'energised', 'should repeat'];
   const BAD_TAGS = ['interrupted', 'distracted', 'wrong time'];
   const TIMING_TAGS = ['too long', 'too short'];
   function weekSummary(week, days, zones = zonesFor(week.zones)) {
     const shown = x => days.includes(effectivePos(x).day);
+    const planned = week.blocks.filter(shown).length;
     const all = [
       ...week.blocks.filter(shown).map(x => ({ x, unplanned: false })),
       ...(week.unplanned || []).filter(shown).map(x => ({ x, unplanned: true })),
-    ].map(({ x, unplanned }) => {
+    ].filter(({ x }) => (x.rating ?? null) !== null).map(({ x, unplanned }) => {
       const pos = effectivePos(x);
       const moved = !unplanned && !!x.actual && (x.actual.day !== x.day || x.actual.start !== x.start);
       return {
-        id: x.id, title: x.title || 'untitled', color: x.color, rating: x.rating ?? null, tags: x.tags || [],
+        id: x.id, title: x.title || 'untitled', color: x.color, rating: x.rating, tags: x.tags || [],
         review: (x.review || '').trim(), unplanned, day: pos.day, zone: zoneAt(pos.start, zones), size: pos.size,
         plannedSize: x.size, change: unplanned || !x.actual ? 0 : x.actual.size - x.size,
         moved, from: moved ? { day: x.day, zone: zoneAt(x.start, zones) } : null,
       };
     }).sort((a, c) => days.indexOf(a.day) - days.indexOf(c.day));
     const has = (e, list) => e.tags.some(t => list.includes(t));
-
-    const worked = all.filter(e => e.rating === 3 || has(e, GOOD_TAGS));
-    const didnt = all.filter(e => !worked.includes(e) && (e.rating === 'bad' || has(e, BAD_TAGS) || e.unplanned));
-    const timing = all.filter(e => e.change !== 0 || has(e, TIMING_TAGS));
-    const moved = all.filter(e => e.moved);
-    const skipped = all.filter(e => e.rating === 'skip');
+    const score = e => (typeof e.rating === 'number' ? e.rating : 0);
 
     // Group a list by name, keeping first-appearance order.
     const byName = list => {
@@ -503,6 +501,10 @@
       }
       return [...groups.values()];
     };
+    // Worked, best first: by the name's best rating, then how often.
+    const worked = byName(all.filter(e => score(e) > 0 || has(e, GOOD_TAGS)))
+      .map(g => ({ ...g, best: Math.max(...g.items.map(score)) }))
+      .sort((a, c) => c.best - a.best || c.items.length - a.items.length);
 
     const tagMap = new Map();
     for (const e of all) for (const t of e.tags) {
@@ -514,17 +516,21 @@
         names: byName(list).map(g => ({ title: g.title, days: g.items.map(e => e.day) })) }))
       .sort((a, c) => c.count - a.count || a.tag.localeCompare(c.tag));
 
-    const count = (list, f) => list.filter(f).length;
-    const ratingCounts = list => ({
-      1: count(list, e => e.rating === 1), 2: count(list, e => e.rating === 2), 3: count(list, e => e.rating === 3),
-      skip: count(list, e => e.rating === 'skip'), bad: count(list, e => e.rating === 'bad'), none: count(list, e => e.rating === null),
-    });
+    const count = f => all.filter(f).length;
+    const ratingCounts = list => Object.fromEntries(RATINGS.map(r => [r, list.filter(e => e.rating === r).length]));
     const names = byName(all).map(g => ({ title: g.title, color: g.color, count: g.items.length, ratings: ratingCounts(g.items) }));
 
     return {
-      tally: { planned: count(all, e => !e.unplanned), unplanned: count(all, e => e.unplanned), ...ratingCounts(all),
-        moved: moved.length, longer: count(all, e => e.change > 0), shorter: count(all, e => e.change < 0) },
-      worked: byName(worked), didnt: byName(didnt), timing: byName(timing), moved: byName(moved), skipped: byName(skipped),
+      tally: { planned, rated: all.length, unplanned: count(e => e.unplanned), ...ratingCounts(all),
+        moved: count(e => e.moved), longer: count(e => e.change > 0), shorter: count(e => e.change < 0) },
+      worked,
+      didnt: {
+        unproductive: byName(all.filter(e => e.rating === 'bad')),
+        skipped: byName(all.filter(e => e.rating === 'skip')),
+        badTags: byName(all.filter(e => has(e, BAD_TAGS))),
+        timing: byName(all.filter(e => e.change !== 0 || has(e, TIMING_TAGS))),
+        moved: byName(all.filter(e => e.moved)),
+      },
       names, tags,
       dayNotes: days.map(day => ({ day, note: (week.dayNotes[day] || '').trim() })).filter(d => d.note),
     };

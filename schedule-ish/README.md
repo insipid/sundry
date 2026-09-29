@@ -167,12 +167,13 @@ prints follows the mode you're in:
 - **In Plan:** the plan (no unplanned blocks), then a page of each name's
   **focus** lines and session notes, for the week ahead.
 - **In Review:** the week as it went (ratings, moved blocks), then **how the
-  week went**: a tally, then what **worked** (✓✓✓, or tagged *flow*,
-  *energised*, *should repeat*), what **didn't** (unproductive, *interrupted*,
-  *distracted*, *wrong time*, unplanned), what **ran long or short**, what
-  **moved**, what **didn't happen**, every **tag** with where it landed (your
-  own tags only show here), how each **name** did across the week, and the
-  day notes. Block reviews show under their block.
+  week went**. Unrated blocks count as placeholders and are left out. A
+  tally, then what **worked** (anything rated ✓ or better, or tagged *flow*,
+  *energised*, *should repeat*; best first), what **didn't** (unproductive,
+  didn't happen ⊘, *interrupted* / *distracted* / *wrong time*, ran long or
+  short, moved), how each **name** did, every **tag** with where it landed
+  (your own tags only show here), and the day notes. Block reviews show
+  under their block.
 
 Choose "Save as PDF" as the destination, or print it.
 

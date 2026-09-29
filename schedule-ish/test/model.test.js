@@ -706,42 +706,58 @@ test('New week and Finish week each remember their tick-boxes; missing ones use 
 
 // ---- print: how the week went ----
 
-test('weekSummary sorts blocks into worked, didn\'t work, timing, moved and didn\'t happen', () => {
+test('weekSummary: worked is anything rated ✓+ or tagged good, best first; unrated blocks are left out', () => {
   const w = { ...M.blankWeek('W'), dayNotes: ['calm', '', ' ', '', '', '', ''],
     blocks: [
+      { ...b('a1', 0, 8, 4), title: 'Admin', rating: 1 },
       { ...b('p1', 3, 24, 8), title: 'Portfolio', rating: 3, tags: ['flow', 'should repeat'], review: ' best ' },
-      { ...b('d1', 0, 24, 8), title: 'Deep work', rating: 'bad', tags: ['distracted'] },
-      { ...b('d2', 1, 10, 8), title: 'Deep work', rating: 2, tags: ['too long'], actual: { day: 1, start: 10, size: 12 } },
-      { ...b('j1', 2, 14, 8), title: 'Job applications', rating: 1, actual: { day: 3, start: 10, size: 8 } },
-      { ...b('g1', 2, 8, 6), title: 'Gym', rating: 'skip' },
-      { ...b('l1', 0, 18, 4), title: 'Lunch', rating: null, tags: ['nice view'] },
+      { ...b('g1', 1, 8, 4), title: 'Gym', rating: 'bad', tags: ['energised'] },
+      { ...b('j1', 2, 8, 4), title: 'Jobs', rating: 2 },
+      { ...b('j2', 4, 8, 4), title: 'Jobs', rating: 1 },
+      { ...b('l1', 0, 18, 4), title: 'Lunch', rating: null, tags: ['flow'] },
       { ...b('h', 6, 8, 4), title: 'Hidden day', rating: 3 },
-    ],
-    unplanned: [{ ...b('u1', 1, 30, 6), title: 'Fire drill', rating: 'bad', tags: ['interrupted'] }] };
+    ] };
   const s = M.weekSummary(w, [0, 1, 2, 3, 4]);
-  const names = groups => groups.map(g => [g.title, g.items.map(e => e.id)]);
-  assert.deepEqual(names(s.worked), [['Portfolio', ['p1']]]);
-  assert.deepEqual(names(s.didnt), [['Deep work', ['d1']], ['Fire drill', ['u1']]]);
-  assert.deepEqual(names(s.timing), [['Deep work', ['d2']]]);
-  assert.equal(s.timing[0].items[0].change, 4);
-  assert.deepEqual(names(s.moved), [['Job applications', ['j1']]]);
-  assert.deepEqual(s.moved[0].items[0].from, { day: 2, zone: 'morning' });
-  assert.deepEqual(names(s.skipped), [['Gym', ['g1']]]);
+  assert.deepEqual(s.worked.map(g => [g.title, g.items.map(e => e.id)]),
+    [['Portfolio', ['p1']], ['Jobs', ['j1', 'j2']], ['Admin', ['a1']], ['Gym', ['g1']]]);
   assert.equal(s.worked[0].items[0].review, 'best');
-  assert.deepEqual(s.tally, { planned: 6, unplanned: 1, 1: 1, 2: 1, 3: 1, skip: 1, bad: 2, none: 1, moved: 1, longer: 1, shorter: 0 });
+  assert.ok(!s.names.some(n => n.title === 'Lunch'));
+  assert.ok(!s.tags.some(t => t.names.some(n => n.title === 'Lunch')));
+  assert.deepEqual([s.tally.planned, s.tally.rated], [6, 5]);
   assert.deepEqual(s.dayNotes, [{ day: 0, note: 'calm' }]);
 });
 
-test('weekSummary rolls up each name and counts tags, custom ones as "other"', () => {
+test("weekSummary: didn't work gathers unproductive, didn't happen, bad tags, ran long or short, moved", () => {
+  const w = { ...M.blankWeek('W'), blocks: [
+    { ...b('d1', 0, 24, 8), title: 'Deep work', rating: 'bad', tags: ['distracted'] },
+    { ...b('d2', 1, 10, 8), title: 'Deep work', rating: 2, tags: ['too long'], actual: { day: 1, start: 10, size: 12 } },
+    { ...b('j1', 2, 14, 8), title: 'Jobs', rating: 1, actual: { day: 3, start: 10, size: 8 } },
+    { ...b('g1', 2, 8, 6), title: 'Gym', rating: 'skip' },
+    { ...b('x1', 4, 8, 6), title: 'Unrated', rating: null, actual: { day: 4, start: 20, size: 2 } },
+  ], unplanned: [{ ...b('u1', 1, 30, 6), title: 'Fire drill', rating: 'bad', tags: ['interrupted'] }] };
+  const s = M.weekSummary(w, [0, 1, 2, 3, 4]);
+  const ids = groups => groups.map(g => [g.title, g.items.map(e => e.id)]);
+  assert.deepEqual(ids(s.didnt.unproductive), [['Deep work', ['d1']], ['Fire drill', ['u1']]]);
+  assert.deepEqual(ids(s.didnt.skipped), [['Gym', ['g1']]]);
+  assert.deepEqual(ids(s.didnt.badTags), [['Deep work', ['d1']], ['Fire drill', ['u1']]]);
+  assert.deepEqual(ids(s.didnt.timing), [['Deep work', ['d2']]]);
+  assert.equal(s.didnt.timing[0].items[0].change, 4);
+  assert.deepEqual(ids(s.didnt.moved), [['Jobs', ['j1']]]);
+  assert.deepEqual(s.didnt.moved[0].items[0].from, { day: 2, zone: 'morning' });
+  assert.deepEqual(s.tally, { planned: 5, rated: 5, unplanned: 1, 1: 1, 2: 1, 3: 0, skip: 1, bad: 2, moved: 1, longer: 1, shorter: 0 });
+});
+
+test('weekSummary rolls up each rated name and counts tags, custom ones as "other"', () => {
   const w = { ...M.blankWeek('W'), blocks: [
     { ...b('a', 0, 8, 4), title: 'Deep work', rating: 2, tags: ['interrupted'] },
     { ...b('c', 1, 8, 4), title: 'deep work', rating: 'bad', tags: ['interrupted', 'coffee'] },
-    { ...b('e', 2, 8, 4), title: 'Gym', rating: null, tags: ['flow'] },
+    { ...b('e', 2, 8, 4), title: 'Gym', rating: 'skip', tags: ['flow'] },
+    { ...b('f', 3, 8, 4), title: 'Gym', rating: null },
   ] };
-  const s = M.weekSummary(w, [0, 1, 2]);
+  const s = M.weekSummary(w, [0, 1, 2, 3]);
   assert.deepEqual(s.names.map(n => [n.title, n.count, n.ratings]), [
-    ['Deep work', 2, { 1: 0, 2: 1, 3: 0, skip: 0, bad: 1, none: 0 }],
-    ['Gym', 1, { 1: 0, 2: 0, 3: 0, skip: 0, bad: 0, none: 1 }],
+    ['Deep work', 2, { 1: 0, 2: 1, 3: 0, skip: 0, bad: 1 }],
+    ['Gym', 1, { 1: 0, 2: 0, 3: 0, skip: 1, bad: 0 }],
   ]);
   assert.deepEqual(s.tags.map(t => [t.tag, t.count, t.kind, t.names]), [
     ['interrupted', 2, 'bad', [{ title: 'Deep work', days: [0, 1] }]],

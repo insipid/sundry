@@ -1800,50 +1800,53 @@ window.Shared.whenReady(function () {
       </div>`;
   }
 
-  // Review: what worked, what didn't, what ran long or short, moved or
-  // didn't happen; how each name did; what the tags say; the day notes.
+  // Review: what worked (best first) and what didn't; tags, each name, the
+  // day notes. Unrated blocks are placeholders and are left out.
+  const SKIP_MARK = '⊘'; // didn't happen, where ticks are used
   function printSummary() {
     const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
     const s = M.weekSummary(week(), days, ui.zones);
     const t = s.tally;
-    if (!t.planned && !t.unplanned && !s.dayNotes.length) return '';
+    if (!t.rated && !s.dayNotes.length) return '';
     const ticks = [1, 2, 3].filter(r => t[r]).map(r => `${RATING_LABEL[r]} ${t[r]}`).join(', ');
     const line = [
       `${t.planned} planned`,
-      ticks && `rated ${ticks}`,
-      t.skip && `${t.skip} didn’t happen`,
-      t.bad && `${t.bad} unproductive`,
+      `${t.rated} rated${ticks ? `: ${ticks}` : ''}`,
+      t.skip && `${SKIP_MARK} ${t.skip} didn’t happen`,
+      t.bad && `${RATING_LABEL.bad} ${t.bad} unproductive`,
       t.moved && `${t.moved} moved`,
       t.longer && `${t.longer} ran long`,
       t.shorter && `${t.shorter} ran short`,
       t.unplanned && `${t.unplanned} unplanned`,
-      t.none && `${t.none} not rated`,
     ].filter(Boolean).join(' · ');
 
-    const rate = r => (r == null ? '' : `<span class="pn-rate ${typeof r === 'number' ? '' : 'word'}">${RATING_LABEL[r]}</span>`);
+    const mark = r => (r === 'skip' ? SKIP_MARK : RATING_LABEL[r]);
+    const rate = r => `<span class="pn-rate">${mark(r)}</span>`;
     const day = e => M.DAY_NAMES[e.day];
-    // One name per line, then one short line per block of it.
-    const groups = (list, detail) => list.map(g => `
-      <div class="pn-block"><div class="pn-line">${swatch(g.color)}<b>${esc(g.title)}</b></div>
-        ${g.items.map(e => `<div class="pn-sub">${detail(e)}</div>${e.review ? `<div class="pn-rev">${esc(e.review)}</div>` : ''}`).join('')}
-      </div>`).join('');
     const tagsOf = (e, pick) => { const ts = e.tags.filter(pick); return ts.length ? ` · ${ts.map(esc).join(', ')}` : ''; };
     const good = x => ['flow', 'energised', 'should repeat'].includes(x);
     const bad = x => ['interrupted', 'distracted', 'wrong time'].includes(x);
     const timingTag = x => x === 'too long' || x === 'too short';
+    // One name per line, then one short line per block of it.
+    const groups = (list, detail, reviews = true) => list.map(g => `
+      <div class="pn-block"><div class="pn-line">${swatch(g.color)}<b>${esc(g.title)}</b></div>
+        ${g.items.map(e => `<div class="pn-sub">${detail(e)}</div>${reviews && e.review ? `<div class="pn-rev">${esc(e.review)}</div>` : ''}`).join('')}
+      </div>`).join('');
+    const part = (title, body) => (body ? `<h5>${title}</h5>${body}` : '');
 
-    const worked = groups(s.worked, e => `${day(e)} ${rate(e.rating)}${tagsOf(e, good)}`);
-    const didnt = groups(s.didnt, e => `${day(e)} ${rate(e.rating)}${e.unplanned ? ' · unplanned' : ''}${tagsOf(e, bad)}`);
-    const timing = groups(s.timing, e => `${day(e)} ${e.change > 0 ? 'ran long' : e.change < 0 ? 'ran short' : ''}${
-      e.change && M.sizeWord(e.plannedSize) !== M.sizeWord(e.size) ? ` (${M.sizeWord(e.plannedSize)} → ${M.sizeWord(e.size)})` : ''}${tagsOf(e, timingTag)}`);
-    const moved = groups(s.moved, e => `${M.DAY_NAMES[e.from.day]} ${M.zoneLabel(e.from.zone)} → ${day(e)} ${M.zoneLabel(e.zone)}`);
-    const skipped = groups(s.skipped, e => day(e));
+    const worked = groups(s.worked, e => `${day(e)} ${rate(e.rating)}${e.unplanned ? ' · unplanned' : ''}${tagsOf(e, good)}`);
+    const d = s.didnt;
+    const didnt = [
+      part(`Unproductive ${RATING_LABEL.bad}`, groups(d.unproductive, e => `${day(e)}${e.unplanned ? ' · unplanned' : ''}${tagsOf(e, bad)}`)),
+      part(`Didn’t happen ${SKIP_MARK}`, groups(d.skipped, e => day(e))),
+      part('Bad tags', groups(d.badTags, e => `${day(e)} ${rate(e.rating)}${tagsOf(e, bad)}`, false)),
+      part('Ran long or short', groups(d.timing, e => `${day(e)} ${rate(e.rating)} ${e.change > 0 ? 'ran long' : e.change < 0 ? 'ran short' : ''}${
+        e.change && M.sizeWord(e.plannedSize) !== M.sizeWord(e.size) ? ` (${M.sizeWord(e.plannedSize)} → ${M.sizeWord(e.size)})` : ''}${tagsOf(e, timingTag)}`, false)),
+      part('Moved', groups(d.moved, e => `${M.DAY_NAMES[e.from.day]} ${M.zoneLabel(e.from.zone)} → ${day(e)} ${M.zoneLabel(e.zone)}`, false)),
+    ].join('');
     const names = s.names.map(n => {
-      const r = n.ratings;
-      const bits = [[1, r[1]], [2, r[2]], [3, r[3]], ['bad', r.bad]].filter(([, c]) => c).map(([k, c]) => `${RATING_LABEL[k]}${c > 1 ? ` ×${c}` : ''}`);
-      if (r.skip) bits.push(`didn’t happen${r.skip > 1 ? ` ×${r.skip}` : ''}`);
-      if (r.none) bits.push(`not rated${r.none > 1 ? ` ×${r.none}` : ''}`);
-      return `<div class="pn-line">${swatch(n.color)}<b>${esc(n.title)}</b><span class="pn-meta">${n.count} block${n.count === 1 ? '' : 's'} · ${bits.join(', ')}</span></div>`;
+      const bits = [3, 2, 1, 'bad', 'skip'].filter(k => n.ratings[k]).map(k => `${mark(k)}${n.ratings[k] > 1 ? ` ×${n.ratings[k]}` : ''}`);
+      return `<div class="pn-line">${swatch(n.color)}<b>${esc(n.title)}</b><span class="pn-meta">${bits.join(', ')}</span></div>`;
     }).join('');
     const tags = s.tags.map(x => `<div class="pn-tag ${x.kind}"><b>${esc(x.tag)}</b> ×${x.count}
       <span>${x.names.map(n => `${esc(n.title)} (${n.days.map(d => M.DAY_NAMES[d]).join(', ')})`).join(', ')}</span></div>`).join('');
@@ -1853,11 +1856,8 @@ window.Shared.whenReady(function () {
       <div class="pn-cols">
         ${printCard('Worked', worked, 'good')}
         ${printCard('Didn’t work', didnt, 'bad')}
-        ${printCard('Ran long or short', timing)}
-        ${printCard('Moved', moved)}
-        ${printCard('Didn’t happen', skipped)}
-        ${printCard('Tags', tags)}
         ${printCard('By name', names)}
+        ${printCard('Tags', tags)}
         ${printCard('Days', notes)}
       </div>`;
   }
