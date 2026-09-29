@@ -205,8 +205,8 @@ A schedule can be published with the app and shared as a link:
    `<id>.js`: the same data as Export, wrapped as `scheduleIsh({...});`.
 2. Put it in `weeks/` next to `index.html` (rename it if you like). The id
    is letters, numbers and hyphens: a readable name or a UUID.
-3. Share `…/index.html?weeks=<id>`. Try `?weeks=example`. (Older `?cal=`
-   links still work.)
+3. Share `…/index.html?weeks=<id>`. Try `?weeks=example`. (`?week=` and older
+   `?cal=` links work too.)
 
 A shared schedule is a starting point. The first visit loads the file;
 after that it lives in the visitor's browser under its own storage (its own

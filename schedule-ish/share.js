@@ -13,7 +13,8 @@
   'use strict';
   const M = root.Model;
   const query = new URLSearchParams(location.search);
-  const param = query.has('weeks') ? query.get('weeks') : query.get('cal');
+  // ?weeks= is the name; ?week= (an easy slip) and ?cal= (the old name) work too.
+  const param = ['weeks', 'week', 'cal'].map(k => query.get(k)).find(v => v !== null) ?? null;
   const id = param === null ? null : param;
   const prefix = id === null ? 'schedule-ish:' : `schedule-ish:cal:${id}:`;
   const keys = {
