@@ -1,16 +1,19 @@
-// schedule-ish: which calendar this page shows, and where it keeps it.
-// With no ?cal= it's your own calendar, under the usual keys. With
-// ?cal=<id> it's a shared calendar published as calendars/<id>.js: the
-// first visit loads it, then it lives under its own keys in this browser,
-// apart from your own. Starts app.js once the calendar is ready.
+// schedule-ish: which schedule this page shows, and where it keeps it.
+// With no ?weeks= it's your own schedule, under the usual keys. With
+// ?weeks=<id> it's a shared schedule published as weeks/<id>.js: the first
+// visit loads it, then it lives under its own keys in this browser, apart
+// from your own. Starts app.js once the schedule is ready. (?cal= is the
+// older name for ?weeks=; the storage keys still say cal, so copies already
+// saved carry on.)
 //
-// A calendar file is an export wrapped in one call, scheduleIsh({...});
+// A shared file is an export wrapped in one call, scheduleIsh({...});
 // loaded as a script, so it works from a server and opened from disk alike
 // (browsers won't fetch a .json from disk).
 (function (root) {
   'use strict';
   const M = root.Model;
-  const param = new URLSearchParams(location.search).get('cal');
+  const query = new URLSearchParams(location.search);
+  const param = query.has('weeks') ? query.get('weeks') : query.get('cal');
   const id = param === null ? null : param;
   const prefix = id === null ? 'schedule-ish:' : `schedule-ish:cal:${id}:`;
   const keys = {
@@ -19,7 +22,7 @@
     ui: prefix + 'ui',
     source: prefix + 'source', // { fingerprint, ignored } of the published file
   };
-  const url = id === null ? null : `calendars/${id}.js`;
+  const url = id === null ? null : `weeks/${id}.js`;
 
   // The published file: a fingerprint of its data and the checked plan in
   // it. A fresh query string each time gets past the browser's cache.
@@ -56,20 +59,20 @@
     s.src = 'app.js';
     document.body.appendChild(s);
   }
-  // Instead of a board: never show your own calendar under a shared name.
+  // Instead of a board: never show your own schedule under a shared name.
   function showError(title, detail) {
     document.title = 'schedule-ish · couldn’t load';
     const box = document.createElement('div');
     box.className = 'load-error';
     box.innerHTML = `<div><h1>${title}</h1><p>${detail}</p>
-      <a href="${location.pathname}">Open your own calendar</a></div>`;
+      <a href="${location.pathname}">Open your own schedule</a></div>`;
     document.body.replaceChildren(box);
   }
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   if (id === null) return startApp();
   document.title = `schedule-ish · ${id}`;
-  const notFound = () => showError('This calendar couldn’t be loaded', `There's no published calendar called “${esc(id)}”, or it couldn't be read.`);
+  const notFound = () => showError('This schedule couldn’t be loaded', `There's no shared schedule called “${esc(id)}”, or it couldn't be read.`);
   if (!M.validCalId(id)) return notFound();
   let saved = null;
   try { saved = localStorage.getItem(keys.plan); } catch (e) { /* storage blocked */ }

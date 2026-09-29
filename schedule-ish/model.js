@@ -276,7 +276,7 @@
   }
   const copyWeek = (week, name) => carryWeek(week, KEEP_ALL, name);
   // What New week and Finish week keep until you say otherwise: the
-  // sidebar lists, but an empty calendar.
+  // sidebar lists, but an empty week.
   const DEFAULT_KEEP = { schedule: false, regulars: true, oneOffs: true };
   const normKeep = v => Object.fromEntries(Object.entries(DEFAULT_KEEP)
     .map(([k, d]) => [k, v && typeof v[k] === 'boolean' ? v[k] : d]));
@@ -485,7 +485,7 @@
     }));
   }
 
-  // Shared calendars (?cal=<id>): the id names a file next to the page, so
+  // Shared schedules (?weeks=<id>): the id names a file next to the page, so
   // it's letters, numbers and hyphens only (a UUID or a readable name).
   const validCalId = id => typeof id === 'string' && /^[A-Za-z0-9-]{1,100}$/.test(id);
   // A short, stable fingerprint of a published file's text (32-bit FNV-1a),

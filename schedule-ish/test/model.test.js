@@ -671,7 +671,7 @@ test('carryWeek keeping everything: the schedule without any review, same name',
   assert.equal(src.regulars[0].notes[0].text, 'legs');
 });
 
-test('carryWeek with an empty calendar keeps the sidebar; blank keeps nothing', () => {
+test('carryWeek with an empty week keeps the sidebar; blank keeps nothing', () => {
   const src = fullWeek();
   const w = M.carryWeek(src, { schedule: false, regulars: true, oneOffs: true }, 'Next');
   assert.equal(w.name, 'Next');
@@ -723,9 +723,9 @@ test('daysForPrint lists each shown day with its note and blocks where they ende
   assert.deepEqual([out[1].blocks[1].unplanned, out[1].blocks[1].movedFrom], [true, null]);
 });
 
-// ---- shared calendars ----
+// ---- shared schedules ----
 
-test('a shared calendar id is letters, numbers and hyphens only', () => {
+test('a shared schedule id is letters, numbers and hyphens only', () => {
   for (const ok of ['example', 'Spring-demo-2', '3f2b8c1e-9d4a-4c1b-8e2f-6a7b9c0d1e2f']) assert.ok(M.validCalId(ok), ok);
   for (const bad of ['', '../secret', 'a/b', 'a.json', 'with space', 'x'.repeat(101), null, undefined, 7]) assert.ok(!M.validCalId(bad), String(bad));
 });

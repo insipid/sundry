@@ -29,7 +29,7 @@ week: { ..., regulars: [...], unplaced: [...] }
 
 One set of three tick-boxes, used by two dialogs:
 
-- ☐ **Keep the schedule**: the planned blocks, their open focus lines. All
+- ☐ **Keep the plan** (was "Keep the schedule"): the planned blocks, their open focus lines. All
   review (ratings, tags, reviews, actual positions, unplanned blocks, day
   notes, session lines, ticked focus lines) is cleared.
 - ☑ **Keep regulars** (with their default notes)

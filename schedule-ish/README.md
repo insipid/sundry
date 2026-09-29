@@ -31,7 +31,7 @@ CDNs, so it needs a network connection on first load.
 one-offs, zone breaks and early/evening. Whatever you change is saved into the week you're
 on. The dropdown can:
 - switch to another week;
-- start a **new week** from this one, ticking what to keep: **the schedule**
+- start a **new week** from this one, ticking what to keep: **the plan**
   (the planned blocks, without any review), **regulars**, **one-offs**. The
   ticks are remembered for next time;
 - **rename** or **delete** this week (deleting asks first, and ⌘Z brings it
@@ -185,31 +185,32 @@ far the board is scrolled), separately from the plan.
 
 The **⋯** menu in the header has **Export** (downloads everything, meaning all
 weeks, with their regulars and one-offs, as JSON; not the archive),
-**Import** (loads one back and replaces the current plan, or adds a single
+**Import** (loads one back and replaces the current schedule, or adds a single
 exported week alongside the others; undoable) and **Clear this week's blocks**.
 
-## Sharing a calendar
+## Sharing a schedule
 
-A calendar can be published with the app and shared as a link:
+A schedule can be published with the app and shared as a link:
 
-1. Build it, then **⋯ → Export as a shared calendar**. That downloads
+1. Build it, then **⋯ → Export as a shared schedule**. That downloads
    `<id>.js`: the same data as Export, wrapped as `scheduleIsh({...});`.
-2. Put it in `calendars/` next to `index.html` (rename it if you like). The
-   id is letters, numbers and hyphens: a readable name or a UUID.
-3. Share `…/index.html?cal=<id>`. Try `?cal=example`.
+2. Put it in `weeks/` next to `index.html` (rename it if you like). The id
+   is letters, numbers and hyphens: a readable name or a UUID.
+3. Share `…/index.html?weeks=<id>`. Try `?weeks=example`. (Older `?cal=`
+   links still work.)
 
-A shared calendar is a starting point. The first visit loads the file;
+A shared schedule is a starting point. The first visit loads the file;
 after that it lives in the visitor's browser under its own storage (its own
-plan, archive and saved place), apart from their own calendar, which a plain
-link still opens. Their changes stay in their browser; the published file
-never changes. A bar above the board says which calendar it is and offers
-**Reset to the published version** (undoable). If the published file has
-changed since, the bar says so and offers **Reset** or **Ignore**.
+weeks, archive and saved place), apart from their own schedule, which a
+plain link still opens. Their changes stay in their browser; the published
+file never changes. A bar above the board says which schedule it is and
+offers **Reset to the published version** (undoable). If the published file
+has changed since, the bar says so and offers **Reset** or **Ignore**.
 
-If the file is missing or broken, the page says the calendar couldn't be
-loaded (it never shows your own calendar instead). Calendar files are
-scripts rather than plain JSON so that they load both from a server and with
-the page opened straight from disk.
+If the file is missing or broken, the page says the schedule couldn't be
+loaded (it never shows your own schedule instead). Shared files are scripts
+rather than plain JSON so that they load both from a server and with the
+page opened straight from disk.
 
 ## Code
 
@@ -217,8 +218,8 @@ the page opened straight from disk.
 |---|---|
 | `index.html` | Page shell, Tailwind, and a small `<style>` block for the grid, blocks and print layout |
 | `model.js` | Pure logic: zones and steps, snapping, overlap layout, gap finding, loading/validation. No DOM. |
-| `share.js` | Which calendar the page shows (your own, or `?cal=<id>`), its storage keys, first-visit fetch; then starts `app.js` |
-| `calendars/` | Published calendars for `?cal=<id>` (`<id>.js`) |
+| `share.js` | Which schedule the page shows (your own, or `?weeks=<id>`), its storage keys, first-visit load; then starts `app.js` |
+| `weeks/` | Shared schedules for `?weeks=<id>` (`<id>.js`) |
 | `app.js` | Rendering, pointer-event drag/resize (blocks and zone breaks), sidebar, popovers, persistence, undo, print |
 | `test/model.test.js` | Unit tests for `model.js` |
 

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const M = window.Model;
-  const S = window.Shared; // which calendar, and its storage keys (share.js)
+  const S = window.Shared; // which schedule, and its storage keys (share.js)
   const STORAGE_KEY = S.keys.plan;
   const DRAG_THRESHOLD = 4;
   const ADD_ROW_H = 26;     // the "+ early" / "+ evening" rows
@@ -26,7 +26,7 @@
     zones: M.zonesFor(week().zones),
     range: M.visibleRange(week().view, M.zonesFor(week().zones)),
     printing: false,
-    published: null,    // a shared calendar's changed published version, if noticed
+    published: null,    // a shared schedule's changed published version, if noticed
   };
 
   function load() {
@@ -1477,7 +1477,7 @@
   // ---- carrying a week forward: New week and Finish week ---------------
 
   const KEEP_OPTS = [
-    ['schedule', 'Keep the schedule', 'the planned blocks, without any of the review'],
+    ['schedule', 'Keep the plan', 'the planned blocks, without any of the review'],
     ['regulars', 'Keep regulars', ''],
     ['oneOffs', 'Keep one-offs', ''],
   ];
@@ -1585,9 +1585,9 @@
     });
   }
 
-  // ---- shared calendars (?cal=<id>) ---------------------------------------
+  // ---- shared schedules (?weeks=<id>) ---------------------------------------
 
-  // A shared calendar is this browser's own copy of a published file. The
+  // A shared schedule is this browser's own copy of a published file. The
   // bar says so, offers a reset to the published version, and notices when
   // that version has changed (Reset or Ignore; nothing is replaced unasked).
   function renderShareBar() {
@@ -1598,7 +1598,7 @@
       ? `<b>The published version has changed.</b>
          <button class="share-btn" data-share="reset">Reset to it</button>
          <button class="share-btn" data-share="ignore">Ignore</button>`
-      : `Shared calendar <b>${esc(S.id)}</b> · your changes stay in this browser
+      : `Shared schedule <b>${esc(S.id)}</b> · your changes stay in this browser
          <button class="share-btn" data-share="reset">Reset to the published version</button>`;
   }
   async function resetToPublished() {
@@ -1634,9 +1634,9 @@
   function openMore(anchor) {
     if (closePopover()) return;
     openPopover(anchor, `
-      <button class="menu-item" data-do="export">Export this plan…</button>
-      <button class="menu-item" data-do="import">Import a plan…</button>
-      <button class="menu-item" data-do="export-shared" title="A calendars/&lt;id&gt;.js file, for sharing as ?cal=&lt;id&gt;">Export as a shared calendar…</button>
+      <button class="menu-item" data-do="export">Export this schedule…</button>
+      <button class="menu-item" data-do="import">Import a schedule…</button>
+      <button class="menu-item" data-do="export-shared" title="A weeks/&lt;id&gt;.js file, for sharing as ?weeks=&lt;id&gt;">Export as a shared schedule…</button>
       <div class="menu-sep"></div>
       <button class="menu-item danger" data-do="clear">Clear this week’s blocks…</button>`, el => {
       el.style.width = '230px';
@@ -1717,8 +1717,8 @@
 
   // ---- import / export -----------------------------------------------------
 
-  // For calendars/<id>.js: the same export, wrapped so share.js can load it
-  // as a script (which works from disk too). Named after this calendar.
+  // For weeks/<id>.js: the same export, wrapped so share.js can load it
+  // as a script (which works from disk too). Named after this schedule.
   function exportShared() {
     const id = S.id || fileSlug(week().name);
     const blob = new Blob([`scheduleIsh(${JSON.stringify(state, null, 2)});\n`], { type: 'text/javascript' });
@@ -1727,7 +1727,7 @@
     a.download = `${id}.js`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    toast(`Put ${id}.js in calendars/, then share ?cal=${id}`);
+    toast(`Put ${id}.js in weeks/, then share ?weeks=${id}`);
   }
 
   function exportPlan() {
@@ -1749,11 +1749,11 @@
         return toast(`Added “${w.name}” as a week`);
       }
       const next = M.normalizeState(raw);
-      if (!confirm(`Replace the current plan with “${file.name}”? (You can undo.)`)) return;
+      if (!confirm(`Replace the current schedule with “${file.name}”? (You can undo.)`)) return;
       commit(() => { state = next; });
-      toast('Plan imported');
+      toast('Schedule imported');
     } catch (err) {
-      toast('That file doesn’t look like a schedule-ish plan');
+      toast('That file doesn’t look like a schedule-ish schedule');
     }
   });
 

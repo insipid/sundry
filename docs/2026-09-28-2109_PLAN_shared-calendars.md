@@ -2,6 +2,11 @@
 
 **For:** Drew · **Status:** approved and built 2026-09-28 · **Branch:** `schedule-ish`
 
+> **Renamed 2026-09-29:** "calendar" is now "schedule" everywhere you see
+> it. The link is `?weeks=<id>` and the folder `weeks/` (`?cal=` still
+> works). Storage keys still say `cal`, so copies already saved carry on.
+> The rest of this plan uses the old names.
+
 Separate from `2026-09-28-1747_PLAN_finish-week.md`. The two share only the
 data format, which is already settled (a full export, plan v6).
 
