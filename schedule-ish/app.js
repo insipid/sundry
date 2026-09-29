@@ -11,6 +11,7 @@ window.Shared.whenReady(function () {
   const ADD_ROW_H = 26;     // the "+ early" / "+ evening" rows
   const DAYNOTE_H = 30;     // the "How was Tue?" row in review mode
   const PRINT_GRID_H = 600; // px the day is squeezed into on paper
+  const DAY_VIEW_W = 500;   // px: the widest a zoomed-in day gets
 
   const $ = sel => document.querySelector(sel);
   const $$ = sel => [...document.querySelectorAll(sel)];
@@ -30,6 +31,7 @@ window.Shared.whenReady(function () {
     range: M.visibleRange(week().view, M.zonesFor(week().zones)),
     printing: false,
     published: null,    // a shared schedule's changed published version, if noticed
+    dayView: null,      // a day (0-6) zoomed to fill the board, or null for the week
   };
 
   function load() {
@@ -218,7 +220,10 @@ window.Shared.whenReady(function () {
   // Sidebar on the left or right (or hidden). The aside has its own 8px
   // padding, so the page edge on its side gets less.
   function placeSidebar() {
-    const { sidebar, sidebarHidden } = state.settings;
+    const { sidebar } = state.settings;
+    // Day view hides the sidebar without touching the setting, so it comes
+    // back as it was.
+    const sidebarHidden = state.settings.sidebarHidden || ui.dayView !== null;
     const main = $('#main');
     // Inline styles, not Tailwind classes: the browser build generates CSS
     // for new classes a beat later, and `hidden` would lose to `flex` anyway.
@@ -227,6 +232,7 @@ window.Shared.whenReady(function () {
     main.style.paddingRight = !sidebarHidden && sidebar === 'right' ? '12px' : '20px';
     $('#sidebar').style.display = sidebarHidden ? 'none' : '';
     $('[data-cmd="toggle-sidebar"]').classList.toggle('on', !sidebarHidden);
+    document.body.classList.toggle('day-view', ui.dayView !== null);
     // The button's panel line sits on the same side as the sidebar.
     $('[data-cmd="toggle-sidebar"] path').setAttribute('d', sidebar === 'right' ? 'M15 4v16' : 'M9 4v16');
   }
@@ -257,17 +263,29 @@ window.Shared.whenReady(function () {
   function drawBoard() {
     ui.zones = M.zonesFor(week().zones);
     ui.range = M.visibleRange(week().view, ui.zones);
-    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const week7 = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const zoomed = !ui.printing && ui.dayView !== null; // paper always gets the whole week
+    const days = zoomed ? [ui.dayView] : week7;
     const today = M.todayIndex();
     const { start: r0, end: r1 } = ui.range;
-    // min-width makes the grid as wide as its columns, so the sticky gutter can pin all the way.
-    const cols = `grid-template-columns: var(--gutter) repeat(${days.length || 1}, minmax(72px, 1fr)); min-width: calc(var(--gutter) + ${(days.length || 1) * 72}px)`;
+    // min-width makes the grid as wide as its columns, so the sticky gutter
+    // can pin all the way. Zoomed: one centred column, up to DAY_VIEW_W.
+    const cols = zoomed
+      ? `grid-template-columns: var(--gutter) minmax(0, ${DAY_VIEW_W}px); justify-content: center`
+      : `grid-template-columns: var(--gutter) repeat(${days.length || 1}, minmax(72px, 1fr)); min-width: calc(var(--gutter) + ${(days.length || 1) * 72}px)`;
 
+    const at = week7.indexOf(ui.dayView);
     $('#board-head').innerHTML = `
       <div class="grid border-b" style="${cols}; border-color: var(--grid)">
         <div class="pin-left"></div>
-        ${days.map(d => `<div class="day-head text-center py-2.5 text-sm font-semibold rounded-t-lg transition-colors whitespace-nowrap overflow-hidden text-ellipsis" data-day="${d}"
-            title="${M.DAY_LONG[d]} · drop a regular here to put it in its usual spot">${M.DAY_NAMES[d]}${d === today ? '<span class="today-dot" title="Today"></span>' : ''}</div>`).join('')}
+        ${zoomed
+          ? `<div class="day-head zoomed py-2.5" data-day="${ui.dayView}" title="Double-click, Esc or Space for the whole week">
+              <button class="day-step" data-cmd="day-step" data-step="-1" ${at <= 0 ? 'disabled' : ''} title="Previous day (←)">‹</button>
+              <span>${M.DAY_LONG[ui.dayView]}${ui.dayView === today ? ' <span class="today-word">today</span>' : ''}</span>
+              <button class="day-step" data-cmd="day-step" data-step="1" ${at < 0 || at >= week7.length - 1 ? 'disabled' : ''} title="Next day (→)">›</button>
+            </div>`
+          : days.map(d => `<div class="day-head text-center py-2.5 text-sm font-semibold rounded-t-lg transition-colors whitespace-nowrap overflow-hidden text-ellipsis" data-day="${d}"
+            title="${M.DAY_LONG[d]} · double-click to zoom in · drop a regular here to put it in its usual spot">${M.DAY_NAMES[d]}${d === today ? '<span class="today-dot" title="Today"></span>' : ''}</div>`).join('')}
       </div>`;
 
     measureStep(); // after the header, whose height it subtracts
@@ -387,13 +405,27 @@ window.Shared.whenReady(function () {
     const hasNotes = !isGhost && (!!next || !!(b.session && b.session.trim()) || (rev && !!(b.review && b.review.trim())));
     const rating = b.rating ?? null;
     if (rev) cls.push(rating === null ? 'unrated' : `r-${rating}`);
+    // Zoomed into one day, a block has room to say more: the next few focus
+    // lines and its session note (plan), or its tags and review (review).
+    const wide = ui.dayView !== null && !ui.printing && !isGhost;
+    let moreHtml = '';
+    if (wide) {
+      const open = holder || extra.unplanned ? [] : ((week().focus || {})[M.threadKey(b.title)] || []).filter(x => !x.done && x.text.trim());
+      const lines = rev
+        ? [b.tags && b.tags.length && `<div class="tag-line">${b.tags.map(esc).join(' · ')}</div>`,
+           b.review && b.review.trim() && `<div class="more-line review">${esc(b.review.trim())}</div>`]
+        : [...open.slice(0, 3).map(x => `<div class="next-line">→ ${esc(x.text)}</div>`),
+           b.session && b.session.trim() && `<div class="more-line">${esc(b.session.trim())}</div>`];
+      moreHtml = lines.filter(Boolean).join('') || (roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : '');
+    }
     return `<div class="${cls.join(' ')}" data-block="${b.id}"
         style="${colorStyle(b.color)} top:${top}px; height:${h}px; left:${left}; width:${width}; ${tiny ? 'padding-top:2px;padding-bottom:2px;' : ''}">
       ${isGhost || faint ? '' : '<div class="edge top" data-edge="top"></div><div class="edge bottom" data-edge="bottom"></div>'}
       ${editing
         ? `<input data-edit value="${esc(b.title)}" placeholder="what’s this?">`
         : `<div class="title">${esc(b.title) || '<span style="opacity:.5">untitled</span>'}</div>
-           ${rev && b.tags && b.tags.length && !tiny ? `<div class="tag-line">${b.tags.map(esc).join(' · ')}</div>`
+           ${wide && !tiny ? moreHtml
+             : rev && b.tags && b.tags.length && !tiny ? `<div class="tag-line">${b.tags.map(esc).join(' · ')}</div>`
              : shownNext ? `<div class="next-line">→ ${esc(shownNext)}</div>`
              : roomy ? `<div class="size-word">${M.sizeWord(b.size)}</div>` : ''}`}
       ${rev ? `<button class="rate ${rating === null ? 'empty' : typeof rating === 'number' ? '' : 'word'}" data-rate="${b.id}"
@@ -892,11 +924,21 @@ window.Shared.whenReady(function () {
     if (e.key === 'Escape') {
       if (ui.drag) return cancelDrag();
       if (closePopover()) return;
+      if (ui.dayView !== null) return setDayView(null);
       select(null);
       return;
     }
     if (t.closest && t.closest('input, textarea, select, .popover')) return;
     const mod = e.metaKey || e.ctrlKey;
+    // Space: zoom into today, or back out to the week.
+    if (e.key === ' ' && !mod && !e.altKey && !ui.drag) {
+      e.preventDefault();
+      return setDayView(ui.dayView === null ? todayShown() : null);
+    }
+    if (!mod && ui.dayView !== null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      return stepDay(e.key === 'ArrowRight' ? 1 : -1);
+    }
     if (!mod && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
       e.preventDefault();
       return navigate(e.key);
@@ -926,10 +968,39 @@ window.Shared.whenReady(function () {
     }
   });
 
+  // Day view: one day fills the board, the planning tools step aside, and
+  // blocks get room to say more. It's a zoom for focus, not a mode: all the
+  // usual editing still works. Remembered across reloads.
+  function setDayView(day) {
+    if (ui.dayView === day) return;
+    commitEditing();
+    closePopover();
+    ui.ghost = null;
+    ui.dayView = day;
+    if (ui.selectedId && day !== null) {
+      const b = findBlock(ui.selectedId);
+      if (!b || (reviewing() ? M.effectivePos(b).day : b.day) !== day) ui.selectedId = null;
+    }
+    uiSaved.dayView = day;
+    saveUi();
+    render();
+    $('#board-body').scrollTop = 0;
+  }
+  // Today, if it's one of the days shown; otherwise the first day shown.
+  function todayShown() {
+    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    return days.includes(M.todayIndex()) ? M.todayIndex() : (days[0] ?? 0);
+  }
+  function stepDay(step) {
+    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const next = days[days.indexOf(ui.dayView) + step];
+    if (next !== undefined) setDayView(next);
+  }
+
   // Arrow keys: move the selection between blocks as they're shown (in
   // review, where they actually happened, unplanned ones included).
   function navigate(key) {
-    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const days = ui.dayView !== null ? [ui.dayView] : M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
     const items = reviewing()
       ? [...week().blocks.map(b => ({ id: b.id, ...M.effectivePos(b) })), ...week().unplanned.map(b => ({ id: b.id, day: b.day, start: b.start, size: b.size }))]
       : week().blocks.map(b => ({ id: b.id, day: b.day, start: b.start, size: b.size }));
@@ -981,6 +1052,8 @@ window.Shared.whenReady(function () {
   });
 
   document.addEventListener('dblclick', e => {
+    const head = e.target.closest('.day-head');
+    if (head && !e.target.closest('.day-step')) return setDayView(ui.dayView === null ? +head.dataset.day : null);
     const blockEl = e.target.closest('.block:not(.ghost)');
     const unpEl = e.target.closest('[data-unplaced]');
     if (blockEl) return openBlockDialog(blockEl.dataset.block);
@@ -1304,6 +1377,8 @@ window.Shared.whenReady(function () {
       case 'new-regular': return editRegular(null, cmd);
       case 'print': return window.print();
       case 'finish': return openFinish();
+      case 'day-exit': return setDayView(null);
+      case 'day-step': return stepDay(+cmd.dataset.step);
       case 'mode': return setMode(cmd.dataset.mode);
       case 'add-tag': ui.addingTag = true; return renderReviewBar();
       case 'toggle-sidebar': return commit(s => { s.settings.sidebarHidden = !s.settings.sidebarHidden; });
@@ -1889,6 +1964,7 @@ window.Shared.whenReady(function () {
 
   save(); // write back anything load() repaired or migrated
   ui.selectedId = savedFor(state.currentWeek).selected || null;
+  if (Number.isInteger(uiSaved.dayView) && uiSaved.dayView >= 0 && uiSaved.dayView <= 6) ui.dayView = uiSaved.dayView;
   render();
   // After Tailwind has styled the page and the day has been fitted.
   setTimeout(restoreScroll, 300);

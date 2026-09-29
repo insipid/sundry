@@ -43,6 +43,20 @@
     .band { position: absolute; left: 0; right: 0; background: var(--band); pointer-events: none; }
     .pin-left { position: sticky; left: 0; z-index: 25; background: var(--board); }
     /* While a regular or unplaced item is being dragged, day names are drop targets. */
+    /* day view: one day, zoomed, with the planning tools out of the way */
+    #week-view-btn { display: none; }
+    body.day-view #week-view-btn { display: inline-block; }
+    body.day-view .plan-tool { display: none !important; }
+    .day-head.zoomed { font-size: 17px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 14px; }
+    .day-head.zoomed .today-word { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .day-step { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 15px; padding: 0 8px; border-radius: 8px; }
+    .day-step:hover:not([disabled]) { background: #f3efe8; color: var(--ink); }
+    .day-step[disabled] { opacity: .25; }
+    .block .more-line { font-size: 12px; margin-top: 2px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .block .more-line.review { opacity: 1; white-space: normal; }
+    body.day-view .block { padding: 9px 12px; }
+    body.day-view .block .title { font-size: 15px; }
+    body.day-view .block .next-line, body.day-view .block .more-line, body.day-view .block .tag-line, body.day-view .block .size-word { font-size: 13px; margin-top: 3px; }
     body.carrying .day-head { background: #f8f4ed; outline: 1.5px dashed var(--faint); outline-offset: -4px; }
     body.carrying .day-head.drop-hot { background: #eee6d8; outline-color: var(--accent); color: var(--ink); }
     .day-head.drop-hot::after { content: ' → ' attr(data-hint); font-size: 11px; font-weight: 500; color: var(--muted); }
@@ -321,16 +335,17 @@
           <button data-cmd="mode" data-mode="plan" title="Plan: arrange the week">Plan</button>
           <button data-cmd="mode" data-mode="review" title="Review: rate and tag how it went (the plan is locked)">Review</button>
         </div>
-        <button id="finish-btn" class="btn" data-cmd="finish" style="display:none" title="Save this week to the archive and start the next one">Finish week…</button>
-        <span class="text-sm whitespace-nowrap max-lg:hidden" style="color: var(--muted)">back-of-a-napkin planning</span>
+        <button id="finish-btn" class="btn plan-tool" data-cmd="finish" style="display:none" title="Save this week to the archive and start the next one">Finish week…</button>
+        <button id="week-view-btn" class="btn" data-cmd="day-exit" title="Back to the whole week (Esc or Space)">← Week</button>
+        <span class="plan-tool text-sm whitespace-nowrap max-lg:hidden" style="color: var(--muted)">back-of-a-napkin planning</span>
       </div>
       <div class="ml-auto flex items-center gap-1.5">
         <button class="btn !px-2.5" data-cmd="toggle-sidebar" title="Show / hide the sidebar" aria-label="Toggle sidebar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
         <button class="btn !px-2.5" data-cmd="undo" title="Undo (⌘Z)" aria-label="Undo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
         <button class="btn !px-2.5" data-cmd="redo" title="Redo (⇧⌘Z)" aria-label="Redo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
-        <button class="btn" data-cmd="print" title="Print the week, or choose “Save as PDF” in the print dialog">Print</button>
-        <button class="btn !px-2.5" data-cmd="more" title="Export, import, clear" aria-label="More">⋯</button>
-        <button class="btn" data-cmd="settings" title="Days, zones, clearing">Settings</button>
+        <button class="btn plan-tool" data-cmd="print" title="Print the week, or choose “Save as PDF” in the print dialog">Print</button>
+        <button class="btn !px-2.5 plan-tool" data-cmd="more" title="Export, import, clear" aria-label="More">⋯</button>
+        <button class="btn plan-tool" data-cmd="settings" title="Days, zones, clearing">Settings</button>
         <input id="import-file" type="file" accept="application/json,.json" hidden>
       </div>
     </header>

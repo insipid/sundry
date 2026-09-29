@@ -160,6 +160,16 @@ happens until you press **Finish week**. Then:
 ⌘Z undoes a finish (the archived copy stays). There's no way to browse the
 archive yet: it's kept for later.
 
+**Day view** is for getting on with the day rather than planning it. Press
+**Space** (when you're not typing) to zoom into today, or **double-click a
+day's name** to zoom into that day. The day fills the board as one centred
+column, the sidebar and planning buttons step aside, and blocks get room to
+show more: the next few focus lines and the session note (Plan), or tags
+and review (Review). **← / →** move to the previous or next day; **Space**,
+**Esc**, **← Week** or double-clicking the day's name go back to the whole
+week, with the sidebar as it was. Everything else works as usual, and the
+app remembers you were zoomed in.
+
 **Print** is a shortcut for the browser's print (⌘P does the same). It opens
 the print dialog with the week on one landscape page. The week's name is at
 the top, the sidebar and buttons are hidden, and the colours are kept. What
