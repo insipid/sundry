@@ -197,6 +197,14 @@ weeks, with their regulars and one-offs, as JSON; not the archive),
 **Import** (loads one back and replaces the current schedule, or adds a single
 exported week alongside the others; undoable) and **Clear this week's blocks**.
 
+## A default schedule
+
+The first time the app opens in a browser (nothing saved yet), it starts
+from `weeks/index.js` if there is one, the same kind of file as a shared
+schedule (⋯ → **Export as a shared schedule**, renamed `index.js`). That
+becomes your own schedule, saved in the browser like any other; the file
+isn't read again. With no `index.js`, you start with an empty week.
+
 ## Sharing a schedule
 
 A schedule can be published with the app and shared as a link:

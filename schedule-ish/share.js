@@ -6,6 +6,9 @@
 // older name for ?weeks=; the storage keys still say cal, so copies already
 // saved carry on.)
 //
+// Your own schedule, the first time in a browser (nothing saved yet),
+// starts from weeks/index.js if there is one, else empty.
+//
 // A shared file is an export wrapped in one call, scheduleIsh({...});
 // loaded as a script, so it works from a server and opened from disk alike
 // (browsers won't fetch a .json from disk).
@@ -27,18 +30,18 @@
 
   // The published file: a fingerprint of its data and the checked plan in
   // it. A fresh query string each time gets past the browser's cache.
-  function fetchSource() {
+  function fetchSource(from = url) {
     return new Promise((resolve, reject) => {
       let data;
       root.scheduleIsh = d => { data = d; };
       const s = document.createElement('script');
-      s.src = `${url}?t=${Date.now()}`;
+      s.src = `${from}?t=${Date.now()}`;
       const done = () => { s.remove(); delete root.scheduleIsh; };
-      s.onerror = () => { done(); reject(new Error('could not load ' + url)); };
+      s.onerror = () => { done(); reject(new Error('could not load ' + from)); };
       s.onload = () => {
         done();
         try {
-          if (!data) throw new Error(url + ' did not call scheduleIsh(...)');
+          if (!data) throw new Error(from + ' did not call scheduleIsh(...)');
           resolve({ fingerprint: M.fingerprint(JSON.stringify(data)), state: M.normalizeState(data) });
         } catch (e) { reject(e); }
       };
@@ -74,12 +77,22 @@
   }
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  if (id === null) return startApp();
+  let saved = null;
+  try { saved = localStorage.getItem(keys.plan); } catch (e) { /* storage blocked */ }
+
+  // Your own schedule: the saved one, or the default in weeks/index.js the
+  // first time, or (if there's none) an empty one.
+  if (id === null) {
+    if (saved) return startApp();
+    return fetchSource('weeks/index.js').then(src => {
+      Shared.initial = src.state;
+      try { localStorage.setItem(keys.plan, JSON.stringify(src.state)); } catch (e) { /* app.js uses Shared.initial */ }
+    }).catch(() => { /* no default: start empty */ }).then(startApp);
+  }
+
   document.title = `schedule-ish · ${id}`;
   const notFound = () => showError('This schedule couldn’t be loaded', `There's no shared schedule called “${esc(id)}”, or it couldn't be read.`);
   if (!M.validCalId(id)) return notFound();
-  let saved = null;
-  try { saved = localStorage.getItem(keys.plan); } catch (e) { /* storage blocked */ }
   if (saved) return startApp();
   fetchSource().then(src => {
     Shared.initial = src.state; // in case storage is blocked
