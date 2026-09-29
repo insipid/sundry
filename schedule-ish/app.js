@@ -1,5 +1,8 @@
 // schedule-ish UI: rendering, pointer interactions, persistence.
-(function () {
+// Runs as soon as share.js has the schedule: straight away for your own
+// (so the board is drawn before the page finishes loading, and Tailwind's
+// first scan sees its classes), later for a shared one's first visit.
+window.Shared.whenReady(function () {
   'use strict';
   const M = window.Model;
   const S = window.Shared; // which schedule, and its storage keys (share.js)
@@ -1889,4 +1892,4 @@
   render();
   // After Tailwind has styled the page and the day has been fitted.
   setTimeout(restoreScroll, 300);
-})();
+});

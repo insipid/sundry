@@ -226,7 +226,7 @@ page opened straight from disk.
 |---|---|
 | `index.html` | Page shell, Tailwind, and a small `<style>` block for the grid, blocks and print layout |
 | `model.js` | Pure logic: zones and steps, snapping, overlap layout, gap finding, loading/validation. No DOM. |
-| `share.js` | Which schedule the page shows (your own, or `?weeks=<id>`), its storage keys, first-visit load; then starts `app.js` |
+| `share.js` | Which schedule the page shows (your own, or `?weeks=<id>`), its storage keys, first-visit load; tells `app.js` when to start |
 | `weeks/` | Shared schedules for `?weeks=<id>` (`<id>.js`) |
 | `app.js` | Rendering, pointer-event drag/resize (blocks and zone breaks), sidebar, popovers, persistence, undo, print |
 | `test/model.test.js` | Unit tests for `model.js` |

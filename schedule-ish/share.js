@@ -2,7 +2,7 @@
 // With no ?weeks= it's your own schedule, under the usual keys. With
 // ?weeks=<id> it's a shared schedule published as weeks/<id>.js: the first
 // visit loads it, then it lives under its own keys in this browser, apart
-// from your own. Starts app.js once the schedule is ready. (?cal= is the
+// from your own. Tells app.js when the schedule is ready. (?cal= is the
 // older name for ?weeks=; the storage keys still say cal, so copies already
 // saved carry on.)
 //
@@ -51,13 +51,16 @@
     try { localStorage.setItem(keys.source, JSON.stringify(v)); } catch (e) { /* the copy still works */ }
   }
 
-  const Shared = { id, keys, url, fetchSource, source, setSource, initial: null };
+  // app.js hands its start-up to whenReady; it runs once the schedule is
+  // ready. Usually that's at once, while the page is still loading.
+  let ready = false, pending = null;
+  const Shared = { id, keys, url, fetchSource, source, setSource, initial: null,
+    whenReady(fn) { if (ready) fn(); else pending = fn; } };
   root.Shared = Shared;
 
   function startApp() {
-    const s = document.createElement('script');
-    s.src = 'app.js';
-    document.body.appendChild(s);
+    ready = true;
+    if (pending) { const fn = pending; pending = null; fn(); }
   }
   // Instead of a board: never show your own schedule under a shared name.
   function showError(title, detail) {

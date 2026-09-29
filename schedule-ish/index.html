@@ -36,7 +36,7 @@
     body.copying, body.copying * { cursor: copy !important; user-select: none; }
 
     /* grid */
-    .day-col { background-color: var(--board); border-left: 1px solid var(--grid); touch-action: none; }
+    .day-col { position: relative; background-color: var(--board); border-left: 1px solid var(--grid); touch-action: none; }
     .day-col:first-of-type { border-left: 0; }
     .zone-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--zone-line); pointer-events: none; }
     .step-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--grid); pointer-events: none; }
@@ -350,6 +350,7 @@
   <div id="toast"></div>
 
   <script src="model.js"></script>
-  <script src="share.js"></script><!-- starts app.js -->
+  <script src="share.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
