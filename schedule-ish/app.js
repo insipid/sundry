@@ -1768,65 +1768,95 @@
     toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
   }
 
-  // On paper the day is squeezed to fit one landscape page. Page 2 is the
-  // week's record: a header with a tally, then day by day (the day's note,
-  // then each block where it ended up, with rating, tags, session line and
-  // review), then each name's focus list. Time-holders have no focus list.
+  // On paper the day is squeezed to fit one landscape page. Page 2 follows
+  // the mode: in Plan it's each name's focus (the week ahead); in Review
+  // it's how the week went.
   function renderPrintNotes() {
-    const w = week();
-    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
-    const byDay = M.daysForPrint(w, days, ui.zones);
-    const threads = M.focusForPrint(w, days)
-      .map(t => (isTimeHolder(t.title) ? { ...t, items: [] } : t))
-      .filter(t => t.items.length);
-    const all = byDay.flatMap(d => d.blocks);
-    if (!all.length && !byDay.some(d => d.note) && !threads.length) { $('#print-notes').innerHTML = ''; return; }
+    $('#print-notes').innerHTML = reviewing() ? printSummary() : printFocus();
+  }
+  const printHead = (sub, line = '') => `
+    <header class="pn-head">
+      <h2>${esc(week().name)}</h2><span>${sub} · printed ${M.shortDate(new Date())}</span>
+      ${line ? `<div class="pn-tally">${line}</div>` : ''}
+    </header>`;
+  const printCard = (title, body, cls = '') => body ? `<section class="pn-day ${cls}"><h4>${title}</h4>${body}</section>` : '';
+  const swatch = c => { const [fill, ink] = M.PALETTE[c] || M.PALETTE[0]; return `<i class="pn-sw" style="background:${fill};border-color:${ink}"></i>`; };
 
-    const count = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
-    const planned = all.filter(x => !x.unplanned);
-    const rated = all.filter(x => typeof x.rating === 'number');
-    const tally = [
-      count(planned.length, 'block') + ' planned',
-      rated.length && `${rated.length} rated (${[1, 2, 3].map(r => all.filter(x => x.rating === r).length ? `${RATING_LABEL[r]} ${all.filter(x => x.rating === r).length}` : '').filter(Boolean).join(', ')})`,
-      all.filter(x => x.rating === 'skip').length && `${all.filter(x => x.rating === 'skip').length} didn’t happen`,
-      all.filter(x => x.rating === 'bad').length && `${all.filter(x => x.rating === 'bad').length} unproductive`,
-      all.filter(x => x.movedFrom != null).length && `${all.filter(x => x.movedFrom != null).length} moved`,
-      all.filter(x => x.unplanned).length && `${count(all.filter(x => x.unplanned).length, 'unplanned block')}`,
+  // Plan: each name's focus lines and session notes, in board order.
+  function printFocus() {
+    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const threads = M.focusForPrint(week(), days)
+      .map(t => (isTimeHolder(t.title) ? { ...t, items: [] } : t))
+      .filter(t => t.items.length || t.sessions.length);
+    if (!threads.length) return '';
+    return `${printHead('focus for the week')}
+      <div class="pn-cols">${threads.map(t => printCard(
+        `${esc(t.title || 'untitled')} <span class="pdays">${t.days.map(d => M.DAY_NAMES[d]).join(' · ')}</span>`,
+        `${t.items.length ? `<ul>${t.items.map(x => `<li class="${x.done ? 'done' : ''}">${x.done ? '✓' : '○'} ${esc(x.text)}</li>`).join('')}</ul>` : ''}
+         ${t.sessions.map(x => `<p class="psess"><b>${M.DAY_NAMES[x.day]}:</b> ${esc(x.text)}</p>`).join('')}`)).join('')}
+      </div>`;
+  }
+
+  // Review: what worked, what didn't, what ran long or short, moved or
+  // didn't happen; how each name did; what the tags say; the day notes.
+  function printSummary() {
+    const days = M.orderedDays(state.settings.weekStart, state.settings.visibleDays);
+    const s = M.weekSummary(week(), days, ui.zones);
+    const t = s.tally;
+    if (!t.planned && !t.unplanned && !s.dayNotes.length) return '';
+    const ticks = [1, 2, 3].filter(r => t[r]).map(r => `${RATING_LABEL[r]} ${t[r]}`).join(', ');
+    const line = [
+      `${t.planned} planned`,
+      ticks && `rated ${ticks}`,
+      t.skip && `${t.skip} didn’t happen`,
+      t.bad && `${t.bad} unproductive`,
+      t.moved && `${t.moved} moved`,
+      t.longer && `${t.longer} ran long`,
+      t.shorter && `${t.shorter} ran short`,
+      t.unplanned && `${t.unplanned} unplanned`,
+      t.none && `${t.none} not rated`,
     ].filter(Boolean).join(' · ');
 
-    const blockLine = x => {
-      const [fill, ink] = M.PALETTE[x.color] || M.PALETTE[0];
-      const meta = [M.zoneLabel(x.zone), M.sizeWord(x.size), x.unplanned && 'unplanned', x.movedFrom != null && `moved from ${M.DAY_NAMES[x.movedFrom]}`].filter(Boolean).join(' · ');
-      return `<div class="pn-block ${x.unplanned ? 'unplanned' : ''} ${x.rating === 'skip' ? 'skipped' : ''}">
-        <div class="pn-line"><i class="pn-sw" style="background:${fill};border-color:${ink}"></i><b>${esc(x.title || 'untitled')}</b>
-          ${x.rating != null ? `<span class="pn-rate ${typeof x.rating === 'number' ? '' : 'word'}">${RATING_LABEL[x.rating]}</span>` : ''}<span class="pn-meta">${meta}</span></div>
-        ${x.tags.length ? `<div class="pn-tags">${x.tags.map(esc).join(' · ')}</div>` : ''}
-        ${x.session ? `<div class="pn-sess">${esc(x.session)}</div>` : ''}
-        ${x.review ? `<div class="pn-rev">${esc(x.review)}</div>` : ''}
-      </div>`;
-    };
+    const rate = r => (r == null ? '' : `<span class="pn-rate ${typeof r === 'number' ? '' : 'word'}">${RATING_LABEL[r]}</span>`);
+    const day = e => M.DAY_NAMES[e.day];
+    // One name per line, then one short line per block of it.
+    const groups = (list, detail) => list.map(g => `
+      <div class="pn-block"><div class="pn-line">${swatch(g.color)}<b>${esc(g.title)}</b></div>
+        ${g.items.map(e => `<div class="pn-sub">${detail(e)}</div>${e.review ? `<div class="pn-rev">${esc(e.review)}</div>` : ''}`).join('')}
+      </div>`).join('');
+    const tagsOf = (e, pick) => { const ts = e.tags.filter(pick); return ts.length ? ` · ${ts.map(esc).join(', ')}` : ''; };
+    const good = x => ['flow', 'energised', 'should repeat'].includes(x);
+    const bad = x => ['interrupted', 'distracted', 'wrong time'].includes(x);
+    const timingTag = x => x === 'too long' || x === 'too short';
 
-    $('#print-notes').innerHTML = `
-      <header class="pn-head">
-        <h2>${esc(w.name)}</h2>
-        <span>the week on paper · printed ${M.shortDate(new Date())}</span>
-        <div class="pn-tally">${tally}</div>
-      </header>
-      <h3 class="pn-sec">Day by day</h3>
-      <div class="pn-cols">${byDay.map(d => `
-        <section class="pn-day">
-          <h4>${M.DAY_LONG[d.day]}</h4>
-          ${d.note ? `<p class="pn-note">${esc(d.note)}</p>` : ''}
-          ${d.blocks.length ? d.blocks.map(blockLine).join('') : '<p class="pn-empty">nothing on</p>'}
-        </section>`).join('')}
-      </div>
-      ${threads.length ? `<h3 class="pn-sec">Focus</h3>
-      <div class="pn-cols">${threads.map(t => `
-        <section class="pn-day">
-          <h4>${esc(t.title || 'untitled')} <span class="pdays">${t.days.map(d => M.DAY_NAMES[d]).join(' · ')}</span></h4>
-          <ul>${t.items.map(x => `<li class="${x.done ? 'done' : ''}">${x.done ? '✓' : '○'} ${esc(x.text)}</li>`).join('')}</ul>
-        </section>`).join('')}
-      </div>` : ''}`;
+    const worked = groups(s.worked, e => `${day(e)} ${rate(e.rating)}${tagsOf(e, good)}`);
+    const didnt = groups(s.didnt, e => `${day(e)} ${rate(e.rating)}${e.unplanned ? ' · unplanned' : ''}${tagsOf(e, bad)}`);
+    const timing = groups(s.timing, e => `${day(e)} ${e.change > 0 ? 'ran long' : e.change < 0 ? 'ran short' : ''}${
+      e.change && M.sizeWord(e.plannedSize) !== M.sizeWord(e.size) ? ` (${M.sizeWord(e.plannedSize)} → ${M.sizeWord(e.size)})` : ''}${tagsOf(e, timingTag)}`);
+    const moved = groups(s.moved, e => `${M.DAY_NAMES[e.from.day]} ${M.zoneLabel(e.from.zone)} → ${day(e)} ${M.zoneLabel(e.zone)}`);
+    const skipped = groups(s.skipped, e => day(e));
+    const names = s.names.map(n => {
+      const r = n.ratings;
+      const bits = [[1, r[1]], [2, r[2]], [3, r[3]], ['bad', r.bad]].filter(([, c]) => c).map(([k, c]) => `${RATING_LABEL[k]}${c > 1 ? ` ×${c}` : ''}`);
+      if (r.skip) bits.push(`didn’t happen${r.skip > 1 ? ` ×${r.skip}` : ''}`);
+      if (r.none) bits.push(`not rated${r.none > 1 ? ` ×${r.none}` : ''}`);
+      return `<div class="pn-line">${swatch(n.color)}<b>${esc(n.title)}</b><span class="pn-meta">${n.count} block${n.count === 1 ? '' : 's'} · ${bits.join(', ')}</span></div>`;
+    }).join('');
+    const tags = s.tags.map(x => `<div class="pn-tag ${x.kind}"><b>${esc(x.tag)}</b> ×${x.count}
+      <span>${x.names.map(n => `${esc(n.title)} (${n.days.map(d => M.DAY_NAMES[d]).join(', ')})`).join(', ')}</span></div>`).join('');
+    const notes = s.dayNotes.map(d => `<div class="pn-sub"><b>${M.DAY_NAMES[d.day]}</b> ${esc(d.note)}</div>`).join('');
+
+    return `${printHead('how the week went', line)}
+      <div class="pn-cols">
+        ${printCard('Worked', worked, 'good')}
+        ${printCard('Didn’t work', didnt, 'bad')}
+        ${printCard('Ran long or short', timing)}
+        ${printCard('Moved', moved)}
+        ${printCard('Didn’t happen', skipped)}
+        ${printCard('Tags', tags)}
+        ${printCard('By name', names)}
+        ${printCard('Days', notes)}
+      </div>`;
   }
   window.addEventListener('beforeprint', () => { ui.printing = true; renderBoard(); renderPrintNotes(); });
   window.addEventListener('afterprint', () => { ui.printing = false; renderBoard(); });

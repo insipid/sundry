@@ -463,26 +463,71 @@
       .filter(t => t.items.length || t.sessions.length);
   }
 
-  // The print-out's day-by-day record: for each shown day, its note and
-  // every block that ended up there (planned blocks where they actually
-  // happened, plus unplanned ones), top to bottom, with how it went.
-  function daysForPrint(week, days, zones = zonesFor(week.zones)) {
+  // Print page 2 in review: how the week went. Which blocks worked, which
+  // didn't, which ran long or short, moved, or didn't happen; how each name
+  // did; what the tags say; the day notes. Starter tags count as good or
+  // bad; tags you add yourself only show in the tag list.
+  const GOOD_TAGS = ['flow', 'energised', 'should repeat'];
+  const BAD_TAGS = ['interrupted', 'distracted', 'wrong time'];
+  const TIMING_TAGS = ['too long', 'too short'];
+  function weekSummary(week, days, zones = zonesFor(week.zones)) {
+    const shown = x => days.includes(effectivePos(x).day);
     const all = [
-      ...week.blocks.map(x => ({ x, pos: effectivePos(x), unplanned: false })),
-      ...(week.unplanned || []).map(x => ({ x, pos: effectivePos(x), unplanned: true })),
-    ];
-    return days.map(day => ({
-      day,
-      note: (week.dayNotes[day] || '').trim(),
-      blocks: all.filter(e => e.pos.day === day)
-        .sort((a, c) => a.pos.start - c.pos.start || a.pos.size - c.pos.size)
-        .map(({ x, pos, unplanned }) => ({
-          id: x.id, title: x.title, color: x.color, rating: x.rating ?? null, tags: x.tags || [],
-          session: (x.session || '').trim(), review: (x.review || '').trim(), unplanned,
-          movedFrom: !unplanned && x.actual && x.actual.day !== x.day ? x.day : null,
-          zone: zoneAt(pos.start, zones), size: pos.size,
-        })),
-    }));
+      ...week.blocks.filter(shown).map(x => ({ x, unplanned: false })),
+      ...(week.unplanned || []).filter(shown).map(x => ({ x, unplanned: true })),
+    ].map(({ x, unplanned }) => {
+      const pos = effectivePos(x);
+      const moved = !unplanned && !!x.actual && (x.actual.day !== x.day || x.actual.start !== x.start);
+      return {
+        id: x.id, title: x.title || 'untitled', color: x.color, rating: x.rating ?? null, tags: x.tags || [],
+        review: (x.review || '').trim(), unplanned, day: pos.day, zone: zoneAt(pos.start, zones), size: pos.size,
+        plannedSize: x.size, change: unplanned || !x.actual ? 0 : x.actual.size - x.size,
+        moved, from: moved ? { day: x.day, zone: zoneAt(x.start, zones) } : null,
+      };
+    }).sort((a, c) => days.indexOf(a.day) - days.indexOf(c.day));
+    const has = (e, list) => e.tags.some(t => list.includes(t));
+
+    const worked = all.filter(e => e.rating === 3 || has(e, GOOD_TAGS));
+    const didnt = all.filter(e => !worked.includes(e) && (e.rating === 'bad' || has(e, BAD_TAGS) || e.unplanned));
+    const timing = all.filter(e => e.change !== 0 || has(e, TIMING_TAGS));
+    const moved = all.filter(e => e.moved);
+    const skipped = all.filter(e => e.rating === 'skip');
+
+    // Group a list by name, keeping first-appearance order.
+    const byName = list => {
+      const groups = new Map();
+      for (const e of list) {
+        const k = threadKey(e.title);
+        if (!groups.has(k)) groups.set(k, { title: e.title, color: e.color, items: [] });
+        groups.get(k).items.push(e);
+      }
+      return [...groups.values()];
+    };
+
+    const tagMap = new Map();
+    for (const e of all) for (const t of e.tags) {
+      if (!tagMap.has(t)) tagMap.set(t, []);
+      tagMap.get(t).push(e);
+    }
+    const tags = [...tagMap.entries()]
+      .map(([tag, list]) => ({ tag, count: list.length, kind: GOOD_TAGS.includes(tag) ? 'good' : BAD_TAGS.includes(tag) ? 'bad' : TIMING_TAGS.includes(tag) ? 'timing' : 'other',
+        names: byName(list).map(g => ({ title: g.title, days: g.items.map(e => e.day) })) }))
+      .sort((a, c) => c.count - a.count || a.tag.localeCompare(c.tag));
+
+    const count = (list, f) => list.filter(f).length;
+    const ratingCounts = list => ({
+      1: count(list, e => e.rating === 1), 2: count(list, e => e.rating === 2), 3: count(list, e => e.rating === 3),
+      skip: count(list, e => e.rating === 'skip'), bad: count(list, e => e.rating === 'bad'), none: count(list, e => e.rating === null),
+    });
+    const names = byName(all).map(g => ({ title: g.title, color: g.color, count: g.items.length, ratings: ratingCounts(g.items) }));
+
+    return {
+      tally: { planned: count(all, e => !e.unplanned), unplanned: count(all, e => e.unplanned), ...ratingCounts(all),
+        moved: moved.length, longer: count(all, e => e.change > 0), shorter: count(all, e => e.change < 0) },
+      worked: byName(worked), didnt: byName(didnt), timing: byName(timing), moved: byName(moved), skipped: byName(skipped),
+      names, tags,
+      dayNotes: days.map(day => ({ day, note: (week.dayNotes[day] || '').trim() })).filter(d => d.note),
+    };
   }
 
   // Shared schedules (?weeks=<id>): the id names a file next to the page, so
@@ -536,7 +581,7 @@
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, STEPS_PER_LINE, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, zoneLabel, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
-    defaultState, normalizeState, blankWeek, copyWeek, daysForPrint, carryWeek, archiveEntry, shortDate, DEFAULT_KEEP, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
+    defaultState, normalizeState, blankWeek, copyWeek, weekSummary, carryWeek, archiveEntry, shortDate, DEFAULT_KEEP, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
     threadKey, nextFocus, effectivePos, navTarget, validCalId, fingerprint,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;

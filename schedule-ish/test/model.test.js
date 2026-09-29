@@ -704,23 +704,50 @@ test('New week and Finish week each remember their tick-boxes; missing ones use 
   assert.deepEqual(s.finishWeek, { schedule: false, regulars: true, oneOffs: false });
 });
 
-// ---- print: day by day ----
+// ---- print: how the week went ----
 
-test('daysForPrint lists each shown day with its note and blocks where they ended up', () => {
-  const w = { ...M.blankWeek('W'), dayNotes: [' calm ', '', 'busy', '', '', '', ''],
+test('weekSummary sorts blocks into worked, didn\'t work, timing, moved and didn\'t happen', () => {
+  const w = { ...M.blankWeek('W'), dayNotes: ['calm', '', ' ', '', '', '', ''],
     blocks: [
-      { ...b('late', 0, 20, 4), title: 'Admin', rating: 1, tags: ['flow'], session: ' inbox ', review: ' done ' },
-      { ...b('early', 0, 8, 4), title: 'Gym', rating: null },
-      { ...b('moved', 0, 12, 4), title: 'Write', rating: 'skip', actual: { day: 2, start: 10, size: 6 } },
+      { ...b('p1', 3, 24, 8), title: 'Portfolio', rating: 3, tags: ['flow', 'should repeat'], review: ' best ' },
+      { ...b('d1', 0, 24, 8), title: 'Deep work', rating: 'bad', tags: ['distracted'] },
+      { ...b('d2', 1, 10, 8), title: 'Deep work', rating: 2, tags: ['too long'], actual: { day: 1, start: 10, size: 12 } },
+      { ...b('j1', 2, 14, 8), title: 'Job applications', rating: 1, actual: { day: 3, start: 10, size: 8 } },
+      { ...b('g1', 2, 8, 6), title: 'Gym', rating: 'skip' },
+      { ...b('l1', 0, 18, 4), title: 'Lunch', rating: null, tags: ['nice view'] },
+      { ...b('h', 6, 8, 4), title: 'Hidden day', rating: 3 },
     ],
-    unplanned: [{ ...b('u', 2, 30, 4), title: 'Fire drill', rating: 'bad' }] };
-  const out = M.daysForPrint(w, [0, 2, 1]);
-  assert.deepEqual(out.map(d => [d.day, d.note, d.blocks.map(x => x.id)]),
-    [[0, 'calm', ['early', 'late']], [2, 'busy', ['moved', 'u']], [1, '', []]]);
-  const admin = out[0].blocks[1];
-  assert.deepEqual([admin.rating, admin.tags, admin.session, admin.review, admin.zone, admin.unplanned], [1, ['flow'], 'inbox', 'done', 'midday', false]);
-  assert.deepEqual([out[1].blocks[0].movedFrom, out[1].blocks[0].size, out[1].blocks[0].zone], [0, 6, 'morning']);
-  assert.deepEqual([out[1].blocks[1].unplanned, out[1].blocks[1].movedFrom], [true, null]);
+    unplanned: [{ ...b('u1', 1, 30, 6), title: 'Fire drill', rating: 'bad', tags: ['interrupted'] }] };
+  const s = M.weekSummary(w, [0, 1, 2, 3, 4]);
+  const names = groups => groups.map(g => [g.title, g.items.map(e => e.id)]);
+  assert.deepEqual(names(s.worked), [['Portfolio', ['p1']]]);
+  assert.deepEqual(names(s.didnt), [['Deep work', ['d1']], ['Fire drill', ['u1']]]);
+  assert.deepEqual(names(s.timing), [['Deep work', ['d2']]]);
+  assert.equal(s.timing[0].items[0].change, 4);
+  assert.deepEqual(names(s.moved), [['Job applications', ['j1']]]);
+  assert.deepEqual(s.moved[0].items[0].from, { day: 2, zone: 'morning' });
+  assert.deepEqual(names(s.skipped), [['Gym', ['g1']]]);
+  assert.equal(s.worked[0].items[0].review, 'best');
+  assert.deepEqual(s.tally, { planned: 6, unplanned: 1, 1: 1, 2: 1, 3: 1, skip: 1, bad: 2, none: 1, moved: 1, longer: 1, shorter: 0 });
+  assert.deepEqual(s.dayNotes, [{ day: 0, note: 'calm' }]);
+});
+
+test('weekSummary rolls up each name and counts tags, custom ones as "other"', () => {
+  const w = { ...M.blankWeek('W'), blocks: [
+    { ...b('a', 0, 8, 4), title: 'Deep work', rating: 2, tags: ['interrupted'] },
+    { ...b('c', 1, 8, 4), title: 'deep work', rating: 'bad', tags: ['interrupted', 'coffee'] },
+    { ...b('e', 2, 8, 4), title: 'Gym', rating: null, tags: ['flow'] },
+  ] };
+  const s = M.weekSummary(w, [0, 1, 2]);
+  assert.deepEqual(s.names.map(n => [n.title, n.count, n.ratings]), [
+    ['Deep work', 2, { 1: 0, 2: 1, 3: 0, skip: 0, bad: 1, none: 0 }],
+    ['Gym', 1, { 1: 0, 2: 0, 3: 0, skip: 0, bad: 0, none: 1 }],
+  ]);
+  assert.deepEqual(s.tags.map(t => [t.tag, t.count, t.kind, t.names]), [
+    ['interrupted', 2, 'bad', [{ title: 'Deep work', days: [0, 1] }]],
+    ['coffee', 1, 'other', [{ title: 'deep work', days: [1] }]],
+    ['flow', 1, 'good', [{ title: 'Gym', days: [2] }]],
+  ]);
 });
 
 // ---- shared schedules ----
