@@ -20,6 +20,8 @@ window.Shared.whenReady(function () {
   // ---- state + persistence -------------------------------------------------
 
   let state = load();
+  // A finished week being looked at, read-only: { entry, week, prevMode }.
+  let viewing = null;
   const undoStack = [], redoStack = [];
   const ui = {
     selectedId: null,
@@ -59,6 +61,7 @@ window.Shared.whenReady(function () {
     try { localStorage.setItem(UI_KEY, JSON.stringify(uiSaved)); } catch (e) { /* not worth a warning */ }
   }
   function rememberSelection() {
+    if (viewing) return;
     const mine = savedFor(state.currentWeek);
     if (mine.selected === (ui.selectedId || null)) return;
     mine.selected = ui.selectedId || null;
@@ -78,6 +81,7 @@ window.Shared.whenReady(function () {
   }
   // Every committed change goes through here: one undo step, save, render.
   function commit(mutate) {
+    if (viewing) return toast('A finished week is read-only');
     pushUndo();
     mutate(state);
     save();
@@ -100,7 +104,7 @@ window.Shared.whenReady(function () {
 
   // The week on the board, with its own regulars and one-offs (`unplaced`).
   // Settings and tags are global.
-  function week() { return state.weeks.find(w => w.id === state.currentWeek); }
+  function week() { return viewing ? viewing.week : state.weeks.find(w => w.id === state.currentWeek); }
 
   const cloneLines = lines => (lines || []).map(n => ({ ...n }));
 
@@ -158,7 +162,8 @@ window.Shared.whenReady(function () {
     $('#week-name').textContent = week().name;
     document.body.classList.toggle('reviewing', reviewing());
     $$('[data-cmd="mode"]').forEach(b => b.classList.toggle('on', b.dataset.mode === state.settings.mode));
-    $('#finish-btn').style.display = reviewing() ? '' : 'none';
+    $('#finish-btn').style.display = reviewing() && !viewing ? '' : 'none';
+    document.body.classList.toggle('viewing', !!viewing);
     renderReviewBar();
     renderShareBar();
     placeSidebar();
@@ -223,7 +228,7 @@ window.Shared.whenReady(function () {
     const { sidebar } = state.settings;
     // Day view hides the sidebar without touching the setting, so it comes
     // back as it was.
-    const sidebarHidden = state.settings.sidebarHidden || ui.dayView !== null;
+    const sidebarHidden = state.settings.sidebarHidden || ui.dayView !== null || !!viewing;
     const main = $('#main');
     // Inline styles, not Tailwind classes: the browser build generates CSS
     // for new classes a beat later, and `hidden` would lose to `flex` anyway.
@@ -363,7 +368,7 @@ window.Shared.whenReady(function () {
       </div>
       ${reviewing() ? `<div class="grid" style="${cols}; height:${DAYNOTE_H}px">
         <div class="pin-left"></div>
-        ${days.map(d => `<input class="dayline" data-daynote="${d}" value="${esc(week().dayNotes[d] || '')}" placeholder="How was ${M.DAY_NAMES[d]}?">`).join('')}
+        ${days.map(d => `<input class="dayline" data-daynote="${d}" value="${esc(week().dayNotes[d] || '')}" placeholder="${viewing ? '' : `How was ${M.DAY_NAMES[d]}?`}" ${viewing ? 'readonly' : ''}>`).join('')}
       </div>` : ''}
       ${week().view.showEvening ? '' : addRow('evening')}`;
   }
@@ -463,7 +468,7 @@ window.Shared.whenReady(function () {
   // The tag chips along the bottom of the board, for the selected block.
   function renderReviewBar() {
     const bar = $('#review-bar');
-    if (!reviewing()) { bar.innerHTML = ''; bar.style.display = 'none'; return; }
+    if (!reviewing() || viewing) { bar.innerHTML = ''; bar.style.display = 'none'; return; }
     bar.style.display = '';
     const b = ui.selectedId && findBlock(ui.selectedId);
     if (!b) {
@@ -1371,7 +1376,7 @@ window.Shared.whenReady(function () {
       case 'redo': return redo();
       case 'export': return exportPlan();
       case 'import': return $('#import-file').click();
-      case 'settings': return openSettings(cmd);
+      case 'settings': return openSettings();
       case 'weeks': return openWeeks(cmd);
       case 'more': return openMore(cmd);
       case 'new-regular': return editRegular(null, cmd);
@@ -1487,6 +1492,7 @@ window.Shared.whenReady(function () {
   // changes that week. New weeks start blank or as a copy of this one.
 
   function switchWeek(id) {
+    if (viewing) leaveView(false);
     ui.selectedId = savedFor(id).selected || null;
     ui.editing = null;
     commit(s => { s.currentWeek = id; });
@@ -1670,6 +1676,13 @@ window.Shared.whenReady(function () {
   // that version has changed (Reset or Ignore; nothing is replaced unasked).
   function renderShareBar() {
     const bar = $('#share-bar');
+    if (viewing) {
+      bar.style.display = '';
+      bar.innerHTML = `Finished week <b>${esc(viewing.entry.label)}</b> · finished ${finishedWhen(viewing.entry)} · read-only
+        <button class="share-btn" data-view="print">Print</button>
+        <button class="share-btn" data-view="back">Back to my week</button>`;
+      return;
+    }
     if (S.id === null) { bar.style.display = 'none'; return; }
     bar.style.display = '';
     bar.innerHTML = ui.published
@@ -1692,6 +1705,8 @@ window.Shared.whenReady(function () {
     toast('Reset to the published version. ⌘Z to undo');
   }
   $('#share-bar').addEventListener('click', e => {
+    const v = e.target.closest('[data-view]');
+    if (v) return v.dataset.view === 'print' ? printBoth() : leaveView();
     const b = e.target.closest('[data-share]');
     if (!b) return;
     if (b.dataset.share === 'reset') return resetToPublished();
@@ -1708,18 +1723,151 @@ window.Shared.whenReady(function () {
     }).catch(() => {});
   }
 
+  // ---- finished weeks --------------------------------------------------------
+
+  // What Finish week saved, newest first (see archiveWeek).
+  function readArchive() {
+    try { return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '{}'); } catch (e) { return {}; }
+  }
+  const pad2 = n => String(n).padStart(2, '0');
+  const finishedWhen = entry => { const d = new Date(entry.finishedAt); return `${M.shortDate(d)} ${d.getFullYear()}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+
+  function openArchive() {
+    const list = M.archiveList(readArchive());
+    if (!list.length) {
+      return openDialog({ title: 'Finished weeks', body: '<p class="text-sm px-1 py-2" style="color:var(--muted)">None yet. When you finish a week (in Review, <b>Finish week…</b>), it’s kept here.</p>',
+        foot: '<button class="btn primary ml-auto" data-do="close">Close</button>',
+        mount(el, close) { el.querySelector('[data-do="close"]').addEventListener('click', close); } });
+    }
+    const action = (id, label, hint) => `<button class="arch-act" data-do="${id}"><b>${label}</b><small>${hint}</small></button>`;
+    openDialog({
+      title: 'Finished weeks',
+      sub: 'Kept in this browser each time you finish a week.',
+      body: `
+        <label>which week</label>
+        <select class="field" data-f="pick">${list.map((e, i) => `<option value="${i}">${esc(e.label)} · finished ${finishedWhen(e)}</option>`).join('')}</select>
+        <p class="arch-sum" data-f="sum"></p>
+        <div class="arch-acts">
+          ${action('view', 'View', 'On the board, read-only, as it went. You can print it from there.')}
+          ${action('restore', 'Restore as a live week', 'Brings it back whole, reviews and all, next to your other weeks.')}
+          ${action('copy', 'Copy into a new week', 'Just its plan, regulars and one-offs, ready to plan again.')}
+          ${action('export', 'Export', 'A JSON file of this week, which Import can add back.')}
+        </div>`,
+      foot: '<button class="btn" data-do="download">Download all</button><button class="btn primary ml-auto" data-do="close">Close</button>',
+      mount(el, close) {
+        const pick = el.querySelector('[data-f="pick"]');
+        const entry = () => list[+pick.value];
+        const sync = () => {
+          const w = entry().week, rated = w.blocks.filter(b => b.rating !== null).length;
+          el.querySelector('[data-f="sum"]').textContent =
+            `${w.blocks.length} planned block${w.blocks.length === 1 ? '' : 's'} · ${rated} rated${w.unplanned.length ? ` · ${w.unplanned.length} unplanned` : ''}`;
+        };
+        sync();
+        pick.addEventListener('change', sync);
+        pick.focus();
+        el.addEventListener('click', e => {
+          const b = e.target.closest('[data-do]');
+          if (!b) return;
+          const en = entry();
+          switch (b.dataset.do) {
+            case 'close': return close();
+            case 'download': return downloadArchive();
+            case 'view': close(); return enterView(en);
+            case 'restore': case 'copy': {
+              close();
+              if (viewing) leaveView(false);
+              const w = b.dataset.do === 'restore' ? M.restoreWeek(en) : M.copyFinished(en);
+              ui.selectedId = null;
+              commit(s => {
+                s.weeks.push(w);
+                s.currentWeek = w.id;
+                for (const t of en.tags) if (!s.tags.includes(t)) s.tags.push(t);
+                for (const t of en.timeHolders) if (!s.timeHolders.includes(t)) s.timeHolders.push(t);
+              });
+              return toast(`Added “${w.name}”. ⌘Z to undo`);
+            }
+            case 'export':
+              return download({ kind: 'schedule-ish week', label: en.label, version: state.version, week: en.week, tags: en.tags, timeHolders: en.timeHolders,
+                finishedAt: en.finishedAt, exportedAt: new Date().toISOString() }, `schedule-ish-${fileSlug(en.week.name)}-${en.finishedAt.slice(0, 10)}.json`);
+          }
+        });
+      },
+    });
+  }
+
+  function downloadArchive() {
+    const all = readArchive();
+    if (!Object.keys(all).length) return toast('No finished weeks yet');
+    download(all, `schedule-ish-finished-weeks-${new Date().toISOString().slice(0, 10)}.json`);
+  }
+
+  // Looking at a finished week: it takes the board, read-only, in Review.
+  // Nothing can be dragged, rated or typed into; switching weeks, Esc or
+  // "Back to my week" returns to the live week, in the mode you were in.
+  function enterView(entry) {
+    commitEditing();
+    closePopover();
+    viewing = { entry, week: JSON.parse(JSON.stringify(entry.week)), prevMode: viewing ? viewing.prevMode : state.settings.mode };
+    state.settings.mode = 'review';
+    ui.selectedId = null;
+    ui.ghost = null;
+    render();
+    $('#board-body').scrollTop = 0;
+  }
+  function leaveView(draw = true) {
+    if (!viewing) return;
+    state.settings.mode = viewing.prevMode;
+    viewing = null;
+    ui.selectedId = savedFor(state.currentWeek).selected || null;
+    save();
+    if (draw) { render(); restoreScroll(); }
+  }
+  // Read-only: stop anything that would change the week before it starts.
+  // Selecting, arrows, Space (day view), print and the menus still work.
+  const VIEW_BLOCKED_CMDS = ['undo', 'redo', 'finish', 'new-regular', 'show-zone', 'add-tag'];
+  document.addEventListener('pointerdown', e => {
+    if (!viewing || e.button !== 0) return;
+    if (e.target.closest('#board-body, #sidebar') && !e.target.closest('button')) {
+      e.stopPropagation();
+      e.preventDefault();
+      const blockEl = e.target.closest('.block:not(.ghost)');
+      select(blockEl ? blockEl.dataset.block : null);
+    }
+  }, true);
+  for (const type of ['click', 'dblclick', 'contextmenu']) {
+    document.addEventListener(type, e => {
+      if (!viewing) return;
+      const cmd = e.target.closest('[data-cmd]');
+      if (e.target.closest('[data-rate], [data-tag], [data-action], .zone-add, [data-zone-label]') || (cmd && VIEW_BLOCKED_CMDS.includes(cmd.dataset.cmd))
+        || (type !== 'click' && e.target.closest('#board-body'))) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }, true);
+  }
+  document.addEventListener('keydown', e => {
+    if (!viewing || e.target.closest('input:not([readonly]), textarea, select, .popover, .dialog-overlay')) return;
+    const mod = e.metaKey || e.ctrlKey;
+    if (e.key === 'Escape' && ui.dayView === null && !popover) { e.stopPropagation(); return leaveView(); }
+    const allowed = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Escape', 'Tab', 'Shift'];
+    if (mod ? ['z', 'y'].includes(e.key.toLowerCase()) : !allowed.includes(e.key)) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+
   // The ⋯ menu: things you need now and then, kept out of the header.
   function openMore(anchor) {
     if (closePopover()) return;
     openPopover(anchor, `
+      <button class="menu-item" data-do="browse">Browse finished weeks…</button>
       <button class="menu-item" data-do="print-both" title="The plan and its focus, then the week as it went and how it went">Print plan and review…</button>
       <div class="menu-sep"></div>
       <button class="menu-item" data-do="export">Export this schedule…</button>
       <button class="menu-item" data-do="import">Import a schedule…</button>
       <button class="menu-item" data-do="export-shared" title="A weeks/&lt;id&gt;.js file, for sharing as ?weeks=&lt;id&gt;">Export as a shared schedule…</button>
+      <button class="menu-item" data-do="download-archive" title="Every finished week, as one JSON file">Download all finished weeks…</button>
       <div class="menu-sep"></div>
+      <button class="menu-item" data-do="settings">Settings…</button>
       <button class="menu-item danger" data-do="clear">Clear this week’s blocks…</button>`, el => {
-      el.style.width = '230px';
+      el.style.width = '250px';
       el.style.padding = '6px';
       el.addEventListener('click', e => {
         const b = e.target.closest('[data-do]');
@@ -1729,6 +1877,9 @@ window.Shared.whenReady(function () {
         if (b.dataset.do === 'import') return $('#import-file').click();
         if (b.dataset.do === 'export-shared') return exportShared();
         if (b.dataset.do === 'print-both') return printBoth();
+        if (b.dataset.do === 'settings') return openSettings();
+        if (b.dataset.do === 'browse') return openArchive();
+        if (b.dataset.do === 'download-archive') return downloadArchive();
         if (!week().blocks.length && !week().unplanned.length) return toast('Already empty');
         if (confirm('Clear every block from this week? (Regulars and one-offs stay. You can undo.)')) {
           ui.selectedId = null;
@@ -1739,60 +1890,90 @@ window.Shared.whenReady(function () {
     });
   }
 
-  function openSettings(anchor) {
-    if (closePopover()) return;
-    openPopover(anchor, `
-      <label>week starts on</label>
-      <div class="seg" data-f="weekStart">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
-      <label>days to show</label>
-      <div class="seg" data-f="visible">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
-      <label>show what’s next on blocks</label>
-      <div class="seg" data-f="shownext"><button data-v="on">on</button><button data-v="off">off</button></div>
-      <label>sidebar</label>
-      <div class="seg" data-f="sidebar">
-        <button data-v="left">left</button><button data-v="right">right</button><button data-v="hidden">hidden</button>
-      </div>
-      <label>stretch the day</label>
-      <div class="seg" data-f="zones">
-        <button data-v="early">early</button><button data-v="evening">evening</button>
-      </div>
-      <div class="flex items-center gap-2 mt-4 pt-3 border-t" style="border-color: var(--grid)">
-        <button class="btn ml-auto" data-do="close">Done</button>
-      </div>`, el => {
-      const sync = () => {
-        el.querySelectorAll('[data-f="weekStart"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === state.settings.weekStart));
-        el.querySelectorAll('[data-f="visible"] button').forEach(b => b.classList.toggle('on', state.settings.visibleDays[+b.dataset.v]));
-        el.querySelectorAll('[data-f="shownext"] button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'on') === state.settings.showNext));
-        const sb = state.settings.sidebarHidden ? 'hidden' : state.settings.sidebar;
-        el.querySelectorAll('[data-f="sidebar"] button').forEach(b => b.classList.toggle('on', b.dataset.v === sb));
-        el.querySelectorAll('[data-f="zones"] button').forEach(b => b.classList.toggle('on', b.dataset.v === 'early' ? week().view.showEarly : week().view.showEvening));
-      };
-      sync();
-      el.addEventListener('click', e => {
-        const b = e.target.closest('button');
-        if (!b) return;
-        const f = b.parentElement.dataset.f;
-        if (f === 'weekStart') commit(s => { s.settings.weekStart = +b.dataset.v; });
-        else if (f === 'visible') {
-          const i = +b.dataset.v;
-          if (state.settings.visibleDays.filter(Boolean).length === 1 && state.settings.visibleDays[i]) return toast('Keep at least one day');
-          commit(s => { s.settings.visibleDays[i] = !s.settings.visibleDays[i]; });
-        } else if (f === 'shownext') {
-          state.settings.showNext = b.dataset.v === 'on'; // a view setting, not an undo step
-          save(); render();
-        } else if (f === 'sidebar') {
-          const v = b.dataset.v;
-          commit(s => {
-            s.settings.sidebarHidden = v === 'hidden';
-            if (v !== 'hidden') s.settings.sidebar = v;
-          });
-        } else if (f === 'zones') {
-          const shown = b.dataset.v === 'early' ? week().view.showEarly : week().view.showEvening;
-          pushUndo();
-          if (setZone(b.dataset.v, !shown)) save(); else undoStack.pop();
-        } else if (b.dataset.do === 'close') return closePopover();
+  // A plain dialog (title, body, buttons) for things that don't belong to a
+  // block: Settings, finished weeks. Esc or a click outside closes it.
+  function openDialog({ title, sub = '', body, foot, label, mount }) {
+    commitEditing();
+    closePopover();
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dialog" role="dialog" aria-label="${esc(label || title)}">
+        <div class="dialog-head" style="background:#f1ece3">
+          <div class="dialog-title">${title}</div>
+          ${sub ? `<div class="text-xs mt-0.5" style="color:var(--muted)">${sub}</div>` : ''}
+        </div>
+        <div class="dialog-body form">${body}</div>
+        <div class="flex items-center gap-2 px-4 pb-4 pt-2">${foot}</div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener('pointerdown', e => { if (e.target === overlay) close(); });
+    overlay.addEventListener('keydown', e => {
+      e.stopPropagation(); // keep the board's keys away
+      if (e.key === 'Escape') { e.preventDefault(); close(); }
+    });
+    mount(overlay, close);
+    return overlay;
+  }
+
+  function openSettings() {
+    openDialog({
+      title: 'Settings',
+      body: `
+        <label>week starts on</label>
+        <div class="seg" data-f="weekStart">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
+        <label>days to show</label>
+        <div class="seg" data-f="visible">${M.DAY_NAMES.map((n, i) => `<button data-v="${i}">${n}</button>`).join('')}</div>
+        <label>show what’s next on blocks</label>
+        <div class="seg" data-f="shownext"><button data-v="on">on</button><button data-v="off">off</button></div>
+        <label>sidebar</label>
+        <div class="seg" data-f="sidebar">
+          <button data-v="left">left</button><button data-v="right">right</button><button data-v="hidden">hidden</button>
+        </div>
+        <label>stretch the day</label>
+        <div class="seg" data-f="zones">
+          <button data-v="early">early</button><button data-v="evening">evening</button>
+        </div>`,
+      foot: '<button class="btn primary ml-auto" data-do="close">Done</button>',
+      mount(el, close) {
+        const sync = () => {
+          el.querySelectorAll('[data-f="weekStart"] button').forEach(b => b.classList.toggle('on', +b.dataset.v === state.settings.weekStart));
+          el.querySelectorAll('[data-f="visible"] button').forEach(b => b.classList.toggle('on', state.settings.visibleDays[+b.dataset.v]));
+          el.querySelectorAll('[data-f="shownext"] button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'on') === state.settings.showNext));
+          const sb = state.settings.sidebarHidden ? 'hidden' : state.settings.sidebar;
+          el.querySelectorAll('[data-f="sidebar"] button').forEach(b => b.classList.toggle('on', b.dataset.v === sb));
+          el.querySelectorAll('[data-f="zones"] button').forEach(b => b.classList.toggle('on', b.dataset.v === 'early' ? week().view.showEarly : week().view.showEvening));
+        };
         sync();
-      });
+        el.querySelector('[data-do="close"]').focus();
+        el.addEventListener('click', e => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          const f = b.parentElement.dataset.f;
+          if (b.dataset.do === 'close') return close();
+          if (f === 'weekStart') commit(s => { s.settings.weekStart = +b.dataset.v; });
+          else if (f === 'visible') {
+            const i = +b.dataset.v;
+            if (state.settings.visibleDays.filter(Boolean).length === 1 && state.settings.visibleDays[i]) return toast('Keep at least one day');
+            commit(s => { s.settings.visibleDays[i] = !s.settings.visibleDays[i]; });
+          } else if (f === 'shownext') {
+            state.settings.showNext = b.dataset.v === 'on'; // a view setting, not an undo step
+            save(); render();
+          } else if (f === 'sidebar') {
+            const v = b.dataset.v;
+            commit(s => {
+              s.settings.sidebarHidden = v === 'hidden';
+              if (v !== 'hidden') s.settings.sidebar = v;
+            });
+          } else if (f === 'zones') {
+            const shown = b.dataset.v === 'early' ? week().view.showEarly : week().view.showEvening;
+            pushUndo();
+            if (setZone(b.dataset.v, !shown)) save(); else undoStack.pop();
+          }
+          sync();
+        });
+      },
     });
   }
 
@@ -1989,6 +2170,7 @@ window.Shared.whenReady(function () {
   $('#board-body').addEventListener('scroll', () => {
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
+      if (viewing) return;
       const el = $('#board-body'), mine = savedFor(state.currentWeek);
       mine.top = el.scrollTop;
       mine.left = el.scrollLeft;

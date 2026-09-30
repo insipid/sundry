@@ -463,6 +463,29 @@
       .filter(t => t.items.length || t.sessions.length);
   }
 
+  // Finished weeks (the archive Finish week writes), newest first, each week
+  // checked and upgraded like an import. Broken entries are skipped.
+  function archiveList(archive) {
+    const out = [];
+    for (const e of Object.values(archive && typeof archive === 'object' ? archive : {})) {
+      if (!e || !e.week || typeof e.week !== 'object' || typeof e.finishedAt !== 'string' || isNaN(Date.parse(e.finishedAt))) continue;
+      try {
+        const week = normalizeState({ version: e.version, weeks: [e.week], tags: e.tags, timeHolders: e.timeHolders }).weeks[0];
+        out.push({ finishedAt: e.finishedAt, label: str(e.label).trim() || week.name, week,
+          tags: Array.isArray(e.tags) ? normTags(e.tags) : [], timeHolders: normTags(e.timeHolders) });
+      } catch (err) { /* skip it */ }
+    }
+    return out.sort((a, c) => c.finishedAt.localeCompare(a.finishedAt));
+  }
+  // A finished week back as a live week, reviews and all, named with the
+  // day it was finished so it's told apart from the one that carried on.
+  function restoreWeek(entry) {
+    const w = JSON.parse(JSON.stringify(entry.week));
+    return { ...w, id: newId(), name: `${entry.week.name} · ${shortDate(new Date(entry.finishedAt))}` };
+  }
+  // Just its plan, regulars and one-offs, in a fresh week.
+  const copyFinished = entry => carryWeek(entry.week, KEEP_ALL, `Copy of ${entry.week.name}`);
+
   // Print page 2 in review: how the week went. Unrated blocks are
   // placeholders and are left out. Worked: anything rated ✓ or better, or
   // with a good tag, best first. Didn't work: unproductive, didn't happen,
@@ -587,7 +610,7 @@
     ZONES, ZONE_IDS, DEFAULT_ZONE_SIZES, TOTAL_STEPS, STEPS_PER_LINE, DAY_NAMES, DAY_LONG, PALETTE,
     zonesFor, zoneLabel, moveBoundary, moveBoundaryPushing, duplicateSpot, zone, zoneStart, zoneAt, visibleRange, visibleZones, clampBlock, orderedDays,
     overlaps, layoutDay, firstFreeGap, canHide, sizeWord, newId,
-    defaultState, normalizeState, blankWeek, copyWeek, weekSummary, carryWeek, archiveEntry, shortDate, DEFAULT_KEEP, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
+    defaultState, normalizeState, blankWeek, copyWeek, weekSummary, carryWeek, archiveEntry, archiveList, restoreWeek, copyFinished, shortDate, DEFAULT_KEEP, focusForPrint, moveItem, nextRating, todayIndex, STARTER_TAGS,
     threadKey, nextFocus, effectivePos, navTarget, validCalId, fingerprint,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Model;

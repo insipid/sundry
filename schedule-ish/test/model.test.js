@@ -779,3 +779,32 @@ test('fingerprint is short, stable, and changes with the text', () => {
   assert.equal(M.fingerprint('{"a":1}'), M.fingerprint('{"a":1}'));
   assert.notEqual(M.fingerprint('{"a":1}'), M.fingerprint('{"a":2}'));
 });
+
+// ---- finished weeks (the archive) ----
+
+test('archiveList: newest first, weeks checked, broken entries skipped', () => {
+  const s = M.defaultState();
+  const w1 = { ...fullWeek(), name: 'Week A' }, w2 = { ...fullWeek(), name: 'Week B' };
+  const a = M.archiveEntry(s, w1, new Date(2026, 8, 21, 18, 0));
+  const c = M.archiveEntry(s, w2, new Date(2026, 8, 28, 17, 47));
+  const list = M.archiveList({ [a.finishedAt]: a, [c.finishedAt]: c, junk: { week: null }, bad: { week: {}, finishedAt: 'nope' } });
+  assert.deepEqual(list.map(e => e.label), ['Week B', 'Week A']);
+  assert.equal(list[0].week.blocks.length, 1);
+  assert.deepEqual(list[0].week.regulars.map(r => r.title), ['Gym']);
+  assert.deepEqual(M.archiveList(null), []);
+});
+
+test('restoreWeek keeps everything under a dated name; copyFinished keeps just the plan', () => {
+  const s = M.defaultState();
+  const e = M.archiveList({ x: M.archiveEntry(s, { ...fullWeek(), name: 'My week' }, new Date(2026, 8, 28, 17, 47)) })[0];
+  const r = M.restoreWeek(e);
+  assert.equal(r.name, 'My week · Mon 28 Sep');
+  assert.notEqual(r.id, e.week.id);
+  assert.deepEqual([r.blocks[0].rating, r.blocks[0].review, r.dayNotes[0], r.unplanned.length], [3, 'ok', 'good day', 1]);
+  r.blocks[0].review = 'changed';
+  assert.equal(e.week.blocks[0].review, 'ok');
+  const c = M.copyFinished(e);
+  assert.equal(c.name, 'Copy of My week');
+  assert.deepEqual([c.blocks[0].rating, c.blocks[0].review, c.unplanned.length, c.dayNotes[0]], [null, '', 0, '']);
+  assert.deepEqual([c.regulars.length, c.unplaced.length], [1, 1]);
+});
