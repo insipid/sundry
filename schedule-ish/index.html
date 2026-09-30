@@ -211,7 +211,7 @@
     .mode-seg button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 3px 12px; border-radius: 8px; color: var(--muted); }
     .mode-seg button.on { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(60,50,30,.12); }
     .today-dot { display: inline-block; width: 6px; height: 6px; border-radius: 9px; background: #b0703f; margin-left: 5px; vertical-align: middle; }
-    body.reviewing .block { cursor: grab; }
+    .reviewing .block { cursor: grab; }
     /* review: unplanned blocks are hatched; ghosts mark where moved blocks were planned */
     .block.unplanned { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 5px, transparent 5px 11px); border: 1.5px dashed var(--ring); }
     .block.faint-unplanned { opacity: .32; pointer-events: none; z-index: 0; }
@@ -219,17 +219,17 @@
     .plan-ghost { position: absolute; left: 3px; right: 3px; border: 1.5px dashed var(--ring); border-radius: 12px; opacity: .4; }
     .plan-ghost.lit, .plan-ghost.hot { opacity: .7; background: color-mix(in srgb, var(--ring) 6%, transparent); }
     .block.ghost-hot { outline: 2px solid color-mix(in srgb, var(--ring) 50%, transparent); outline-offset: 2px; }
-    body.reviewing .block .title { padding-right: 30px; }
-    body.reviewing .block.unrated { opacity: .62; }
-    body.reviewing .block.r-1 { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ring) 45%, transparent); }
-    body.reviewing .block.r-2 { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ring) 45%, transparent); }
-    body.reviewing .block.r-3 { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--ring) 45%, transparent); }
-    body.reviewing .block.r-skip { background: transparent !important; border: 1.5px dashed var(--faint); color: var(--muted) !important; }
-    body.reviewing .block.r-skip .title { text-decoration: line-through; }
+    .reviewing .block .title { padding-right: 30px; }
+    .reviewing .block.unrated { opacity: .62; }
+    .reviewing .block.r-1 { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ring) 45%, transparent); }
+    .reviewing .block.r-2 { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ring) 45%, transparent); }
+    .reviewing .block.r-3 { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--ring) 45%, transparent); }
+    .reviewing .block.r-skip { background: transparent !important; border: 1.5px dashed var(--faint); color: var(--muted) !important; }
+    .reviewing .block.r-skip .title { text-decoration: line-through; }
     /* "didn't happen" is long: it sits in the bottom corner so the struck-through name stays readable */
-    body.reviewing .block.r-skip .rate { top: auto; bottom: 4px; font-size: 11px; }
-    body.reviewing .block.r-bad { border: 1.5px dashed #b85c5c; }
-    body.reviewing .block.selected { outline: 2px solid var(--ring); outline-offset: 1px; }
+    .reviewing .block.r-skip .rate { top: auto; bottom: 4px; font-size: 11px; }
+    .reviewing .block.r-bad { border: 1.5px dashed #b85c5c; }
+    .reviewing .block.selected { outline: 2px solid var(--ring); outline-offset: 1px; }
     .block .rate { position: absolute; top: 4px; right: 5px; min-width: 24px; height: 20px; padding: 0 5px; border-radius: 7px; border: 0;
       background: rgba(255,255,255,.72); font: inherit; font-size: 12px; font-weight: 700; color: inherit; letter-spacing: -1px; z-index: 3; }
     .block .rate:hover { background: #fff; }
@@ -280,7 +280,13 @@
       .block .has-notes { display: block !important; }
       .block.faint-unplanned { display: none !important; } /* a plan print shows just the plan */
       #print-notes:not(:empty) { display: block; break-before: page; }
+      #print-notes .pn-page + .pn-page { break-before: page; }
     }
+    /* Print plan and review: the review board, drawn into the print pages */
+    #print-notes .print-board { font-size: 16px; line-height: 1.5; }
+    #print-notes .pb-title { font-size: 20px; font-weight: 700; margin: 0 0 10px; }
+    #print-notes .pb-title span { font-size: 13px; font-weight: 400; color: #8a8378; margin-left: 8px; }
+    #print-notes .board-frame { border: 1px solid #e6e1d8; border-radius: 16px; overflow: hidden; background: var(--board); }
     #print-notes { display: none; font-size: 12px; line-height: 1.4; color: var(--ink); }
     #print-notes .pn-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding-bottom: 8px;
       border-bottom: 1.5px solid #e6e1d8; margin-bottom: 4px; }
@@ -368,8 +374,8 @@
 
   <!-- ?v= makes a browser fetch all three fresh after an update, so it never
        mixes old and new. Bump it whenever any of them changes. -->
-  <script src="model.js?v=1"></script>
-  <script src="share.js?v=1"></script>
-  <script src="app.js?v=1"></script>
+  <script src="model.js?v=2"></script>
+  <script src="share.js?v=2"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

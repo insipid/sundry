@@ -1614,7 +1614,7 @@ window.Shared.whenReady(function () {
         <div class="dialog-body">
           <div class="dialog-sec"><h3>Before you go</h3>
             <div class="finish-links">
-              <button class="btn" data-do="print">Print this week</button>
+              <button class="btn" data-do="print" title="The plan and the review, four pages">Print this week</button>
               <button class="btn" data-do="export">Export this week</button>
             </div></div>
           <div class="dialog-sec"><h3>Start the next week</h3>${keepHtml(state.settings.finishWeek)}</div>
@@ -1649,7 +1649,7 @@ window.Shared.whenReady(function () {
       switch (b.dataset.do) {
         case 'cancel': return close();
         case 'finish': return finish();
-        case 'print': return window.print();
+        case 'print': return printBoth();
         case 'export': {
           const entry = M.archiveEntry(state, week());
           return download({ kind: 'schedule-ish week', ...entry, exportedAt: entry.finishedAt, finishedAt: undefined },
@@ -1712,6 +1712,8 @@ window.Shared.whenReady(function () {
   function openMore(anchor) {
     if (closePopover()) return;
     openPopover(anchor, `
+      <button class="menu-item" data-do="print-both" title="The plan and its focus, then the week as it went and how it went">Print plan and review…</button>
+      <div class="menu-sep"></div>
       <button class="menu-item" data-do="export">Export this schedule…</button>
       <button class="menu-item" data-do="import">Import a schedule…</button>
       <button class="menu-item" data-do="export-shared" title="A weeks/&lt;id&gt;.js file, for sharing as ?weeks=&lt;id&gt;">Export as a shared schedule…</button>
@@ -1726,6 +1728,7 @@ window.Shared.whenReady(function () {
         if (b.dataset.do === 'export') return exportPlan();
         if (b.dataset.do === 'import') return $('#import-file').click();
         if (b.dataset.do === 'export-shared') return exportShared();
+        if (b.dataset.do === 'print-both') return printBoth();
         if (!week().blocks.length && !week().unplanned.length) return toast('Already empty');
         if (confirm('Clear every block from this week? (Regulars and one-offs stay. You can undo.)')) {
           ui.selectedId = null;
@@ -1936,7 +1939,38 @@ window.Shared.whenReady(function () {
         ${printCard('Days', notes)}
       </div>`;
   }
-  window.addEventListener('beforeprint', () => { ui.printing = true; renderBoard(); renderPrintNotes(); });
+  window.addEventListener('beforeprint', () => { ui.printing = true; renderBoard(); if (!ui.printBoth) renderPrintNotes(); });
+
+  // Both at once: the plan and its focus, then the week as it went and how
+  // it went. Four pages; the review board is drawn, lifted into the print
+  // pages, then the board goes back to the plan for page one.
+  function printBoth() {
+    const mode = state.settings.mode;
+    commitEditing();
+    closePopover();
+    ui.printing = true;
+    state.settings.mode = 'review'; // just for drawing: not saved
+    drawBoard();
+    const reviewBoard = $('#board-body').innerHTML.replace(/ id="board-(head|grid)"/g, '');
+    const summary = printSummary();
+    state.settings.mode = 'plan';
+    document.body.classList.remove('reviewing');
+    drawBoard();
+    const focus = printFocus();
+    $('#print-notes').innerHTML = `
+      ${focus ? `<div class="pn-page">${focus}</div>` : ''}
+      <div class="pn-page print-board reviewing">
+        <h2 class="pb-title">${esc(week().name)}<span>as it went</span></h2>
+        <div class="board-frame">${reviewBoard}</div>
+      </div>
+      ${summary ? `<div class="pn-page">${summary}</div>` : ''}`;
+    ui.printBoth = true;
+    window.print();
+    ui.printBoth = false;
+    ui.printing = false;
+    state.settings.mode = mode;
+    render();
+  }
   window.addEventListener('afterprint', () => { ui.printing = false; renderBoard(); });
 
   // Re-fit the day to the board whenever the board changes size. This also
