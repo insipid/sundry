@@ -289,6 +289,37 @@ it's before v1. Links to: the week-in-review idea (day notes plus block
 reviews together), the summary view, and the review-report print layout
 in Side ideas.
 
+## v1 wrap-up (2026-09-30)
+
+Built since the last round, before Drew publishes v1:
+- The review summary (print page 2) reworked: **worked** (anything ✓+ or
+  good-tagged, best first) and **didn't work** (unproductive, didn't happen
+  ⊘, bad tags, ran long or short, moved); unrated blocks are placeholders
+  and left out.
+- **Day view:** Space zooms into today, double-click a day's name for that
+  day; one centred column, planning tools and sidebar hidden, blocks show
+  more. ← / → change day.
+- **Default week:** a new browser starts from `weeks/index.js` (a sparse
+  example week, about 68 steps, every block with a gap).
+- **Print plan and review** together (⋯ menu, and Finish week's print):
+  four pages.
+- Script tags versioned (`?v=`) so browsers never mix old and new files.
+- A shorter README with new screenshots.
+
+Where the open questions below stand: 1 built as hidden; 4 the day
+one-liner is built, the weekly keep/drop/try retro isn't; 5 that starter
+list is in; 6 built as mocked; 8 keyboard shortcuts built. 2, 3 and 7 are
+still open.
+
+**Next, to talk about:**
+- **Browsing the archive** of finished weeks (Finish week saves them; there
+  is no way to see them yet).
+- **Week in review in the app:** the "summary view" idea (open question 3):
+  the print summary, but on screen, maybe together with the day notes and
+  block reviews. Drew didn't remember this one; it's the on-screen version
+  of print page 2.
+- **Phone layout:** wanted, and more work.
+
 ## Side ideas (not review, raised 2026-09-26)
 
 Feasibility only; nothing decided or built.
@@ -383,3 +414,8 @@ Feasibility only; nothing decided or built.
   mode: Plan prints plan + focus; Review prints the week as it went + "how
   the week went" (worked, didn't work, ran long/short, moved, didn't happen,
   tags, by name, days). Parked: printing both boards at once.
+- **2026-09-29/30:** Summary reworked (worked / didn't work, unrated left
+  out). `?week=` accepted. A new browser starts from `weeks/index.js`,
+  now a sparse example week. Day view (Space / double-click a day name).
+  Print plan and review together. Script tags versioned. README rewritten.
+  Next: archive browsing, an on-screen week in review, phone layout.
