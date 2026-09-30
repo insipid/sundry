@@ -74,6 +74,11 @@ Switch to **Review** to look back. Nothing there changes the plan.
 tick what the next week keeps, and it's saved to an archive in the browser
 before the week starts again. ⌘Z undoes it.
 
+**⋯ → Browse finished weeks** lists them by the day they were finished.
+Pick one to **View** it (on the board, read-only, printable), **Restore**
+it as a live week (reviews and all), **Copy** its plan into a new week, or
+**Export** it. **⋯ → Download all finished weeks** saves the lot as JSON.
+
 ## Day view
 
 Press **Space** to zoom into today, or double-click a day's name. One day
@@ -93,11 +98,17 @@ their notes. **← / →** change day; **Space** or **Esc** go back.
 **⋯ → Print plan and review** prints all four pages, and so does Finish
 week's print button.
 
+## On a phone
+
+A phone gets a read-only view: one day at a time in portrait (swipe or ‹ ›
+to change day), the whole week in landscape. The week menu switches weeks;
+nothing can be edited. Tablets and desktops work as normal.
+
 ## Saving and sharing
 
 Everything saves to the browser (`localStorage`) as you go, including where
-you were. **⋯** has **Export** / **Import** (JSON) and **Clear this week's
-blocks**. ⌘Z / ⇧⌘Z undo and redo almost everything.
+you were. **⋯** has **Settings**, **Export** / **Import** (JSON) and **Clear
+this week's blocks**. ⌘Z / ⇧⌘Z undo and redo almost everything.
 
 **The default week.** A browser with nothing saved starts from
 `weeks/index.js`, then keeps its own copy.
@@ -131,5 +142,5 @@ Design notes and plans are in [`docs/`](../docs/).
 
 ## Not yet
 
-- Browsing finished weeks in the archive.
-- A phone layout. It's built for desktop, and works on a tablet.
+- Editing on a phone (it's read-only there).
+- An on-screen "week in review".

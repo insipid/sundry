@@ -22,6 +22,8 @@ window.Shared.whenReady(function () {
   let state = load();
   // A finished week being looked at, read-only: { entry, week, prevMode }.
   let viewing = null;
+  // Read-only: a finished week, or any week on a phone.
+  const readOnly = () => !!viewing || ui.phone;
   const undoStack = [], redoStack = [];
   const ui = {
     selectedId: null,
@@ -34,6 +36,7 @@ window.Shared.whenReady(function () {
     printing: false,
     published: null,    // a shared schedule's changed published version, if noticed
     dayView: null,      // a day (0-6) zoomed to fill the board, or null for the week
+    phone: false,       // a small touch screen: read-only (see applyPhone)
   };
 
   function load() {
@@ -81,7 +84,7 @@ window.Shared.whenReady(function () {
   }
   // Every committed change goes through here: one undo step, save, render.
   function commit(mutate) {
-    if (viewing) return toast('A finished week is read-only');
+    if (readOnly()) return toast(viewing ? 'A finished week is read-only' : 'Read-only on a phone');
     pushUndo();
     mutate(state);
     save();
@@ -162,8 +165,9 @@ window.Shared.whenReady(function () {
     $('#week-name').textContent = week().name;
     document.body.classList.toggle('reviewing', reviewing());
     $$('[data-cmd="mode"]').forEach(b => b.classList.toggle('on', b.dataset.mode === state.settings.mode));
-    $('#finish-btn').style.display = reviewing() && !viewing ? '' : 'none';
+    $('#finish-btn').style.display = reviewing() && !readOnly() ? '' : 'none';
     document.body.classList.toggle('viewing', !!viewing);
+    document.body.classList.toggle('phone', ui.phone);
     renderReviewBar();
     renderShareBar();
     placeSidebar();
@@ -228,7 +232,7 @@ window.Shared.whenReady(function () {
     const { sidebar } = state.settings;
     // Day view hides the sidebar without touching the setting, so it comes
     // back as it was.
-    const sidebarHidden = state.settings.sidebarHidden || ui.dayView !== null || !!viewing;
+    const sidebarHidden = state.settings.sidebarHidden || ui.dayView !== null || readOnly();
     const main = $('#main');
     // Inline styles, not Tailwind classes: the browser build generates CSS
     // for new classes a beat later, and `hidden` would lose to `flex` anyway.
@@ -245,7 +249,7 @@ window.Shared.whenReady(function () {
   function measureStep() {
     const steps = ui.range.end - ui.range.start;
     if (ui.printing) { ui.stepPx = PRINT_GRID_H / steps; return; }
-    const addRows = !week().view.showEarly + !week().view.showEvening;
+    const addRows = readOnly() ? 0 : !week().view.showEarly + !week().view.showEvening; // the + rows are hidden when read-only
     const avail = $('#board-body').clientHeight - $('#board-head').offsetHeight - ADD_ROW_H * addRows
       - (reviewing() ? DAYNOTE_H : 0) - 2;
     // Fill the board exactly: the visible zones always use the full height.
@@ -368,7 +372,7 @@ window.Shared.whenReady(function () {
       </div>
       ${reviewing() ? `<div class="grid" style="${cols}; height:${DAYNOTE_H}px">
         <div class="pin-left"></div>
-        ${days.map(d => `<input class="dayline" data-daynote="${d}" value="${esc(week().dayNotes[d] || '')}" placeholder="${viewing ? '' : `How was ${M.DAY_NAMES[d]}?`}" ${viewing ? 'readonly' : ''}>`).join('')}
+        ${days.map(d => `<input class="dayline" data-daynote="${d}" value="${esc(week().dayNotes[d] || '')}" placeholder="${readOnly() ? '' : `How was ${M.DAY_NAMES[d]}?`}" ${readOnly() ? 'readonly' : ''}>`).join('')}
       </div>` : ''}
       ${week().view.showEvening ? '' : addRow('evening')}`;
   }
@@ -468,7 +472,7 @@ window.Shared.whenReady(function () {
   // The tag chips along the bottom of the board, for the selected block.
   function renderReviewBar() {
     const bar = $('#review-bar');
-    if (!reviewing() || viewing) { bar.innerHTML = ''; bar.style.display = 'none'; return; }
+    if (!reviewing() || readOnly()) { bar.innerHTML = ''; bar.style.display = 'none'; return; }
     bar.style.display = '';
     const b = ui.selectedId && findBlock(ui.selectedId);
     if (!b) {
@@ -986,8 +990,7 @@ window.Shared.whenReady(function () {
       const b = findBlock(ui.selectedId);
       if (!b || (reviewing() ? M.effectivePos(b).day : b.day) !== day) ui.selectedId = null;
     }
-    uiSaved.dayView = day;
-    saveUi();
+    if (!ui.phone) { uiSaved.dayView = day; saveUi(); }
     render();
     $('#board-body').scrollTop = 0;
   }
@@ -1509,11 +1512,11 @@ window.Shared.whenReady(function () {
           <span class="w-4 inline-block">${w.id === cur.id ? '✓' : ''}</span>${esc(w.name)}
         </button>`).join('')}
       </div>
-      <div class="menu-sep"></div>
+      ${ui.phone ? '' : `<div class="menu-sep"></div>
       <button class="menu-item" data-do="new">+ New week…</button>
       <div class="menu-sep"></div>
       <button class="menu-item" data-do="rename">Rename this week…</button>
-      <button class="menu-item danger" data-do="delete" ${state.weeks.length < 2 ? 'disabled title="It’s the only week"' : ''}>Delete this week…</button>`, el => {
+      <button class="menu-item danger" data-do="delete" ${state.weeks.length < 2 ? 'disabled title="It’s the only week"' : ''}>Delete this week…</button>`}`, el => {
       // Swap the menu for a one-field name form.
       const askName = (label, initial, done, extra = '', okLabel = 'OK') => {
         el.innerHTML = `
@@ -1826,7 +1829,7 @@ window.Shared.whenReady(function () {
   // Selecting, arrows, Space (day view), print and the menus still work.
   const VIEW_BLOCKED_CMDS = ['undo', 'redo', 'finish', 'new-regular', 'show-zone', 'add-tag'];
   document.addEventListener('pointerdown', e => {
-    if (!viewing || e.button !== 0) return;
+    if (!readOnly() || e.button !== 0) return;
     if (e.target.closest('#board-body, #sidebar') && !e.target.closest('button')) {
       e.stopPropagation();
       e.preventDefault();
@@ -1836,7 +1839,7 @@ window.Shared.whenReady(function () {
   }, true);
   for (const type of ['click', 'dblclick', 'contextmenu']) {
     document.addEventListener(type, e => {
-      if (!viewing) return;
+      if (!readOnly()) return;
       const cmd = e.target.closest('[data-cmd]');
       if (e.target.closest('[data-rate], [data-tag], [data-action], .zone-add, [data-zone-label]') || (cmd && VIEW_BLOCKED_CMDS.includes(cmd.dataset.cmd))
         || (type !== 'click' && e.target.closest('#board-body'))) {
@@ -1846,9 +1849,9 @@ window.Shared.whenReady(function () {
     }, true);
   }
   document.addEventListener('keydown', e => {
-    if (!viewing || e.target.closest('input:not([readonly]), textarea, select, .popover, .dialog-overlay')) return;
+    if (!readOnly() || e.target.closest('input:not([readonly]), textarea, select, .popover, .dialog-overlay')) return;
     const mod = e.metaKey || e.ctrlKey;
-    if (e.key === 'Escape' && ui.dayView === null && !popover) { e.stopPropagation(); return leaveView(); }
+    if (viewing && e.key === 'Escape' && ui.dayView === null && !popover) { e.stopPropagation(); return leaveView(); }
     const allowed = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Escape', 'Tab', 'Shift'];
     if (mod ? ['z', 'y'].includes(e.key.toLowerCase()) : !allowed.includes(e.key)) { e.stopPropagation(); e.preventDefault(); }
   }, true);
@@ -2166,6 +2169,37 @@ window.Shared.whenReady(function () {
     if (e.key === STORAGE_KEY && e.newValue) { state = M.normalizeState(JSON.parse(e.newValue)); render(); }
   });
 
+  // ---- phone ------------------------------------------------------------------
+  // A small touch screen gets a read-only look at the schedule: in portrait,
+  // one day at a time (swipe or ‹ › to change day); in landscape, the whole
+  // week. The week menu can switch weeks; nothing can be edited.
+  const PHONE = matchMedia('(pointer: coarse) and (max-width: 700px), (pointer: coarse) and (max-height: 500px)');
+  function applyPhone() {
+    const was = ui.phone;
+    ui.phone = PHONE.matches;
+    if (ui.phone) {
+      const portrait = innerHeight >= innerWidth;
+      ui.dayView = portrait ? (ui.dayView ?? todayShown()) : null;
+      ui.editing = null;
+    } else if (was) {
+      ui.dayView = Number.isInteger(uiSaved.dayView) ? uiSaved.dayView : null;
+    }
+    closePopover();
+    render();
+  }
+  PHONE.addEventListener('change', applyPhone);
+  addEventListener('resize', () => { if (ui.phone && (innerHeight >= innerWidth) !== (ui.dayView !== null)) applyPhone(); });
+  let swipe = null;
+  $('#board-body').addEventListener('touchstart', e => {
+    swipe = ui.phone && ui.dayView !== null && e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+  }, { passive: true });
+  $('#board-body').addEventListener('touchend', e => {
+    if (!swipe) return;
+    const t = e.changedTouches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+    swipe = null;
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 50) stepDay(dx < 0 ? 1 : -1);
+  }, { passive: true });
+
   let scrollTimer;
   $('#board-body').addEventListener('scroll', () => {
     clearTimeout(scrollTimer);
@@ -2182,6 +2216,7 @@ window.Shared.whenReady(function () {
   ui.selectedId = savedFor(state.currentWeek).selected || null;
   if (Number.isInteger(uiSaved.dayView) && uiSaved.dayView >= 0 && uiSaved.dayView <= 6) ui.dayView = uiSaved.dayView;
   render();
+  if (PHONE.matches) applyPhone();
   // After Tailwind has styled the page and the day has been fitted.
   setTimeout(restoreScroll, 300);
 });

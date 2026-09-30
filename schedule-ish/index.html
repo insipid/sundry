@@ -144,6 +144,14 @@
     .load-error h1 { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
     .load-error p { color: #6f685d; margin: 0 0 14px; line-height: 1.5; }
     .load-error a { color: var(--ink); font-weight: 600; }
+    /* phone: read-only, a trimmed header */
+    body.phone { --gutter: 64px; }
+    body.phone header { gap: 8px; padding: 10px 10px 8px; }
+    body.phone header h1 { font-size: 16px; }
+    body.phone header .ml-auto, body.phone #week-view-btn, body.phone .plan-tool, body.phone .zone-add-row { display: none !important; }
+    body.phone #main { padding: 0 8px 8px !important; }
+    body.phone .day-head.zoomed { font-size: 16px; }
+    body.phone .day-step { font-size: 22px; padding: 2px 12px; }
     /* finished weeks */
     .arch-sum { font-size: 12.5px; color: var(--muted); margin: 6px 4px 10px; }
     .arch-acts { display: flex; flex-direction: column; gap: 4px; }
@@ -383,8 +391,8 @@
 
   <!-- ?v= makes a browser fetch all three fresh after an update, so it never
        mixes old and new. Bump it whenever any of them changes. -->
-  <script src="model.js?v=3"></script>
-  <script src="share.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="model.js?v=4"></script>
+  <script src="share.js?v=4"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
