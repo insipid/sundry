@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>schedule-ish · review mode mockup</title>
+  <!-- Favicon: a tilted napkin with a vague week of blocks, inline so there's no extra file. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg transform='rotate(-6 16 16)'%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='6' fill='%23fbfaf7' stroke='%233b3833' stroke-width='2'/%3E%3Cpath d='M3.5 9.5h25' stroke='%233b3833' stroke-width='1.6'/%3E%3Crect x='6.5' y='12' width='5.5' height='7' rx='2' fill='%237fa3d1'/%3E%3Crect x='13.25' y='14.5' width='5.5' height='10.5' rx='2' fill='%237dbb92'/%3E%3Crect x='20' y='12' width='5.5' height='5' rx='2' fill='%23eaa77a'/%3E%3Crect x='20' y='19' width='5.5' height='6' rx='2' fill='%237fa3d1'/%3E%3C/g%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* A throwaway mockup for the review-mode brainstorm. Not wired to the app. */
+  :root { --paper:#fbfaf7; --ink:#3b3833; --muted:#948c80; --faint:#c9c1b4; --grid:#f1ede6; --zone:#e2dbcf; --band:#faf7f1; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Figtree, ui-sans-serif, system-ui, sans-serif; padding: 20px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .seg { display: inline-flex; background: #f1ece3; border-radius: 10px; padding: 3px; }
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 5px 14px; border-radius: 8px; color: var(--muted); cursor: pointer; }
+  .seg button.on { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(60,50,30,.12); }
+  .board { display: grid; grid-template-columns: 84px repeat(3, minmax(120px, 1fr)); background: #fff; border-radius: 16px;
+    box-shadow: 0 0 0 1px rgba(60,50,30,.07); overflow: hidden; max-width: 820px; }
+  .hd { text-align: center; font-weight: 600; font-size: 14px; padding: 10px 0; border-bottom: 1px solid var(--grid); }
+  .hd .dot { display: inline-block; width: 6px; height: 6px; border-radius: 9px; background: #b0703f; margin-left: 5px; vertical-align: middle; }
+  .col { position: relative; height: 420px; border-left: 1px solid var(--grid); }
+  .gut { position: relative; height: 420px; }
+  .zl { position: absolute; right: 10px; font-size: 11.5px; color: var(--muted); }
+  .line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--zone); }
+  .band { position: absolute; left: 0; right: 0; background: var(--band); }
+  .blk { position: absolute; left: 4px; right: 4px; border-radius: 12px; padding: 7px 9px; font-size: 13px; cursor: pointer; border: 1.5px solid transparent; overflow: hidden; }
+  .blk .t { font-weight: 600; }
+  .blk .tags { font-size: 11px; opacity: .8; margin-top: 3px; }
+  .blk.sel { box-shadow: 0 0 0 2px var(--ring); }
+  .blk.unrated { opacity: .62; }
+  .blk.skip { background: transparent !important; border: 1.5px dashed var(--faint); color: var(--muted) !important; opacity: 1; }
+  .blk.skip .t { text-decoration: line-through; }
+  .blk.bad { border: 1.5px dashed #b85c5c; }
+  .rate { position: absolute; top: 5px; right: 6px; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 7px; border: 0;
+    background: rgba(255,255,255,.72); font: inherit; font-size: 12px; font-weight: 700; color: inherit; cursor: pointer; letter-spacing: -1px; }
+  .rate:hover { background: #fff; }
+  .rate.word { letter-spacing: 0; font-weight: 500; }
+  .rate.empty { font-weight: 500; letter-spacing: 0; color: var(--muted); }
+  .dayline { position: absolute; left: 0; right: 0; bottom: 0; border: 0; border-top: 1px dashed var(--zone); padding: 7px 9px;
+    font: inherit; font-size: 12px; background: #fdfcf9; color: var(--ink); outline: none; }
+  .panel { max-width: 820px; margin-top: 14px; min-height: 40px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip { font: inherit; font-size: 12.5px; padding: 4px 11px; border-radius: 99px; border: 1px solid #e4ded3; background: #fff; color: var(--muted); cursor: pointer; }
+  .chip.on { background: #dbe7f5; border-color: #9fb6d6; color: #3f5f8a; }
+  .chip.add { border-style: dashed; }
+  .chip input { border: 0; outline: none; font: inherit; width: 90px; background: transparent; color: var(--ink); }
+  .menu { position: absolute; z-index: 5; background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(60,50,30,.18), 0 0 0 1px rgba(60,50,30,.06); padding: 4px; }
+  .menu button { display: block; width: 100%; text-align: left; border: 0; background: transparent; font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 7px; cursor: pointer; color: var(--ink); }
+  .menu button:hover { background: #f3efe8; }
+  .help { max-width: 820px; color: var(--muted); font-size: 12.5px; line-height: 1.6; margin-top: 14px; }
+  kbd { font: inherit; font-size: 11.5px; background: #f1ece3; border-radius: 5px; padding: 0 5px; }
+</style>
+</head>
+<body>
+<h1>Review mode (mockup)</h1>
+<p class="sub">A throwaway sketch for the brainstorm. Click around; nothing is saved.</p>
+
+<div class="bar">
+  <div class="seg" id="mode"><button data-v="plan">Plan</button><button data-v="review" class="on">Review</button></div>
+</div>
+
+<div class="board" id="board"></div>
+<div class="panel" id="panel"></div>
+<div class="help" id="help"></div>
+
+<script>
+const PAL = { green: ['#dcefe2', '#4f8a64'], blue: ['#dbe7f5', '#5b7ba6'], butter: ['#f6e9c8', '#9a7a2c'],
+  rose: ['#f5dde3', '#a65a70'], lav: ['#ece2f5', '#7e5ea6'], peach: ['#f7e3d4', '#b0703f'] };
+const DAYS = ['Mon', 'Tue', 'Wed'], TODAY = 1, H = 420;
+const ZONES = [['morning', 0, .42], ['midday', .42, .58], ['afternoon', .58, 1]];
+let blocks = [
+  { id: 1, d: 0, s: .02, h: .24, t: 'Gym', c: 'green', r: 2, tags: ['energised'] },
+  { id: 2, d: 0, s: .43, h: .13, t: 'Lunch', c: 'butter', r: null, tags: [] },
+  { id: 3, d: 0, s: .6, h: .28, t: 'Write proposal', c: 'peach', r: 3, tags: ['flow'] },
+  { id: 4, d: 1, s: .02, h: .34, t: 'Deep work', c: 'blue', r: 'bad', tags: ['interrupted', 'wrong time'] },
+  { id: 5, d: 1, s: .62, h: .16, t: 'Admin', c: 'lav', r: 1, tags: [] },
+  { id: 6, d: 2, s: .1, h: .22, t: 'Gym', c: 'green', r: 'skip', tags: [] },
+  { id: 7, d: 2, s: .6, h: .22, t: 'Pairing', c: 'rose', r: null, tags: [] },
+];
+const dayNotes = ['Good start; the proposal flowed', 'Meetings ate the morning', ''];
+let tagList = ['flow', 'energised', 'interrupted', 'distracted', 'too long', 'too short', 'wrong time', 'should repeat'];
+let mode = 'review', sel = 4, menu = null, adding = false;
+
+const label = r => r === null ? 'rate' : r === 'skip' ? 'skipped' : r === 'bad' ? '↘' : '✓'.repeat(r);
+const CYCLE = [null, 1, 2, 3]; // tapping only walks the positive levels
+
+function render() {
+  const rev = mode === 'review';
+  let h = '<div class="hd"></div>' + DAYS.map((d, i) => `<div class="hd">${d}${i === TODAY ? '<span class="dot" title="today"></span>' : ''}</div>`).join('');
+  h += '<div class="gut">' + ZONES.map(([n, a]) => `<div class="zl" style="top:${a * H + 5}px">${n}</div>`).join('') + '</div>';
+  DAYS.forEach((d, i) => {
+    h += `<div class="col" data-day="${i}"><div class="band" style="top:${.42 * H}px;height:${.16 * H}px"></div>`;
+    h += ZONES.slice(1).map(([, a]) => `<div class="line" style="top:${a * H}px"></div>`).join('');
+    for (const b of blocks.filter(x => x.d === i)) {
+      const [fill, ink] = PAL[b.c];
+      const cls = ['blk'];
+      if (rev && b.id === sel) cls.push('sel');
+      if (rev && b.r === null) cls.push('unrated');
+      if (rev && b.r === 'skip') cls.push('skip');
+      if (rev && b.r === 'bad') cls.push('bad');
+      const weight = rev && typeof b.r === 'number' ? `box-shadow: inset 0 0 0 ${b.r}px ${ink}55${b.id === sel ? `, 0 0 0 2px ${ink}` : ''};` : '';
+      h += `<div class="${cls.join(' ')}" data-id="${b.id}" style="top:${b.s * H}px;height:${b.h * H - 4}px;background:${fill};color:${ink};--ring:${ink};${weight}">
+        <div class="t">${b.t}</div>
+        ${rev && b.tags.length ? `<div class="tags">${b.tags.join(' · ')}</div>` : ''}
+        ${rev ? `<button class="rate ${b.r === null ? 'empty' : ''} ${typeof b.r === 'number' ? '' : 'word'}" data-rate="${b.id}" title="Tap: ✓ → ✓✓ → ✓✓✓ · right-click: skipped / counterproductive">${label(b.r)}</button>` : ''}
+      </div>`;
+    }
+    if (rev) h += `<input class="dayline" data-day="${i}" value="${dayNotes[i]}" placeholder="How was ${d}?">`;
+    h += '</div>';
+  });
+  document.getElementById('board').innerHTML = h;
+
+  const b = blocks.find(x => x.id === sel);
+  const panel = document.getElementById('panel');
+  if (!rev || !b) { panel.innerHTML = ''; }
+  else {
+    panel.innerHTML = `<span style="font-size:13px;color:var(--muted);margin-right:4px">Tags for <b style="color:var(--ink)">${b.t}</b>:</span>` +
+      tagList.map(t => `<button class="chip ${b.tags.includes(t) ? 'on' : ''}" data-tag="${t}">${t}</button>`).join('') +
+      (adding ? `<span class="chip add"><input id="newtag" placeholder="new tag"></span>` : `<button class="chip add" data-add>+ tag</button>`);
+    if (adding) { const i = document.getElementById('newtag'); i.focus(); }
+  }
+  document.getElementById('help').innerHTML = rev
+    ? `<b>Try:</b> tap a block's corner to cycle <b>✓ → ✓✓ → ✓✓✓</b> (and back to unrated). <b>Right-click</b> a block for <i>skipped</i> or <i>counterproductive</i>.
+       Or select a block and use the keyboard: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>, <kbd>−</kbd> counterproductive, <kbd>s</kbd> skipped, <kbd>0</kbd> clear.
+       Unrated blocks are slightly faded; rating is optional. Tags and the "How was…?" line only exist in review mode. The dot marks today.`
+    : `Plan mode: ratings and tags are hidden, and the board works as it does today.`;
+}
+
+function closeMenu() { if (menu) { menu.remove(); menu = null; } }
+
+document.addEventListener('click', e => {
+  closeMenu();
+  if (mode !== 'review') return;
+  const rb = e.target.closest('[data-rate]');
+  if (rb) {
+    const b = blocks.find(x => x.id == rb.dataset.rate);
+    const i = CYCLE.indexOf(b.r);
+    b.r = CYCLE[(i + 1) % CYCLE.length]; // from skipped / counterproductive, a tap starts again at ✓
+    if (i === -1) b.r = 1;
+    sel = b.id; return render();
+  }
+  const bl = e.target.closest('.blk');
+  if (bl) { sel = +bl.dataset.id; return render(); }
+  const chip = e.target.closest('[data-tag]');
+  if (chip) { const b = blocks.find(x => x.id === sel); const t = chip.dataset.tag;
+    b.tags = b.tags.includes(t) ? b.tags.filter(x => x !== t) : [...b.tags, t]; return render(); }
+  if (e.target.closest('[data-add]')) { adding = true; return render(); }
+});
+
+document.addEventListener('contextmenu', e => {
+  const bl = e.target.closest('.blk');
+  if (!bl || mode !== 'review') return;
+  e.preventDefault(); closeMenu();
+  sel = +bl.dataset.id; render();
+  const b = blocks.find(x => x.id === sel);
+  menu = document.createElement('div'); menu.className = 'menu';
+  menu.style.left = e.pageX + 'px'; menu.style.top = e.pageY + 'px';
+  menu.innerHTML = [['skip', 'Skipped: didn’t do it'], ['bad', 'Counterproductive'], [null, 'Clear rating']]
+    .map(([v, l]) => `<button data-v="${v}">${l}</button>`).join('');
+  menu.addEventListener('click', ev => { const v = ev.target.dataset.v; b.r = v === 'null' ? null : v; closeMenu(); render(); ev.stopPropagation(); });
+  document.body.appendChild(menu);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'newtag') {
+    if (e.key === 'Enter') { const v = e.target.value.trim().toLowerCase(); if (v && !tagList.includes(v)) tagList.push(v);
+      const b = blocks.find(x => x.id === sel); if (v && !b.tags.includes(v)) b.tags.push(v); adding = false; render(); }
+    if (e.key === 'Escape') { adding = false; render(); }
+    return;
+  }
+  if (mode !== 'review' || e.target.tagName === 'INPUT') return;
+  const b = blocks.find(x => x.id === sel); if (!b) return;
+  const map = { '1': 1, '2': 2, '3': 3, '-': 'bad', 's': 'skip', '0': null };
+  if (e.key in map) { b.r = map[e.key]; render(); }
+});
+
+document.addEventListener('input', e => { if (e.target.dataset.day != null) dayNotes[+e.target.dataset.day] = e.target.value; });
+
+document.getElementById('mode').addEventListener('click', e => {
+  const x = e.target.closest('button'); if (!x) return;
+  [...x.parentElement.children].forEach(c => c.classList.toggle('on', c === x));
+  mode = x.dataset.v; closeMenu(); render();
+});
+
+render();
+</script>
+</body>
+</html>
