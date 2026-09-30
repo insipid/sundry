@@ -419,3 +419,8 @@ Feasibility only; nothing decided or built.
   now a sparse example week. Day view (Space / double-click a day name).
   Print plan and review together. Script tags versioned. README rewritten.
   Next: archive browsing, an on-screen week in review, phone layout.
+- **2026-09-30:** Header trimmed (right side: sidebar, undo, redo, Print, ⋯);
+  Settings is a dialog in ⋯. Browse finished weeks built (View read-only,
+  Restore, Copy into a new week, Export; Download all). Read-only phone view
+  (portrait day view with swipe, landscape week). Still open: an on-screen
+  week in review.
