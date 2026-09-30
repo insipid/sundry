@@ -366,8 +366,10 @@
   <section id="print-notes"></section>
   <div id="toast"></div>
 
-  <script src="model.js"></script>
-  <script src="share.js"></script>
-  <script src="app.js"></script>
+  <!-- ?v= makes a browser fetch all three fresh after an update, so it never
+       mixes old and new. Bump it whenever any of them changes. -->
+  <script src="model.js?v=1"></script>
+  <script src="share.js?v=1"></script>
+  <script src="app.js?v=1"></script>
 </body>
 </html>
